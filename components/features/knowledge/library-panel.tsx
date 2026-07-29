@@ -1,4 +1,5 @@
-import { Square } from "lucide-react";
+import Link from "next/link";
+import { Network, Square } from "lucide-react";
 import { libraryFolders, libraryTags } from "@/lib/data/library";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +84,24 @@ export function LibraryPanel() {
           </span>
         ))}
       </div>
+
+      <p className="mt-5 px-1 text-xs text-faint">知识图谱</p>
+      <Link
+        href="/knowledge/graph"
+        className="mt-2 flex items-center gap-2.5 rounded-lg bg-panel p-2.5 transition-colors hover:bg-primary-soft"
+      >
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary-soft">
+          <Network className="size-4 text-primary" />
+        </span>
+        <span>
+          <span className="block text-[13px] font-medium text-ink-2">
+            私域知识图谱
+          </span>
+          <span className="text-[11px] text-faint">
+            我的发表 × 收藏论文 · 分层视图 →
+          </span>
+        </span>
+      </Link>
 
     </aside>
   );

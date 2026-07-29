@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AtSign, Highlighter, Plus, StickyNote } from "lucide-react";
+import { AtSign, Highlighter, Network, Plus, StickyNote } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   additionalLinks,
@@ -145,6 +145,28 @@ export function PaperRightPanel() {
                 );
               })}
             </div>
+          </section>
+
+          <section>
+            <h3 className="border-b border-chip pb-2 text-[13px] font-semibold text-ink">
+              知识图谱
+            </h3>
+            <Link
+              href="/papers/rdt-1b/graph"
+              className="mt-2.5 flex items-center gap-3 rounded-lg bg-panel p-3 transition-colors hover:bg-primary-soft"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
+                <Network className="size-4.5 text-primary" />
+              </span>
+              <span>
+                <span className="block text-xs font-medium text-ink-2">
+                  公域引用关系图谱
+                </span>
+                <span className="mt-0.5 block text-[11px] text-faint">
+                  14 篇关联论文 · 圆圈大小 = 关系强度 →
+                </span>
+              </span>
+            </Link>
           </section>
         </TabsContent>
       </Tabs>

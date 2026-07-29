@@ -30,6 +30,8 @@ pnpm lint           # ESLint
 | `/scholars` | 学者画像(检索/排序/关注) | 深知-学者画像页.svg | [app/scholars/page.tsx](app/scholars/page.tsx) |
 | `/scholars/[id]` | 学者详情(引用图表/发表列表) | 深知-学者详情页.svg | [app/scholars/[id]/page.tsx](app/scholars/[id]/page.tsx) |
 | `/knowledge` | 知识库(文献库 + 在读表格) | 深知-知识库页面.svg | [app/knowledge/page.tsx](app/knowledge/page.tsx) |
+| `/papers/[id]/graph` | 公域知识图谱(引用关系三栏页) | 知识图谱样页.png | [app/papers/[id]/graph/page.tsx](app/papers/[id]/graph/page.tsx) |
+| `/knowledge/graph` | 私域知识图谱(发表×收藏分层双色) | 知识图谱样页.png | [app/knowledge/graph/page.tsx](app/knowledge/graph/page.tsx) |
 | `/agents` | AI 研究助手(深度研究对话) | 深知-AI研究助手.svg | [app/agents/page.tsx](app/agents/page.tsx) |
 
 导航联动与 `prototype_v1.html` 热区一致:搜索提交 → `/agents`;论文卡片 → `/papers/[id]`;作者/学者 → `/scholars/[id]`。
@@ -59,9 +61,10 @@ frontend_v1/
 ├── components/
 │   ├── ui/                   # button / card / badge / input / tabs(cva 变体)
 │   ├── layout/               # app-shell / app-sidebar / logo(日/夜双图)/ theme-toggle
-│   └── features/             # search / submit / paper / scholar / knowledge / agent
+│   └── features/             # search / submit / paper / scholar / knowledge / agent / graph
 ├── lib/
-│   ├── data/                 # 原型提取的 mock 数据(papers / venues / scholars / library / agent)
+│   ├── data/                 # 原型提取的 mock 数据(papers / venues / scholars / library / agent / knowledge-graph)
+│   ├── graph-layout.ts       # 图谱确定性布局(同心环 / 双层带)
 │   ├── constants.ts / utils.ts / validations.ts
 ├── hooks/                    # use-debounce
 ├── providers/                # query-provider

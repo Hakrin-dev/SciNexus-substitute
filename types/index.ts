@@ -128,3 +128,38 @@ export interface SimilarPaper {
   title: string;
   meta: string;
 }
+
+/** 知识图谱节点 */
+export interface GraphNode {
+  id: string;
+  /** 圆下两行标签:公域 ["Liu", "2024"],私域 ["扩散策略", "2025"] */
+  labelLines: [string, string];
+  /** 0~1 关系强度 → 圆半径与透明度 */
+  weight: number;
+  year: number;
+  title: string;
+  authors: string;
+  venue: string;
+  citations: string;
+  abstract: string;
+  /** 右栏「查看论文详情」跳转目标(/papers/[paperId]) */
+  paperId?: string;
+  /** 私域分层;公域不设 */
+  layer?: "mine" | "folder";
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  strength: number;
+  /** 私域跨层边(虚线) */
+  crossLayer?: boolean;
+}
+
+export interface PaperGraph {
+  origin: GraphNode;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  /** 左栏列表顺序 */
+  relatedIds: string[];
+}

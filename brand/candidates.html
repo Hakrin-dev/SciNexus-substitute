@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>深知 · 品牌标识候选方案</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #F7F8FC;
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: #0F1419;
+    padding: 48px 56px;
+  }
+  h1 { font-size: 26px; font-weight: 700; }
+  .sub { margin-top: 6px; font-size: 14px; color: #6B7280; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 36px; }
+  .card {
+    background: #fff; border-radius: 20px; padding: 36px 28px 28px;
+    box-shadow: 0 2px 6px rgb(31 41 55 / .05);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .tile { width: 176px; height: 176px; }
+  .name { margin-top: 24px; font-size: 19px; font-weight: 700; }
+  .en { font-size: 12px; color: #9CA3AF; letter-spacing: .08em; margin-top: 2px; }
+  .desc { margin-top: 12px; font-size: 13px; line-height: 1.7; color: #6B7280; text-align: center; min-height: 66px; }
+  .sizes { display: flex; align-items: flex-end; gap: 22px; margin-top: 16px; padding-top: 18px; border-top: 1px solid #F3F4F6; }
+  .sz { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 10px; color: #9CA3AF; }
+  .palette { margin-top: 40px; background: #fff; border-radius: 20px; padding: 32px 36px; box-shadow: 0 2px 6px rgb(31 41 55 / .05); }
+  .palette h2 { font-size: 17px; font-weight: 700; }
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 20px; }
+  .sw { border-radius: 14px; overflow: hidden; border: 1px solid #F3F4F6; }
+  .sw .block { height: 84px; }
+  .sw .info { padding: 10px 14px 12px; }
+  .sw .cn { font-size: 14px; font-weight: 600; }
+  .sw .concept { font-size: 11px; color: #6B7280; margin-top: 2px; }
+  .sw .hex { font-size: 11px; color: #9CA3AF; font-family: ui-monospace, monospace; margin-top: 4px; }
+  .gradbar { margin-top: 22px; height: 56px; border-radius: 14px; position: relative;
+    background: linear-gradient(100deg, #0891B2 0%, #002FA7 52%, #7C3AED 100%); }
+  .gradbar span { position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+    color: #fff; font-size: 12px; opacity: .9; }
+  .tokens { display: flex; gap: 26px; margin-top: 22px; font-size: 12px; color: #6B7280; flex-wrap: wrap; }
+  .tokens code { font-family: ui-monospace, monospace; color: #374151; }
+  .chip { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; }
+  .note { margin-top: 14px; font-size: 12px; color: #9CA3AF; }
+</style>
+</head>
+<body>
+
+<h1>深知 · 品牌标识候选方案</h1>
+<p class="sub">配色推导:知识(深识蓝)· 学术(桂冠金)· 科研(探索青)· 智能(灵犀紫) — 全新主色,替换现有 #5046E5</p>
+
+<div class="grid">
+
+  <!-- 候选 A:深瞳 -->
+  <div class="card">
+    <svg class="tile" viewBox="0 0 96 96">
+      <defs>
+        <linearGradient id="gA" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#0891B2"/><stop offset=".52" stop-color="#002FA7"/><stop offset="1" stop-color="#7C3AED"/>
+        </linearGradient>
+      </defs>
+      <rect width="96" height="96" rx="26" fill="url(#gA)"/>
+      <path d="M20 48 Q48 22 76 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/>
+      <path d="M20 48 Q48 74 76 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/>
+      <circle cx="48" cy="48" r="10" fill="#fff"/>
+      <circle cx="48" cy="48" r="4" fill="#FBBF24"/>
+      <path transform="translate(74 20)" d="M0 -6.5 C1 -2.2 2.2 -1 6.5 0 C2.2 1 1 2.2 0 6.5 C-1 2.2 -2.2 1 -6.5 0 C-2.2 -1 -1 -2.2 0 -6.5 Z" fill="#FBBF24"/>
+    </svg>
+    <div class="name">深瞳</div>
+    <div class="en">DEEP LENS</div>
+    <div class="desc">目之所及,洞察知识深处。瞳孔中的金点是学术之光,星芒是智能闪现 —— "深知"即深察。</div>
+    <div class="sizes">
+      <div class="sz"><svg width="40" height="40" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gA)"/><path d="M20 48 Q48 22 76 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/><path d="M20 48 Q48 74 76 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/><circle cx="48" cy="48" r="10" fill="#fff"/><circle cx="48" cy="48" r="4" fill="#FBBF24"/></svg>40px</div>
+      <div class="sz"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gA)"/><path d="M20 48 Q48 22 76 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/><path d="M20 48 Q48 74 76 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/><circle cx="48" cy="48" r="10" fill="#fff"/><circle cx="48" cy="48" r="4" fill="#FBBF24"/></svg>24px</div>
+      <div class="sz"><svg width="16" height="16" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gA)"/><path d="M20 48 Q48 22 76 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/><path d="M20 48 Q48 74 76 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/><circle cx="48" cy="48" r="10" fill="#fff"/><circle cx="48" cy="48" r="4" fill="#FBBF24"/></svg>16px</div>
+    </div>
+  </div>
+
+  <!-- 候选 B:知·矢口 -->
+  <div class="card">
+    <svg class="tile" viewBox="0 0 96 96">
+      <defs>
+        <linearGradient id="gB" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#0891B2"/><stop offset=".52" stop-color="#002FA7"/><stop offset="1" stop-color="#7C3AED"/>
+        </linearGradient>
+      </defs>
+      <rect width="96" height="96" rx="26" fill="url(#gB)"/>
+      <path d="M26 66 L54 38" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+      <path d="M38 38 H54 V54" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="58" y="14" width="22" height="22" rx="6" fill="#fff"/>
+      <circle cx="69" cy="25" r="4" fill="#FBBF24"/>
+    </svg>
+    <div class="name">知 · 矢口</div>
+    <div class="en">ZHI MONOGRAM</div>
+    <div class="desc">汉字解构:「知」= 矢 + 口。矢如离弦(研究方向、投稿纸飞机),飞入知识之口;口中之金,是洞见与成果。</div>
+    <div class="sizes">
+      <div class="sz"><svg width="40" height="40" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gB)"/><path d="M26 66 L54 38" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/><path d="M38 38 H54 V54" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><rect x="58" y="14" width="22" height="22" rx="6" fill="#fff"/><circle cx="69" cy="25" r="4" fill="#FBBF24"/></svg>40px</div>
+      <div class="sz"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gB)"/><path d="M26 66 L54 38" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/><path d="M38 38 H54 V54" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><rect x="58" y="14" width="22" height="22" rx="6" fill="#fff"/><circle cx="69" cy="25" r="4" fill="#FBBF24"/></svg>24px</div>
+      <div class="sz"><svg width="16" height="16" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gB)"/><path d="M26 66 L54 38" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/><path d="M38 38 H54 V54" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><rect x="58" y="14" width="22" height="22" rx="6" fill="#fff"/><circle cx="69" cy="25" r="4" fill="#FBBF24"/></svg>16px</div>
+    </div>
+  </div>
+
+  <!-- 候选 C:层深 -->
+  <div class="card">
+    <svg class="tile" viewBox="0 0 96 96">
+      <defs>
+        <linearGradient id="gC" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#0891B2"/><stop offset=".52" stop-color="#002FA7"/><stop offset="1" stop-color="#7C3AED"/>
+        </linearGradient>
+      </defs>
+      <rect width="96" height="96" rx="26" fill="url(#gC)"/>
+      <path d="M48 22 L72 35 L48 48 L24 35 Z" fill="#fff"/>
+      <path d="M24 47 L48 60 L72 47" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M24 59 L48 72 L72 59" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/>
+      <path transform="translate(76 16)" d="M0 -6.5 C1 -2.2 2.2 -1 6.5 0 C2.2 1 1 2.2 0 6.5 C-1 2.2 -2.2 1 -6.5 0 C-2.2 -1 -1 -2.2 0 -6.5 Z" fill="#FBBF24"/>
+    </svg>
+    <div class="name">层深</div>
+    <div class="en">DEEP STACK</div>
+    <div class="desc">知识层层累积(论文),模型层层深入(神经网络),拾级而上,顶部金色星芒是涌现的智能。</div>
+    <div class="sizes">
+      <div class="sz"><svg width="40" height="40" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gC)"/><path d="M48 22 L72 35 L48 48 L24 35 Z" fill="#fff"/><path d="M24 47 L48 60 L72 47" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 59 L48 72 L72 59" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/></svg>40px</div>
+      <div class="sz"><svg width="24" height="24" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gC)"/><path d="M48 22 L72 35 L48 48 L24 35 Z" fill="#fff"/><path d="M24 47 L48 60 L72 47" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 59 L48 72 L72 59" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/></svg>24px</div>
+      <div class="sz"><svg width="16" height="16" viewBox="0 0 96 96"><rect width="96" height="96" rx="26" fill="url(#gC)"/><path d="M48 22 L72 35 L48 48 L24 35 Z" fill="#fff"/><path d="M24 47 L48 60 L72 47" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 59 L48 72 L72 59" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/></svg>16px</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 配色板 -->
+<div class="palette">
+  <h2>品牌配色板 · 「深识」体系</h2>
+  <div class="swatches">
+    <div class="sw">
+      <div class="block" style="background:#002FA7"></div>
+      <div class="info"><div class="cn">深识蓝</div><div class="concept">知识 · 主色(克莱因蓝,纯粹深邃)</div><div class="hex">#002FA7</div></div>
+    </div>
+    <div class="sw">
+      <div class="block" style="background:#7C3AED"></div>
+      <div class="info"><div class="cn">灵犀紫</div><div class="concept">智能 · AI 助手 / 智能标记</div><div class="hex">#7C3AED</div></div>
+    </div>
+    <div class="sw">
+      <div class="block" style="background:#0891B2"></div>
+      <div class="info"><div class="cn">探索青</div><div class="concept">科研 · 数据 / 图表 / 进度</div><div class="hex">#0891B2</div></div>
+    </div>
+    <div class="sw">
+      <div class="block" style="background:#D97706"></div>
+      <div class="info"><div class="cn">桂冠金</div><div class="concept">学术 · 徽章 / 荣誉 / 引用成就</div><div class="hex">#D97706</div></div>
+    </div>
+  </div>
+  <div class="gradbar"><span>品牌渐变:探索青 → 深识蓝 → 灵犀紫(桂冠金作点睛)</span></div>
+  <div class="tokens">
+    <span><span class="chip" style="background:#002FA7"></span>primary <code>#002FA7</code></span>
+    <span><span class="chip" style="background:#00258A"></span>primary-hover <code>#00258A</code></span>
+    <span><span class="chip" style="background:#E9EEFB"></span>primary-soft <code>#E9EEFB</code></span>
+    <span><span class="chip" style="background:#0F1419"></span>ink <code>#0F1419</code>(不变)</span>
+    <span><span class="chip" style="background:#F7F8FC;border:1px solid #E5E7EB"></span>background <code>#F7F8FC</code>(不变)</span>
+  </div>
+  <p class="note">令牌映射:仅重定义 --color-primary / primary-soft / ring 色值,组件层零改动;金、紫、青作为语义辅助色按需引入。</p>
+</div>
+
+</body>
+</html>

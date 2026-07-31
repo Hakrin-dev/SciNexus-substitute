@@ -13,6 +13,7 @@
 # misc
 .DS_Store
 Thumbs.db
+desktop.ini
 *.pem
 
 # debug
@@ -23,14 +24,21 @@ pnpm-debug.log*
 
 # env files
 .env*
+!.env.example
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# python(截图验证 / 品牌资产处理脚本)
+# editor / ide
+.vscode/
+.idea/
+*.swp
+
+# python(截图验证 / 品牌资产处理脚本;本地 venv 不入库)
 __pycache__/
 *.py[cod]
+.venv/
 
 # vercel
 .vercel

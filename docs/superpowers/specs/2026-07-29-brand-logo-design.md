@@ -15,12 +15,12 @@
 
 ### 1.2 资产
 
-- 母版:`brand/日间logo.png`(白字黑底)/ `brand/夜间logo.png`(黑字白底),2048×2048
-- 前端(frontend_v1/public/brand/):
+- 母版:`frontend_v1/brand/日间logo.png`(白字黑底)/ `frontend_v1/brand/夜间logo.png`(黑字白底),2048×2048
+- 前端(frontend_v1/brand/,由 logo.tsx 静态导入打包):
   - `logo-day.png` 日间标识(母版直拷)
   - `logo-night.png` 夜间标识(母版直拷)
 - favicon:`frontend_v1/app/icon.png`(日间版 256px,Next.js 约定)
-- 复跑管线:`brand/process_logo.py`(拷贝 + favicon 缩放,仅 Pillow)
+- 复跑管线:`frontend_v1/brand/process_logo.py`(拷贝 + favicon 缩放,仅 Pillow)
 
 ### 1.3 使用规范
 
@@ -63,14 +63,14 @@
 
 ## 四、交付物
 
-1. `frontend_v1/public/brand/logo-day.png` / `logo-night.png` — 日/夜标识(成品直用)
+1. `frontend_v1/brand/logo-day.png` / `logo-night.png` — 日/夜标识(成品直用)
 2. `frontend_v1/app/icon.png` — favicon
 3. `frontend_v1/components/layout/logo.tsx` — 双主题 Logo
 4. `frontend_v1/components/layout/theme-toggle.tsx` — 切换组件(侧边栏 + 移动顶栏)
 5. `frontend_v1/app/layout.tsx` — 首屏主题脚本
 6. `frontend_v1/app/globals.css` — 日间令牌 + `.dark` 夜间令牌
 7. 金色点缀:侧边栏「新」徽章、AI 页 Pro 徽章 / Pro 模式星标
-8. `brand/` 目录:日/夜母版 PNG、process_logo.py、候选稿与验证截图(theme-*-day/night.png)
+8. `frontend_v1/brand/` 目录:日/夜母版 PNG、process_logo.py、候选稿与验证截图(theme-*-day/night.png)
 
 ## 五、验证
 

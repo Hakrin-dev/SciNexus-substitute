@@ -2,7 +2,7 @@
 
 > 深知是面向人工智能领域学术科研的**专业可信知识智能体服务平台**,提供论文检索、投稿筛选,以及用于 Deep Research 与 Auto Research 的知识智能体服务。
 >
-> 本目录是其前端工程:`prototype_v1` SVG 原型的正式 React 实现,**7 个页面已全部完成转换**,并落地了品牌体系与日/夜模式。
+> 本目录是其前端工程:`prototype_v1` SVG 原型的正式 React 实现,**9 个页面已全部完成转换**(7 张 SVG + 2 个知识图谱页),并落地了品牌体系与日/夜模式。
 
 ---
 
@@ -17,6 +17,8 @@ pnpm lint           # ESLint
 ```
 
 打开 http://localhost:3000 。URL 加 `?theme=dark` / `?theme=light` 可强制日/夜模式(用于调试与分享)。
+
+> **Turbopack 恢复说明**:本副本运行于 WSL2,dev/build 均使用 `--turbopack`(见 package.json)。Windows 侧曾因智能应用控制拦截 Turbopack 原生二进制而临时改用 `--webpack`,该问题仅存在于 Windows 环境,当前副本不受影响。
 
 ---
 
@@ -57,7 +59,7 @@ pnpm lint           # ESLint
 
 ```
 frontend_v1/
-├── app/                      # 路由(见上表)+ layout.tsx(主题脚本)+ globals.css(令牌)
+├── app/                      # 路由(见上表)+ layout.tsx(主题脚本)+ globals.css(令牌)+ icon.png(favicon,由 process_logo.py 生成)
 ├── components/
 │   ├── ui/                   # button / card / badge / input / tabs(cva 变体)
 │   ├── layout/               # app-shell / app-sidebar / logo(日/夜双图)/ theme-toggle
@@ -70,15 +72,17 @@ frontend_v1/
 ├── providers/                # query-provider
 ├── stores/                   # user-preferences(zustand persist)
 ├── types/                    # 全局类型
-├── public/brand/             # logo-day.png / logo-night.png(书法成品,直用勿改)
-├── docs/superpowers/specs/   # 品牌设计规范(v4)
+├── brand/                    # 品牌资产:logo-day.png / logo-night.png(书法成品,直用勿改,由 logo.tsx 静态导入)+ 母版日间/夜间logo.png 与管线
+├── demo.html                 # 单文件原型复现(双击即开,引用 ./brand/ 图)
+├── docs/superpowers/         # specs(品牌设计规范 v4)+ plans(知识图谱设计)
 ├── shot_pages.py             # 全页面截图验证(Edge headless)
-└── shot_themes.py            # 日/夜模式对比截图
+├── shot_themes.py            # 日/夜模式对比截图
+└── shot_graph.py             # 知识图谱页日/夜截图
 ```
 
 ## 品牌与设计令牌
 
-- **标识**:用户书法定稿「深知」日/夜双版(白字黑底 / 黑字白底),成品直用;随主题 CSS 切换,无 JS 闪烁。资产管线见 `../brand/process_logo.py`。
+- **标识**:用户书法定稿「深知」日/夜双版(白字黑底 / 黑字白底),成品直用;随主题 CSS 切换,无 JS 闪烁。资产管线见 `brand/process_logo.py`。
 - **配色「深识」体系**:主色深识蓝 `#002FA7`(夜间调浅 `#5B84F1`);辅助灵犀紫 / 探索青 / 桂冠金 `#f3d029`(金底一律配墨字)。
 - **日/夜模式**:`globals.css` 用 `.dark` 块重定义同名令牌,组件零改动;`layout.tsx` 内联脚本首屏定主题(`?theme=` > localStorage `shenzhi-theme` > 系统偏好);切换按钮在侧边栏 Logo 右侧与移动端顶栏。
 - 完整规范:[docs/superpowers/specs/2026-07-29-brand-logo-design.md](docs/superpowers/specs/2026-07-29-brand-logo-design.md)
@@ -122,8 +126,9 @@ URL 状态     useSearchParams  → 搜索关键词、筛选条件、?theme 调�
 
 ```bash
 pnpm build && pnpm start -p 3100   # 先起生产服务(动画页截图更稳定)
-python shot_pages.py               # 7 页全量截图 → %TEMP%
-python shot_themes.py              # 日/夜对比截图 → %TEMP%
+python shot_pages.py               # 全页面截图 → %TEMP%(f_home / f_submit / f_paper / f_scholars / f_scholar_detail / f_knowledge / f_agents)
+python shot_themes.py              # 日/夜对比截图 → %TEMP%(theme-*-day/night.png)
+python shot_graph.py               # 知识图谱日/夜对比截图 → %TEMP%(graph-*-day/night.png)
 ```
 
 依赖本机 Edge headless;截图时机过早可能捕获到 Framer Motion 入场动画半途(伪影,非缺陷),以 SSR HTML 内容为准。
@@ -133,7 +138,7 @@ python shot_themes.py              # 日/夜对比截图 → %TEMP%
 | 维度 | prototype_v0 / v1 | frontend_v1 |
 |------|-------------------|-------------|
 | 定位 | 原型探索 | 工程化前端(当前开发基准) |
-| 页面 | 7 张 SVG + HTML 热区 | 7 路由完整覆盖,热区已转为真实导航 |
+| 页面 | 7 张 SVG + HTML 热区 | 9 路由完整覆盖(7 SVG + 2 图谱页),热区已转为真实导航 |
 | 数据 | 静态 | mock(逐字提取)→ 规划 Server Actions + DB |
 | 状态 | 无 | TanStack Query + Zustand persist + URL state |
 | 主题 | 无 | 日/夜双模式 + 品牌令牌 |

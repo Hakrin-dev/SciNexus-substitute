@@ -1,20 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Settings2, Star, TrendingUp } from "lucide-react";
+import { Flame, Search, Settings2, Star, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { key: "trending", label: "趋势", icon: TrendingUp },
-  { key: "latest", label: "最新" },
-  { key: "ai", label: "AI 订阅", icon: Star },
-  { key: "fav", label: "我的收藏" },
+  { key: "recommend", label: "推荐", icon: Flame },
+  { key: "frontier", label: "前沿", icon: TrendingUp },
+  { key: "follow", label: "关注", icon: Star },
+  { key: "research", label: "研究", icon: Search },
 ];
 
-/** Feed 流标签栏 —— 趋势 / 最新 / AI 订阅 / 我的收藏 */
+/** Feed 流标签栏 —— 推荐 / 前沿 / 关注 / 研究 */
 export function FeedTabs() {
-  const [active, setActive] = useState("trending");
+  const [active, setActive] = useState("recommend");
 
   return (
     <div className="flex items-center gap-5 px-1">

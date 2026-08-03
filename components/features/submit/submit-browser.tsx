@@ -20,8 +20,8 @@ const LEVEL_TO_BADGE: Record<string, string> = {
   中科院1区: "中科院1区",
 };
 
-/** 投稿浏览区 —— 标签切换 + 等级过滤(原型热区 → React 状态驱动) */
-export function SubmitBrowser() {
+/** 投稿浏览区 —— 标签切换 + 等级过滤(原型热区 → React 状态驱动),按会议/期刊分类展示 */
+export function SubmitBrowser({ kind }: { kind: "conference" | "journal" }) {
   const [tab, setTab] = useState(TABS[0]);
   const [levels, setLevels] = useState<string[]>([]);
 
@@ -30,10 +30,11 @@ export function SubmitBrowser() {
       prev.includes(chip) ? prev.filter((c) => c !== chip) : [...prev, chip],
     );
 
+  const base = venues.filter((v) => v.kind === kind);
   const filtered =
     levels.length === 0
-      ? venues
-      : venues.filter((v) =>
+      ? base
+      : base.filter((v) =>
           levels.some((chip) => {
             const badge = LEVEL_TO_BADGE[chip];
             return badge && v.badges.includes(badge as never);
@@ -61,7 +62,7 @@ export function SubmitBrowser() {
           ))}
         </div>
         <span className="text-sm text-faint">
-          {levels.length === 0 ? "517" : filtered.length} 条结果
+          {levels.length === 0 ? base.length : filtered.length} 条结果
         </span>
       </div>
 
@@ -73,7 +74,7 @@ export function SubmitBrowser() {
           ))}
           {filtered.length === 0 && (
             <div className="rounded-2xl bg-card p-12 text-center text-sm text-faint shadow-card">
-              暂无符合筛选条件的会议/期刊
+              暂无符合筛选条件的{kind === "conference" ? "会议" : "期刊"}
             </div>
           )}
         </div>

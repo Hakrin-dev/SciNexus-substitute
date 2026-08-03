@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  ChevronDown,
   Compass,
   History,
   Layers,
@@ -11,9 +13,9 @@ import {
   MoreHorizontal,
   Search,
   Send,
+  Settings,
   Sparkles,
   User,
-  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
@@ -32,16 +34,37 @@ interface NavItem {
 
 const RESEARCH_NAV: NavItem[] = [
   { href: "/", label: "发现", icon: Compass, badge: "新" },
-  { href: "/submit", label: "投稿", icon: Send },
-  { href: "/knowledge", label: "知识库", icon: Library },
-  { href: "/agents", label: "AI 助手", icon: Sparkles },
+];
+
+/** 「投稿」的子栏目:会议即原投稿页面,点击投稿默认打开 */
+const SUBMIT_SUB_NAV = [
+  { href: "/submit", label: "会议" },
+  { href: "/submit/journals", label: "期刊" },
+];
+
+/** 「知识库」的子栏目:论文库即原知识库页面,点击知识库默认打开 */
+const KNOWLEDGE_SUB_NAV = [
+  { href: "/knowledge", label: "论文库" },
+  { href: "/knowledge/patents", label: "专利库" },
+  { href: "/knowledge/funding", label: "项目基金库" },
+  { href: "/knowledge/scholars", label: "学者关系" },
+  { href: "/knowledge/institutions", label: "研究机构" },
+];
+
+/** 「AI 助手」的子栏目;AI 助手本身有独立对话页(/agents),不与子栏目共享 */
+const AGENT_SUB_NAV = [
+  { href: "/agents/deep-research", label: "Deep Research" },
+  { href: "/agents/auto-research", label: "Auto Research" },
+];
+
+const RESEARCH_NAV_AFTER: NavItem[] = [
   { href: "/projects", label: "科研项目", icon: Layers, disabled: true },
 ];
 
-const EXPLORE_NAV: NavItem[] = [
-  { href: "/scholars", label: "研究构想", icon: Users, matchPrefix: "/scholars" },
-  { href: "/qa", label: "问答", icon: MessageSquare, disabled: true },
-  { href: "/history", label: "搜索历史", icon: History, disabled: true },
+const HISTORY_NAV: NavItem[] = [
+  { href: "/history", label: "搜索", icon: History, disabled: true },
+  { href: "/qa", label: "研究", icon: MessageSquare, disabled: true },
+  { href: "/deliveries", label: "投递", icon: Send, disabled: true },
 ];
 
 function NavLink({ item }: { item: NavItem }) {
@@ -90,6 +113,83 @@ function NavLink({ item }: { item: NavItem }) {
   );
 }
 
+/** 可展开导航项 —— 点击主体展开子栏目并进入默认页,右侧箭头只收起/展开 */
+function ExpandableNav({
+  href,
+  label,
+  icon: Icon,
+  subNav,
+}: {
+  href: string;
+  label: string;
+  icon: typeof Compass;
+  subNav: { href: string; label: string }[];
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const routeActive = pathname.startsWith(href);
+  const [open, setOpen] = useState(routeActive);
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "flex h-10 items-center rounded-xl transition-colors",
+          routeActive
+            ? "bg-primary text-white shadow-sm"
+            : "text-ink-2 hover:bg-card",
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(true);
+            router.push(href);
+          }}
+          className="flex h-full min-w-0 flex-1 items-center gap-3 pl-3 text-left"
+        >
+          <Icon className="size-[18px]" strokeWidth={1.8} />
+          <span className="flex-1 text-[15px] font-medium">{label}</span>
+        </button>
+        <button
+          type="button"
+          aria-label={open ? `收起${label}子栏目` : `展开${label}子栏目`}
+          title={open ? "收起" : "展开"}
+          onClick={() => setOpen((v) => !v)}
+          className="mr-2 rounded-md p-1.5 hover:bg-white/15"
+        >
+          <ChevronDown
+            className={cn("size-4 transition-transform", !open && "-rotate-90")}
+          />
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-0.5 flex flex-col gap-0.5 pl-6">
+          {subNav.map((sub) => {
+            const active = pathname === sub.href;
+            return (
+              <Link
+                key={sub.href}
+                href={sub.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
+                  active
+                    ? "bg-card font-semibold text-primary shadow-sm"
+                    : "text-muted hover:bg-card hover:text-ink-2",
+                )}
+              >
+                {sub.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** 全局侧边栏 —— 对应 SVG 原型 240px 左侧栏(背景 #EEF1F8) */
 export function AppSidebar() {
   return (
@@ -118,16 +218,44 @@ export function AppSidebar() {
         {RESEARCH_NAV.map((item) => (
           <NavLink key={item.label} item={item} />
         ))}
+        <ExpandableNav
+          href="/agents"
+          label="AI 助手"
+          icon={Sparkles}
+          subNav={AGENT_SUB_NAV}
+        />
+        <ExpandableNav
+          href="/knowledge"
+          label="知识库"
+          icon={Library}
+          subNav={KNOWLEDGE_SUB_NAV}
+        />
+        {RESEARCH_NAV_AFTER.map((item) => (
+          <NavLink key={item.label} item={item} />
+        ))}
+        <ExpandableNav
+          href="/submit"
+          label="投稿"
+          icon={Send}
+          subNav={SUBMIT_SUB_NAV}
+        />
         <p className="px-3 pb-1.5 pt-4 text-[11px] font-medium tracking-wide text-faint">
-          探索
+          历史
         </p>
-        {EXPLORE_NAV.map((item) => (
+        {HISTORY_NAV.map((item) => (
           <NavLink key={item.label} item={item} />
         ))}
       </nav>
 
+      {/* 设置 */}
+      <div className="mt-4">
+        <NavLink
+          item={{ href: "/settings", label: "设置", icon: Settings, disabled: true }}
+        />
+      </div>
+
       {/* 用户卡片 */}
-      <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-card p-2.5 shadow-card">
+      <div className="mt-2 flex items-center gap-2.5 rounded-xl bg-card p-2.5 shadow-card">
         <span className="flex size-9 items-center justify-center rounded-full bg-primary-soft">
           <User className="size-4.5 text-primary" />
         </span>
@@ -147,6 +275,11 @@ export function AppSidebar() {
           <MoreHorizontal className="size-4" />
         </button>
       </div>
+
+      {/* 联系我们 */}
+      <p className="mt-3 text-center text-[10px] leading-none text-faint">
+        联系我们
+      </p>
     </aside>
   );
 }

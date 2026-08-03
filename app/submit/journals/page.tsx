@@ -1,12 +1,12 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { SubmitBrowser } from "@/components/features/submit/submit-browser";
 
-/** 投稿 · 会议 `/submit` —— 对应「深知-投稿详情页.svg」,点击侧边栏「投稿」默认打开 */
-export default function SubmitPage() {
+/** 投稿 · 期刊 `/submit/journals` */
+export default function SubmitJournalsPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-[1180px] px-8 py-6">
-        <SubmitBrowser kind="conference" />
+        <SubmitBrowser kind="journal" />
       </div>
     </AppShell>
   );

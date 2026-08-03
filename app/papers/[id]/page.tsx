@@ -1,7 +1,7 @@
 import { PaperTopbar } from "@/components/features/paper/paper-topbar";
-import { PaperToc } from "@/components/features/paper/paper-toc";
-import { PageThumbnails } from "@/components/features/paper/page-thumbnails";
+import { PaperLeftSidebar } from "@/components/features/paper/paper-left-sidebar";
 import { PaperRightPanel } from "@/components/features/paper/right-panel";
+import { PaperZoom } from "@/components/features/paper/paper-zoom";
 import { paperDetail } from "@/lib/data/paper-detail";
 
 /**
@@ -22,12 +22,16 @@ export default async function PaperDetailPage({
       <PaperTopbar paperId={paper.id} title={paper.title} likes={paper.likes} />
 
       <div className="flex min-h-0 flex-1">
-        <PaperToc toc={paper.toc} />
-        <PageThumbnails current={paper.page.current} total={paper.page.total} />
+        <PaperLeftSidebar
+          toc={paper.toc}
+          current={paper.page.current}
+          total={paper.page.total}
+        />
 
-        {/* 正文 */}
+        {/* 正文:整页等比缩放,宽度随侧栏展开/收起填满可用空间 */}
         <main className="min-w-0 flex-1 overflow-y-auto px-8 py-8">
-          <article className="mx-auto max-w-[720px] rounded-2xl bg-card p-10 shadow-card">
+          <PaperZoom>
+            <article className="rounded-2xl bg-card p-10 shadow-card">
             <h1 className="text-center text-[22px] font-bold leading-snug text-ink">
               {paper.title}
             </h1>
@@ -63,7 +67,8 @@ export default async function PaperDetailPage({
               </figcaption>
               <div className="h-72 rounded-xl bg-panel" />
             </figure>
-          </article>
+            </article>
+          </PaperZoom>
         </main>
 
         <PaperRightPanel />

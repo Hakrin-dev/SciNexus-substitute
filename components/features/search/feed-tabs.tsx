@@ -17,7 +17,7 @@ export function FeedTabs() {
   const [active, setActive] = useState("recommend");
 
   return (
-    <div className="flex items-center gap-5 px-1">
+    <div className="flex items-center gap-8 px-1">
       {TABS.map((tab) => {
         const Icon = tab.icon;
         return (

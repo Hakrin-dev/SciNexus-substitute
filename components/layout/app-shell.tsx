@@ -1,13 +1,20 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { AppSidebar } from "./app-sidebar";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
+import { useSidebarStore } from "@/stores/sidebar";
+import { cn } from "@/lib/utils";
 
 /**
  * 应用外壳 —— 固定左侧栏 + 内容区
  * (论文阅读器等沉浸式页面不使用此布局)
+ * 侧边栏折叠时内容区位置自适应左移,内部布局不变
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  const collapsed = useSidebarStore((s) => s.collapsed);
+
   return (
     <div className="min-h-screen bg-background">
       <AppSidebar />
@@ -16,7 +23,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Logo />
         <ThemeToggle className="ml-auto" />
       </header>
-      <main className="lg:pl-60">{children}</main>
+      <main
+        className={cn(
+          "transition-[padding] duration-200",
+          collapsed ? "lg:pl-16" : "lg:pl-60",
+        )}
+      >
+        {children}
+      </main>
     </div>
   );
 }

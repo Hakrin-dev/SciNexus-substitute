@@ -67,14 +67,11 @@ free -h                   # Swap 2.0G ✅
 
 ---
 
-## 四、ECS 上的部署目录(首次手动准备一次)
+## 四、ECS 上的部署目录
 
-```bash
-mkdir -p /opt/shenzhi && cd /opt/shenzhi
-nano docker-compose.yml   # 粘贴下方内容
-```
+> **2026-08-05 起:无需手动放置 compose 文件。** GitHub Actions 的部署脚本会在每次部署时自动把下方内容写入 `/opt/shenzhi/docker-compose.yml`(仓库为唯一事实来源,ECS 上的旧 ACR 版文件会被自动覆盖)。
 
-`docker-compose.yml`(与仓库根目录一致):
+`docker-compose.yml`(与仓库根目录一致,由 CI 自动同步):
 
 ```yaml
 services:
@@ -92,9 +89,7 @@ services:
 ```
 
 > 注意:
-> 1. 该文件必须位于 `/opt/shenzhi/docker-compose.yml`,因为 GitHub Actions 部署脚本会 `cd /opt/shenzhi` 后执行 `docker compose pull/up`。
-> 2. 镜像必须已在 GitHub Packages 设为 Public,否则 ECS 拉取会报 `denied`/`not found`。
-> 3. 如果之前 ECS 上用的是 ACR 的旧 compose 文件,务必更新为上述内容(镜像地址已改为 ghcr.io)。
+> 1. 镜像必须已在 GitHub Packages 设为 Public,否则 ECS 拉取会报 `denied`/`not found`(见第六节)。
 
 ---
 

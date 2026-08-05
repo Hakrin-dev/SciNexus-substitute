@@ -15,6 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 必须显式安装 Buildx:默认 docker builder 不支持 type=gha 缓存后端
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -33,6 +37,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # 镜像设为 Public 前的安全关卡:扫描高危漏洞 + 敏感信息残留
+      # 结果输出到 Step Summary,不阻断部署(是否公开由人工审阅扫描结果后决定)
+      - name: Scan image (vulns + secrets)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/hakrin-dev/shenzhi-frontend:${{ github.sha }}
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '0'
+
       - name: Deploy on ECS
         uses: appleboy/ssh-action@v1
         with:
@@ -40,6 +55,22 @@ jobs:
           username: root
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
+            mkdir -p /opt/shenzhi
+            # 每次部署同步最新 compose 文件,仓库为唯一事实来源
+            cat > /opt/shenzhi/docker-compose.yml <<'COMPOSE'
+            services:
+              web:
+                image: ghcr.io/hakrin-dev/shenzhi-frontend:latest
+                ports:
+                  - "80:3000"
+                restart: unless-stopped
+                healthcheck:
+                  test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+                  interval: 30s
+                  timeout: 5s
+                  retries: 3
+                  start_period: 15s
+            COMPOSE
             cd /opt/shenzhi
             docker compose pull
             docker compose up -d --wait

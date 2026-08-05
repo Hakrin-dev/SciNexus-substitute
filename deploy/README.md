@@ -1,7 +1,7 @@
 # 深知 ShenZhi · 部署文档
 
 > 架构:Docker Compose + GitHub Actions 自动构建部署到阿里云香港 ECS。
-> 镜像仓库:阿里云 ACR 个人版(香港地域)。
+> 镜像仓库:GitHub Container Registry(ghcr.io)。
 
 ---
 
@@ -11,7 +11,7 @@
 GitHub push (main)
    │
    ▼
-GitHub Actions ──build 镜像──▶ ACR 香港 (registry.cn-hongkong...)
+GitHub Actions ──build 镜像──▶ GHCR (ghcr.io/hakrin-dev/shenzhi-frontend)
    │                               │
    └──── ssh ──▶ ECS ──docker compose pull──▶ 拉最新镜像并重启
                                         │
@@ -22,7 +22,7 @@ GitHub Actions ──build 镜像──▶ ACR 香港 (registry.cn-hongkong...)
 | 组件 | 说明 |
 |---|---|
 | `web` | Next.js standalone server,监听 3000,compose 映射到宿主机 80 |
-| ACR | 镜像存储(香港,命名空间 `hkr-shenzhi`,仓库 `shenzhi-frontend`) |
+| GHCR | GitHub Container Registry,公有镜像免费无限量 |
 | GitHub Actions | push 到 main 自动:构建 → 推镜像 → ssh 部署 |
 
 ---
@@ -41,9 +41,10 @@ docker compose version    # Compose v5.4.0 ✅
 free -h                   # Swap 2.0G ✅
 ```
 
-### 2.3 ACR
-- 个人版(香港),用户名 `hakrin`,命名空间 `hkr-shenzhi`,仓库 `shenzhi-frontend`(私有)
-- ECS 已 `docker login`(公网域名)✅
+### 2.3 镜像仓库:GHCR(GitHub Container Registry)
+- 镜像地址:`ghcr.io/hakrin-dev/shenzhi-frontend`
+- 由 GitHub Actions 自动构建推送(GITHUB_TOKEN 免密),无需手动登录
+- 仓库为公有,镜像默认私有 → **首次推送后需在 GitHub Packages 将镜像设为 Public**(见第六节)
 
 ### 2.4 SSH 密钥
 - 本地 `~/.ssh/shenzhi_ecs`(私钥)+ `shenzhi_ecs.pub`(公钥已放到 ECS)
@@ -57,12 +58,12 @@ free -h                   # Swap 2.0G ✅
 
 | Secret | 值 |
 |---|---|
-| `ACR_USERNAME` | `hakrin` |
-| `ACR_PASSWORD` | ACR Registry 登录密码(非阿里云账号密码) |
 | `ECS_HOST` | `47.238.241.77` |
 | `ECS_SSH_KEY` | 本地 `~/.ssh/shenzhi_ecs` 私钥**全部内容**(含 BEGIN/END 行) |
 
 > 私钥查看:`cat ~/.ssh/shenzhi_ecs`(本地执行)。
+> 
+> **注意:GITHUB_TOKEN 由 GitHub 自动注入,无需配置;旧的 `ACR_USERNAME`/`ACR_PASSWORD` 两个 Secret 已不再需要,可在 Settings 中删除。**
 
 ---
 
@@ -78,7 +79,7 @@ nano docker-compose.yml   # 粘贴下方内容
 ```yaml
 services:
   web:
-    image: registry.cn-hongkong.personal.cr.aliyuncs.com/hkr-shenzhi/shenzhi-frontend:latest
+    image: ghcr.io/hakrin-dev/shenzhi-frontend:latest
     ports:
       - "80:3000"
     restart: unless-stopped
@@ -90,7 +91,10 @@ services:
       start_period: 15s
 ```
 
-> 注意:该文件必须位于 `/opt/shenzhi/docker-compose.yml`,因为 GitHub Actions 部署脚本会 `cd /opt/shenzhi` 后执行 `docker compose pull/up`。
+> 注意:
+> 1. 该文件必须位于 `/opt/shenzhi/docker-compose.yml`,因为 GitHub Actions 部署脚本会 `cd /opt/shenzhi` 后执行 `docker compose pull/up`。
+> 2. 镜像必须已在 GitHub Packages 设为 Public,否则 ECS 拉取会报 `denied`/`not found`。
+> 3. 如果之前 ECS 上用的是 ACR 的旧 compose 文件,务必更新为上述内容(镜像地址已改为 ghcr.io)。
 
 ---
 
@@ -100,11 +104,11 @@ services:
 ```bash
 git add -A && git commit -m "changes" && git push origin main
 ```
-GitHub Actions 自动:构建 → 推 ACR → ssh 部署,约 2~3 分钟线上生效。
+GitHub Actions 自动:构建 → 推 GHCR → ssh 部署,约 2~3 分钟线上生效。
 
 ### 5.2 查看部署状态
 - GitHub 仓库 → **Actions** 标签页 → 最新 workflow 是否绿
-- ACR 控制台 → 镜像仓库 → `shenzhi-frontend` → 是否出现新 tag(`latest` + sha)
+- GitHub → 你的头像 → **Packages** → `shenzhi-frontend` → 是否出现新 tag(`latest` + sha)
 
 ### 5.3 ECS 端检查
 ```bash
@@ -117,19 +121,25 @@ curl -I http://127.0.0.1/                                  # 本地验证 200
 ### 5.4 回滚到上一个版本
 ```bash
 cd /opt/shenzhi
-docker compose up -d --no-deps web registry.cn-hongkong.personal.cr.aliyuncs.com/hkr-shenzhi/shenzhi-frontend:<旧sha>
+docker compose up -d --no-deps web ghcr.io/hakrin-dev/shenzhi-frontend:<旧sha>
 ```
 
 ---
 
 ## 六、后续扩展(规划中)
 
-### 6.1 接入真实后端 + 数据库
+### 6.1 将 GHCR 镜像设为 Public(首次推送后必须做一次)
+1. GitHub → 右上角头像 → **Settings → Packages**,或直接访问 `https://github.com/users/Hakrin-dev/packages/container/package/shenzhi-frontend`
+2. 点页面右侧 **Package settings**(或 Change visibility)
+3. 选 **Public** → 确认 `shenzhi-frontend` 为 public
+4. 之后 ECS 无需登录即可 `docker pull ghcr.io/hakrin-dev/shenzhi-frontend:latest`
+
+### 6.2 接入真实后端 + 数据库
 在 `docker-compose.yml` 追加 service:
 
 ```yaml
   api:
-    image: registry.cn-hongkong.personal.cr.aliyuncs.com/hkr-shenzhi/shenzhi-api:latest
+    image: ghcr.io/hakrin-dev/shenzhi-api:latest
     ports:
       - "8080:8080"
     env_file: .env
@@ -153,7 +163,7 @@ volumes:
 ```
 前端通过 `NEXT_PUBLIC_API_URL` 指向 api 服务。
 
-### 6.2 HTTPS + 域名
+### 6.3 HTTPS + 域名
 - 香港 ECS 绑域名免备案
 - 加 nginx/caddy service 到 compose,443 已在安全组放行
 
@@ -163,8 +173,9 @@ volumes:
 
 | 问题 | 处理 |
 |---|---|
-| Actions 失败,Login to ACR 报错 | 检查 `ACR_USERNAME`/`ACR_PASSWORD` 是否与 `docker login` 一致 |
+| Actions 失败,Login to GHCR 报错 | 检查 workflow 是否有 `permissions: packages: write`;GITHUB_TOKEN 由系统自动注入无需配置 |
 | Actions 失败,Deploy on ECS 超时 | 检查 `ECS_HOST`/`ECS_SSH_KEY`;安全组 22 是否放行 |
+| ECS `docker compose pull` 报 denied/not found | 镜像尚未设为 Public → 见 6.1 节;或 ECS 上 compose 文件还是旧 ACR 地址 |
 | 构建失败 Module not found brand/... | 确认 `.dockerignore` **没有排除** `brand/logo-day.png` 与 `brand/logo-night.png` |
 | `docker compose up -d --wait` 卡住 | 首次拉镜像慢;或健康检查失败,看 `docker compose ps` 和日志 |
 | 访问 http://IP 打不开 | 安全组 80 是否放行;`docker compose ps` 是否 healthy;`curl -I http://127.0.0.1/` 是否 200 |

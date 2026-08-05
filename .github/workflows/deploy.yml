@@ -44,18 +44,3 @@ jobs:
             docker compose pull
             docker compose up -d --wait
             docker image prune -f
-<task_progress>
-- [x] 探索项目 + 方案设计 + 确认所有配置信息
-- [x] 落地所有部署文件(初版 ACR 方案)
-- [x] 协助解决 SSH 登录 + Docker 安装 + ACR 登录
-- [x] 引导用户在 ECS 创建 /opt/shenzhi + 放置 docker-compose.yml
-- [x] 引导用户配置 GitHub Secrets
-- [x] 首次 push 触发部署 → 发现 ACR 域名在 GHA 美国 runner 上 DNS 解析失败
-- [ ] 改用 GHCR:更新 deploy.yml
-- [ ] 改用 GHCR:更新 docker-compose.yml
-- [ ] 改用 GHCR:更新 deploy/README.md
-- [ ] 提交推送,触发首次 GHCR 部署
-- [ ] 引导用户:GitHub Packages 设镜像为 Public + ECS 更新 compose 文件
-- [ ] 验证 http://47.238.241.77 可访问
-</task_progress>
-</write_to_file>

@@ -40,7 +40,7 @@ jobs:
       # 镜像设为 Public 前的安全关卡:扫描高危漏洞 + 敏感信息残留
       # 结果输出到 Step Summary,不阻断部署(是否公开由人工审阅扫描结果后决定)
       - name: Scan image (vulns + secrets)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/hakrin-dev/shenzhi-frontend:${{ github.sha }}
           scanners: vuln,secret

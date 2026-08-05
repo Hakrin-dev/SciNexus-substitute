@@ -1,0 +1,15 @@
+# 放在 ECS 的 /opt/shenzhi/ 下使用
+# 使用公网域名（本机实测 registry-vpc 域名 DNS 解析失败；后续若想走内网可改回
+# registry-vpc.cn-hongkong.personal.cr.aliyuncs.com 并在 ECS 上用内网 ECS 关联）
+services:
+  web:
+    image: registry.cn-hongkong.personal.cr.aliyuncs.com/hkr-shenzhi/shenzhi-frontend:latest
+    ports:
+      - "80:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

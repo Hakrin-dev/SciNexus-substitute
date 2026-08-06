@@ -16,6 +16,9 @@ RUN pnpm build
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# Docker 会把 HOSTNAME 设为容器 ID,Next standalone 会据此只绑定 eth0,
+# 导致容器内 127.0.0.1 健康检查 connection refused;显式绑 0.0.0.0
+ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 # public/ 目前为空；后续添加静态资源时取消下一行注释

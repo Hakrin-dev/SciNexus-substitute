@@ -22,6 +22,27 @@ pnpm lint           # ESLint
 
 ---
 
+## 部署(已上线 ✅)
+
+**线上地址:http://47.238.241.77**(阿里云香港 ECS,免备案)
+
+```
+git push origin main
+   │
+   ▼
+GitHub Actions:docker build → 推 GHCR(私有)→ Trivy 安全扫描 → SSH 到 ECS 部署
+   │
+   ▼
+ECS:/opt/shenzhi, docker compose(80 → web:3000),约 1~3 分钟自动上线
+```
+
+- **日常迭代 = `git push`**,无需其他操作;Actions 页面可看每次部署状态
+- 镜像:`ghcr.io/hakrin-dev/shenzhi-frontend`(私有,ECS 凭 GHCR_PAT 拉取)
+- Dockerfile 多阶段 + `output: 'standalone'`,镜像 ~150MB;构建在 CI 完成,ECS 只拉取运行
+- 完整运维文档(Secrets 配置、回滚、扩展后端/数据库):[deploy/README.md](deploy/README.md)
+
+---
+
 ## 页面路由(已实现 ✅)
 
 | 路由 | 页面 | 对应原型 | 实现位置 |
@@ -73,6 +94,11 @@ frontend_v1/
 ├── stores/                   # user-preferences(zustand persist)
 ├── types/                    # 全局类型
 ├── brand/                    # 品牌资产:logo-day.png / logo-night.png(书法成品,直用勿改,由 logo.tsx 静态导入)+ 母版日间/夜间logo.png 与管线
+├── Dockerfile                # 多阶段构建(node:22-alpine,standalone 产物;apk/pnpm 走国内镜像站,本地可构建)
+├── docker-compose.yml        # ECS 部署用(CI 每次自动同步到 /opt/shenzhi)
+├── .github/workflows/        # deploy.yml:push → 构建 → 推 GHCR → Trivy 扫描 → SSH 部署
+├── deploy/README.md          # 部署运维文档
+├── .env.example              # 环境变量占位(接后端时填 NEXT_PUBLIC_API_URL 等)
 ├── demo.html                 # 单文件原型复现(双击即开,引用 ./brand/ 图)
 ├── docs/superpowers/         # specs(品牌设计规范 v4)+ plans(知识图谱设计)
 ├── shot_pages.py             # 全页面截图验证(Edge headless)

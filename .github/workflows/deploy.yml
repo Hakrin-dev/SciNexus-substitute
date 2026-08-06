@@ -56,6 +56,8 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
             mkdir -p /opt/shenzhi
+            # 镜像为私有,部署前先用 PAT 登录 GHCR(凭证存于 GitHub Secrets)
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u Hakrin-dev --password-stdin
             # 每次部署同步最新 compose 文件,仓库为唯一事实来源
             cat > /opt/shenzhi/docker-compose.yml <<'COMPOSE'
             services:

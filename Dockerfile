@@ -2,8 +2,11 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 # sharp 无预编译包时的源码编译兜底（pnpm-workspace.yaml 已 allowBuilds: sharp）
-RUN apk add --no-cache python3 make g++ build-base
-RUN corepack enable && corepack prepare pnpm@11.18.0 --activate
+# dl-cdn.alpinelinux.org 在本网络下连接会静默冻结，改用阿里云镜像
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \
+    && apk add --no-cache python3 make g++ build-base
+RUN corepack enable && corepack prepare pnpm@11.18.0 --activate \
+    && pnpm config set registry https://registry.npmmirror.com
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .

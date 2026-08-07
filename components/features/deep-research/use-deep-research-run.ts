@@ -27,9 +27,17 @@ export interface DeepResearchRun {
  * 节状态派生:某节 write 事件出现 → 生成中;
  * 更靠后的节已开始、或运行结束 → 已生成;否则待生成。
  */
-function deriveSectionState(visible: DRStepEvent[], done: boolean) {
+function deriveSectionState(
+  visible: DRStepEvent[],
+  done: boolean,
+): Record<string, DRSectionState> {
   const started = new Set(
-    visible.filter((e) => e.kind === "write").map((e) => e.sectionId),
+    visible
+      .filter(
+        (e): e is DRStepEvent & { sectionId: string } =>
+          e.kind === "write" && !!e.sectionId,
+      )
+      .map((e) => e.sectionId),
   );
   const state: Record<string, DRSectionState> = {};
   drPlan.forEach((sec, i) => {

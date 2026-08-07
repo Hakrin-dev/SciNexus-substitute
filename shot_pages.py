@@ -14,12 +14,14 @@ pages = [
     ('/agents', 'f_agents.png', 1440, 1500),
     ('/agents/deep-search?q=diffusion', 'f_deep_search.png', 1440, 1650),
     ('/agents/deep-research', 'f_dr_home.png', 1440, 1250),
-    ('/agents/deep-research?autostart=1', 'f_dr_running.png', 1440, 1500),
+    ('/agents/deep-research?autostart=1', 'f_dr_running.png', 1440, 1500, 7500),
     ('/agents/deep-research?mode=instant', 'f_dr_report.png', 1440, 2400),
 ]
-for path, out, w, h in pages:
+for p in pages:
+    path, out, w, h = p[:4]
+    budget = p[4] if len(p) > 4 else 6000
     r = subprocess.run([edge, '--headless', '--disable-gpu', f'--window-size={w},{h}',
-                        '--hide-scrollbars', '--virtual-time-budget=6000',
+                        '--hide-scrollbars', f'--virtual-time-budget={budget}',
                         '--screenshot=' + os.path.join(tmp, out), base + path],
                        capture_output=True, text=True)
     lines = (r.stderr or '').strip().splitlines()

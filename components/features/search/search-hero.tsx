@@ -28,8 +28,8 @@ export function SearchHero() {
   });
 
   const onSubmit = handleSubmit(({ query }) => {
-    // 深度搜索 → Deep Research 页(对应 prototype_v1.html 的热区跳转)
-    router.push(`/agents/deep-research?q=${encodeURIComponent(query)}`);
+    // 深度搜索 → 深度搜索结果页(由旧 Deep Research 页迁移而来)
+    router.push(`/agents/deep-search?q=${encodeURIComponent(query)}`);
   });
 
   return (

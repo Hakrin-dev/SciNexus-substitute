@@ -9,8 +9,8 @@ import { ChatInput } from "@/components/features/agent/chat-input";
 import { agentSession } from "@/lib/data/agent";
 
 /**
- * Deep Research 页 `/agents/deep-research` —— 对应「深知-AI研究助手.svg」,
- * 即发现页「深度搜索」跳转的目标页
+ * 深度搜索结果页 `/agents/deep-search` —— 对应「深知-AI研究助手.svg」,
+ * 发现页「深度搜索」按钮的跳转目标(由 /agents/deep-research 迁移而来)
  */
 export default function DeepResearchPage() {
   return (

@@ -11,6 +11,8 @@ shots = [
     ('/agents?theme=dark', 'theme-agents-night.png'),
     ('/scholars?theme=dark', 'theme-scholars-night.png'),
     ('/submit?theme=dark', 'theme-submit-night.png'),
+    ('/agents/deep-research?theme=dark', 'theme-dr-home-night.png'),
+    ('/agents/deep-research?mode=instant&theme=dark', 'theme-dr-report-night.png'),
 ]
 for path, out in shots:
     r = subprocess.run([edge, '--headless', '--disable-gpu', '--window-size=1440,1500',

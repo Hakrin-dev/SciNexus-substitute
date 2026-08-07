@@ -12,6 +12,10 @@ pages = [
     ('/scholars/kaiming-he', 'f_scholar_detail.png', 1440, 1500),
     ('/knowledge', 'f_knowledge.png', 1440, 900),
     ('/agents', 'f_agents.png', 1440, 1500),
+    ('/agents/deep-search?q=diffusion', 'f_deep_search.png', 1440, 1650),
+    ('/agents/deep-research', 'f_dr_home.png', 1440, 1250),
+    ('/agents/deep-research?autostart=1', 'f_dr_running.png', 1440, 1500),
+    ('/agents/deep-research?mode=instant', 'f_dr_report.png', 1440, 2400),
 ]
 for path, out, w, h in pages:
     r = subprocess.run([edge, '--headless', '--disable-gpu', f'--window-size={w},{h}',

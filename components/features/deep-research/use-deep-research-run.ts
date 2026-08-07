@@ -51,39 +51,26 @@ function deriveSectionState(
   return state;
 }
 
-const TOTAL_TICKS = Math.ceil(DR_RUN_TOTAL_MS / 100);
-
 /**
  * Deep Research 运行播放器 —— 确定性预录事件流(无随机)
  * instant=true 直接落在完成态(历史记录 / headless 截图用),
  * 否则以 100ms tick 推进;组件卸载自动清理 interval。
- * 使用 tick 计数代替 performance.now,使 headless 截图的 virtual-time-budget
- * 能真正快进进度。
  * 配合 key 重挂载实现「返回后再次开始 → 从头播放」。
  */
-export function useDeepResearchRun(
-  instant: boolean,
-  initialElapsedMs = 0,
-): DeepResearchRun {
-  const initialTicks = instant
-    ? TOTAL_TICKS
-    : Math.min(
-        Math.max(0, Math.ceil(initialElapsedMs / 100)),
-        TOTAL_TICKS,
-      );
-  const [ticks, setTicks] = useState(() => initialTicks);
+export function useDeepResearchRun(instant: boolean): DeepResearchRun {
+  const [elapsedMs, setElapsedMs] = useState(() =>
+    instant ? DR_RUN_TOTAL_MS : 0,
+  );
 
   useEffect(() => {
     if (instant) return;
-    // 在 headless 截图环境下保持当前进度,避免 virtual-time 推进到完成态
-    if (typeof navigator !== "undefined" && navigator.webdriver) return;
+    const t0 = performance.now();
     const iv = window.setInterval(() => {
-      setTicks((t) => Math.min(t + 1, TOTAL_TICKS));
+      setElapsedMs(Math.min(performance.now() - t0, DR_RUN_TOTAL_MS));
     }, 100);
     return () => window.clearInterval(iv);
   }, [instant]);
 
-  const elapsedMs = ticks * 100;
   const done = elapsedMs >= DR_RUN_TOTAL_MS;
   const visibleEvents = useMemo(
     () => drEvents.filter((e) => e.offsetMs <= elapsedMs),

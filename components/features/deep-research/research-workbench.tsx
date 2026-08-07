@@ -27,15 +27,13 @@ function fmtElapsed(ms: number) {
 export function ResearchWorkbench({
   question,
   instant,
-  initialElapsedMs,
   onBack,
 }: {
   question: string;
   instant: boolean;
-  initialElapsedMs?: number;
   onBack: () => void;
 }) {
-  const run = useDeepResearchRun(instant, initialElapsedMs);
+  const run = useDeepResearchRun(instant);
   const [collapsed, setCollapsed] = useState(false);
 
   return (

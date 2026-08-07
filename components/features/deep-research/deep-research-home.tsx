@@ -30,7 +30,7 @@ export function DeepResearchHome({
     <div className="mx-auto max-w-[760px] px-6 pb-16 pt-14">
       {/* Hero */}
       <div className="text-center">
-        <span className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-primary">
+        <span aria-hidden="true" className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-primary">
           <Sparkles className="size-5 text-white" />
         </span>
         <h1 className="mt-4 text-2xl font-bold text-ink">Deep Research</h1>
@@ -101,9 +101,9 @@ export function DeepResearchHome({
             className="cursor-pointer rounded-2xl bg-card p-4 text-left shadow-card transition-shadow hover:shadow-pop"
           >
             <div className="flex items-center gap-2">
-              <p className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">
+              <span className="block min-w-0 flex-1 truncate text-[14px] font-medium text-ink">
                 {item.title}
-              </p>
+              </span>
               <span
                 className={cn(
                   "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
@@ -115,9 +115,9 @@ export function DeepResearchHome({
                 {item.status}
               </span>
             </div>
-            <p className="mt-1.5 text-[11px] text-faint">
+            <span className="mt-1.5 block text-[11px] text-faint">
               {item.sources} 来源 · {item.time}
-            </p>
+            </span>
           </button>
         ))}
       </div>

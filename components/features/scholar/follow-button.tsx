@@ -24,7 +24,7 @@ export function FollowButton({
       size="sm"
       onClick={(e) => {
         e.stopPropagation();
-        toggleFollow(scholarId);
+        toggleFollow(scholarId, defaultFollowing);
       }}
       className={cn("rounded-full px-3.5", className)}
     >

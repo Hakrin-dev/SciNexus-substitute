@@ -42,9 +42,9 @@ const SUBMIT_SUB_NAV = [
   { href: "/submit/journals", label: "期刊" },
 ];
 
-/** 「知识库」的子栏目:论文库即原知识库页面,点击知识库默认打开 */
+/** 「知识库」的子栏目 */
 const KNOWLEDGE_SUB_NAV = [
-  { href: "/knowledge", label: "论文库" },
+  { href: "/knowledge/papers", label: "论文库" },
   { href: "/knowledge/patents", label: "专利库" },
   { href: "/knowledge/funding", label: "项目基金库" },
   { href: "/knowledge/scholars", label: "学者关系" },

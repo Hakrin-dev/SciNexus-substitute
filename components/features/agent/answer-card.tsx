@@ -1,21 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { answerBlocks, agentSession } from "@/lib/data/agent";
+import { withCitations } from "@/lib/citations";
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
-
-/** 将正文中的 [n] 引用标记渲染为主色上标样式 */
-function withCitations(text: string): ReactNode[] {
-  return text.split(/(\[\d+\])/g).map((part, i) =>
-    /^\[\d+\]$/.test(part) ? (
-      <sup key={i} className="mx-0.5 font-medium text-primary">
-        {part}
-      </sup>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
-}
-
 /** AI 深度研究回答卡片 —— 对应 AI 研究助手 SVG 的回答区 */
 export function AnswerCard() {
   const { table } = answerBlocks;

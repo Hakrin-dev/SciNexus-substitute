@@ -163,3 +163,73 @@ export interface PaperGraph {
   /** 左栏列表顺序 */
   relatedIds: string[];
 }
+
+/** 专利 */
+export interface Patent {
+  id: string;
+  /** 专利名称 */
+  title: string;
+  /** 申请号,如 CN202410123456.7 */
+  applicationNo: string;
+  /** 申请人 */
+  applicant: string;
+  /** 公开日 YYYY-MM-DD(字典序即可排序) */
+  publishedAt: string;
+  /** 技术领域(左栏筛选维度) */
+  field: string;
+  status: "已授权" | "实质审查" | "已公开" | "PCT";
+  kind: "发明" | "实用新型";
+  /** 被引次数(排序用) */
+  citations: number;
+}
+
+/** 项目基金 */
+export interface Funding {
+  id: string;
+  /** 项目名称 */
+  title: string;
+  /** 批准号 */
+  grantNo: string;
+  /** 负责人 */
+  pi: string;
+  /** 依托单位 */
+  institution: string;
+  /** 资助金额,如 300 万元 */
+  amount: string;
+  /** 起止年限,如 2024-01 ~ 2027-12 */
+  period: string;
+  /** 资助类别(左栏筛选维度) */
+  category: string;
+  status: "在研" | "结题";
+}
+
+/** 机构统计项 */
+export interface InstitutionStat {
+  label: string;
+  value: string;
+}
+
+/** 研究机构 */
+export interface Institution {
+  id: string;
+  nameCn: string;
+  nameEn: string;
+  /** logo 色块字母,如 THU */
+  initials: string;
+  logoColor: string;
+  type: "高校" | "研究院" | "企业实验室";
+  location: string;
+  /** 详细介绍:历史沿革、学科优势、代表平台(3~4 句,卡片直接全文展示) */
+  intro: string;
+  /** 固定 4 项:研究人员 / 年论文 / 总引用 / 国家级平台 */
+  stats: InstitutionStat[];
+  /** 优势方向 tags */
+  fields: string[];
+  /** 代表性成果一句话 */
+  highlight: string;
+  followed?: boolean;
+  /** 综合排名(升序排序用) */
+  rank: number;
+  /** 年论文数(降序排序用) */
+  papersPerYear: number;
+}

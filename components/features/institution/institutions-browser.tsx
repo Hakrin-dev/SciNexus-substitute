@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { InstitutionCard } from "./institution-card";
 import { useDebounce } from "@/hooks/use-debounce";
 import { institutions } from "@/lib/data/institutions";
+import { useUserPreferences } from "@/stores/user-preferences";
 import { cn } from "@/lib/utils";
+import type { Institution } from "@/types";
 
 const SORTS = [
   { key: "rank", label: "综合排名" },
@@ -19,11 +21,15 @@ export function InstitutionsBrowser() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("rank");
   const debouncedQuery = useDebounce(query, 300);
+  const { followedScholars } = useUserPreferences();
+
+  const isFollowed = (i: Institution) =>
+    followedScholars[`inst:${i.id}`] ?? i.followed ?? false;
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
     let list = institutions;
-    if (sort === "followed") list = list.filter((i) => i.followed);
+    if (sort === "followed") list = list.filter((i) => isFollowed(i));
     if (q) {
       list = list.filter((i) =>
         [i.nameCn, i.nameEn, i.location, ...i.fields]
@@ -35,7 +41,7 @@ export function InstitutionsBrowser() {
     return [...list].sort((a, b) =>
       sort === "papers" ? b.papersPerYear - a.papersPerYear : a.rank - b.rank,
     );
-  }, [debouncedQuery, sort]);
+  }, [debouncedQuery, sort, followedScholars]);
 
   return (
     <div className="space-y-5">

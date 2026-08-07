@@ -49,9 +49,9 @@ export function ResearchWorkbench({
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+        <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
           {question}
-        </h1>
+        </p>
         <span
           className={cn(
             "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium",
@@ -96,6 +96,7 @@ export function ResearchWorkbench({
               onClick={() => setCollapsed(false)}
               aria-label="展开研究过程"
               title="展开研究过程"
+              aria-expanded={false}
               className="flex size-12 cursor-pointer items-center justify-center rounded-2xl bg-card text-muted shadow-card transition-colors hover:text-ink"
             >
               <PanelLeftOpen className="size-[18px]" strokeWidth={1.8} />
@@ -109,6 +110,7 @@ export function ResearchWorkbench({
                 onClick={() => setCollapsed(true)}
                 aria-label="收起研究过程"
                 title="收起研究过程"
+                aria-expanded={true}
                 className="flex size-8 cursor-pointer items-center justify-center rounded-lg text-faint transition-colors hover:bg-card hover:text-muted"
               >
                 <PanelLeftClose className="size-4" strokeWidth={1.8} />

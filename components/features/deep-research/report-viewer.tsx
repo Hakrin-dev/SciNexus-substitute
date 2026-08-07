@@ -18,8 +18,8 @@ function ReportTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs text-faint">
-              {table.header.map((h) => (
-                <th key={h} className="py-2.5 font-normal">
+              {table.header.map((h, i) => (
+                <th key={i} className="py-2.5 font-normal">
                   {h}
                 </th>
               ))}
@@ -30,7 +30,7 @@ function ReportTable({
               const highlighted = ri === table.highlightRow;
               return (
                 <tr
-                  key={row[0]}
+                  key={ri}
                   className={cn(highlighted && "font-semibold text-primary")}
                 >
                   <td className="py-2.5">
@@ -64,14 +64,16 @@ export function ReportViewer({
   sectionState: Record<string, DRSectionState>;
 }) {
   const started = Object.values(sectionState).some((s) => s !== "todo");
-  const allDone = Object.values(sectionState).every((s) => s === "done");
+  const allDone =
+    Object.keys(sectionState).length > 0 &&
+    Object.values(sectionState).every((s) => s === "done");
 
   return (
     <article className="rounded-2xl bg-card p-6 shadow-card">
       {/* 品牌行(与深度搜索答案卡同源) */}
       <div className="flex items-center gap-2.5">
         <span className="flex size-8 items-center justify-center rounded-full bg-primary">
-          <Sparkles className="size-4 text-white" />
+          <Sparkles className="size-4 text-white" aria-hidden="true" />
         </span>
         <span className="text-sm font-semibold text-ink">
           深知 AI · Deep Research
@@ -107,9 +109,9 @@ export function ReportViewer({
                 key={sec.id}
                 className="rounded-xl border border-dashed border-line p-4 opacity-60"
               >
-                <h3 className="text-[15px] font-bold text-faint">
+                <h2 className="text-[15px] font-bold text-faint">
                   {sec.heading}
-                </h3>
+                </h2>
                 <p className="mt-2 text-xs text-faint">待生成</p>
               </section>
             );
@@ -121,12 +123,17 @@ export function ReportViewer({
                 key={sec.id}
                 className="rounded-xl border border-primary/40 bg-primary-soft/40 p-4"
               >
-                <h3 className="text-[15px] font-bold text-ink">
+                <h2 className="text-[15px] font-bold text-ink">
                   {sec.heading}
-                </h3>
+                </h2>
                 <p className="mt-2 text-[15px] leading-relaxed text-ink-2">
-                  {withCitations(sec.paragraphs[0])}
-                  <span className="ml-1 inline-block h-4 w-2 animate-pulse rounded-sm bg-primary align-text-bottom" />
+                  {sec.paragraphs[0]
+                    ? withCitations(sec.paragraphs[0])
+                    : "正在撰写…"}
+                  <span
+                    className="ml-1 inline-block h-4 w-2 animate-pulse rounded-sm bg-primary align-text-bottom"
+                    aria-hidden="true"
+                  />
                 </p>
               </section>
             );
@@ -134,7 +141,7 @@ export function ReportViewer({
 
           return (
             <section key={sec.id}>
-              <h3 className="text-[15px] font-bold text-ink">{sec.heading}</h3>
+              <h2 className="text-[15px] font-bold text-ink">{sec.heading}</h2>
               <div className="mt-2 space-y-4 text-[15px] leading-relaxed text-ink-2">
                 {sec.paragraphs.map((p, i) => (
                   <p key={i}>{withCitations(p)}</p>
@@ -159,7 +166,7 @@ export function ReportViewer({
 
         {allDone && (
           <section className="border-t border-line pt-4">
-            <h3 className="text-[15px] font-bold text-ink">参考文献</h3>
+            <h2 className="text-[15px] font-bold text-ink">参考文献</h2>
             <ol className="mt-2 space-y-1.5">
               {drReport.references.map((r) => (
                 <li

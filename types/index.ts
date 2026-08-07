@@ -233,3 +233,74 @@ export interface Institution {
   /** 年论文数(降序排序用) */
   papersPerYear: number;
 }
+
+/** Deep Research 研究计划节 */
+export interface DRPlanSection {
+  id: string;
+  /** 大纲节标题,如 "1. 代表性方法与技术脉络" */
+  title: string;
+  /** 该节检索意图(计划卡内展示) */
+  query: string;
+}
+
+/** Deep Research 来源 / 参考文献条目 */
+export interface DRSource {
+  /** 引用编号 [n] */
+  id: number;
+  /** 来源墙 chip 用短名,如 "Diffusion Policy" */
+  short: string;
+  title: string;
+  /** 如 "CoRL 2024 · Stanford" */
+  venue: string;
+  author: string;
+  /** 如 "引用 1.8k" */
+  citations: string;
+  recommended?: boolean;
+}
+
+/** Deep Research 报告节 */
+export interface DRReportSection {
+  /** 与 DRPlanSection.id 对应 */
+  id: string;
+  heading: string;
+  /** 段落,含 [n] 引用标记 */
+  paragraphs: string[];
+  table?: {
+    caption: string;
+    header: string[];
+    rows: string[][];
+    highlightRow?: number;
+  };
+  /** 编号列表(趋势等) */
+  list?: string[];
+}
+
+/** Deep Research 报告 */
+export interface DRReport {
+  question: string;
+  title: string;
+  abstract: string;
+  stats: { read: number; cited: number };
+  sections: DRReportSection[];
+  references: DRSource[];
+}
+
+export type DRStepKind = "search" | "read" | "analyze" | "write";
+
+/** Deep Research 预录步骤事件(确定性时间轴) */
+export interface DRStepEvent {
+  offsetMs: number;
+  kind: DRStepKind;
+  label: string;
+  /** write 类事件关联的章节 */
+  sectionId?: string;
+}
+
+/** Deep Research 历史研究条目 */
+export interface DRHistoryItem {
+  id: string;
+  title: string;
+  status: "已完成" | "进行中";
+  sources: number;
+  time: string;
+}

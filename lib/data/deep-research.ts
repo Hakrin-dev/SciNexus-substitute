@@ -66,7 +66,7 @@ export const drReport: DRReport = {
       list: [
         "模型规模从百 M 走向十亿级,与大语言模型的融合成为新方向 (PaLM-E [7]、RT-2 [12])。",
         "动作分块从 8 步扩展到 64 步,时序一致性约束 (TCP [8]) 显著降低了抖动。",
-        "与 VLA 模型 (Vision-Language-Action) 深度结合,出现通用机器人基础模型 (Octo [9]、OpenVLA [11])。",
+        "与 VLA 模型 (Vision-Language-Action) 深度结合,出现通用机器人基础模型 (Octo [9]、OpenVLA [11]、π0 [13])。",
       ],
     },
   ],

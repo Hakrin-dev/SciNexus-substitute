@@ -12,7 +12,7 @@ import { agentSession } from "@/lib/data/agent";
  * 深度搜索结果页 `/agents/deep-search` —— 对应「深知-AI研究助手.svg」,
  * 发现页「深度搜索」按钮的跳转目标(由 /agents/deep-research 迁移而来)
  */
-export default function DeepResearchPage() {
+export default function DeepSearchPage() {
   return (
     <AppShell>
       <div className="mx-auto flex max-w-[1180px] items-start gap-8 px-8 py-6">

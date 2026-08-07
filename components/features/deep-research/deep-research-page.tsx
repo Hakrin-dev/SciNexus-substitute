@@ -24,7 +24,7 @@ export function DeepResearchPageClient() {
     if (params.get("mode") === "instant") {
       setInstant(true);
       setView("session");
-    } else if (params.get("autostart")) {
+    } else if (params.get("autostart") === "1") {
       setView("session");
     } else {
       const q = params.get("q");
@@ -43,6 +43,7 @@ export function DeepResearchPageClient() {
   };
 
   const openHistory = () => {
+    setQuestion(drReport.question);
     setInstant(true);
     setSessionKey((k) => k + 1);
     setView("session");

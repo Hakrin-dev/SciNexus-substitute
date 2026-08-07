@@ -22,7 +22,7 @@ export function StepTimeline({ events }: { events: DRStepEvent[] }) {
             const Icon = KIND_ICON[e.kind];
             const latest = i === events.length - 1;
             return (
-              <li key={e.offsetMs} className="flex items-start gap-2.5">
+              <li key={`${e.kind}-${e.offsetMs}`} className="flex items-start gap-2.5">
                 <span
                   className={cn(
                     "flex size-6 shrink-0 items-center justify-center rounded-full",
@@ -31,7 +31,7 @@ export function StepTimeline({ events }: { events: DRStepEvent[] }) {
                       : "bg-chip text-faint",
                   )}
                 >
-                  <Icon className="size-3" />
+                  <Icon className="size-3" aria-hidden="true" />
                 </span>
                 <p
                   className={cn(

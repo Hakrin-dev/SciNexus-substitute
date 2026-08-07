@@ -22,6 +22,7 @@ export function PlanCard({
         <button
           type="button"
           title="原型阶段仅展示"
+          aria-disabled="true"
           className="ml-auto flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-faint transition-colors hover:bg-chip hover:text-muted"
         >
           <PenSquare className="size-3" />

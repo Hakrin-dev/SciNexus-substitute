@@ -2,13 +2,15 @@ import { drReport } from "@/lib/data/deep-research";
 
 /** 来源墙 —— 已收集来源 chips,hover 显示完整标题与出处 */
 export function SourceWall({ count }: { count: number }) {
-  const visible = drReport.references.slice(0, count);
+  const total = drReport.references.length;
+  const shown = Math.min(count, total);
+  const visible = drReport.references.slice(0, shown);
   return (
     <section className="rounded-2xl bg-card p-4 shadow-card">
       <div className="flex items-center">
         <h2 className="text-sm font-semibold text-ink">来源墙</h2>
         <span className="ml-auto text-[11px] text-faint">
-          {count} / {drReport.references.length}
+          {shown} / {total}
         </span>
       </div>
       {visible.length === 0 ? (

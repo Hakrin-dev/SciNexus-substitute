@@ -37,7 +37,7 @@ export function FundingTable({
           <input
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="搜索项目名称、批准号或负责人…"
+            placeholder="搜索项目名称、批准号、负责人或依托单位…"
             aria-label="搜索项目基金"
             className="h-10 w-full rounded-xl border border-line bg-card pl-10 pr-4 text-sm text-ink outline-none transition-colors placeholder:text-faint focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/15"
           />

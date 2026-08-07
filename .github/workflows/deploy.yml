@@ -10,7 +10,7 @@ permissions:
   packages: write
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +34,9 @@ jobs:
           tags: |
             ghcr.io/hakrin-dev/shenzhi-frontend:latest
             ghcr.io/hakrin-dev/shenzhi-frontend:${{ github.sha }}
+          # 每次提交写入 revision 标签:镜像 config 变化 → digest 必变,
+          # 保证 ECS 上的 Watchtower 总能检测到更新(即使应用代码未变)
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -48,32 +51,5 @@ jobs:
           ignore-unfixed: true
           exit-code: '0'
 
-      - name: Deploy on ECS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.ECS_HOST }}
-          username: root
-          key: ${{ secrets.ECS_SSH_KEY }}
-          script: |
-            mkdir -p /opt/shenzhi
-            # 镜像为私有,部署前先用 PAT 登录 GHCR(凭证存于 GitHub Secrets)
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u Hakrin-dev --password-stdin
-            # 每次部署同步最新 compose 文件,仓库为唯一事实来源
-            cat > /opt/shenzhi/docker-compose.yml <<'COMPOSE'
-            services:
-              web:
-                image: ghcr.io/hakrin-dev/shenzhi-frontend:latest
-                ports:
-                  - "80:3000"
-                restart: unless-stopped
-                healthcheck:
-                  test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
-                  interval: 30s
-                  timeout: 5s
-                  retries: 3
-                  start_period: 15s
-            COMPOSE
-            cd /opt/shenzhi
-            docker compose pull
-            docker compose up -d --wait
-            docker image prune -f
+  # 部署为拉取式:ECS 上的 Watchtower 每 60s 轮询 GHCR latest,发现新 digest 自动 pull + 重建容器。
+  # 不再 SSH 入站,安全组无需对公网开放 22 端口(2026-08-07 安全组收紧导致 SSH 部署失败后的改造)。

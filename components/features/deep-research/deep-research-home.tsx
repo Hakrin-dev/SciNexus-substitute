@@ -35,7 +35,7 @@ export function DeepResearchHome({
         </span>
         <h1 className="mt-4 text-2xl font-bold text-ink">Deep Research</h1>
         <p className="mt-2 text-sm text-muted">
-          围绕一个问题，阅读数十篇文献，产出带引用的研究报告
+          围绕一个问题,阅读数十篇文献,产出带引用的研究报告
         </p>
       </div>
 
@@ -46,7 +46,7 @@ export function DeepResearchHome({
           onChange={(e) => setValue(e.target.value)}
           rows={3}
           autoFocus
-          placeholder="输入你的研究问题，例如：扩散模型在机器人策略学习中最近有哪些突破性进展？"
+          placeholder="输入你的研究问题,例如:扩散模型在机器人策略学习中最近有哪些突破性进展?"
           className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-ink outline-none placeholder:text-faint"
         />
         <div className="mt-3 flex items-center gap-2 border-t border-line pt-3">
@@ -76,7 +76,7 @@ export function DeepResearchHome({
         </div>
       </div>
 
-      {/* 建议主题（点击填入输入框） */}
+      {/* 建议主题(点击填入输入框) */}
       <div className="mt-4 flex flex-wrap justify-center gap-2.5">
         {drSuggestions.map((s) => (
           <button
@@ -90,7 +90,7 @@ export function DeepResearchHome({
         ))}
       </div>
 
-      {/* 历史研究（原型：全部加载同一份示例报告的完成态） */}
+      {/* 历史研究(原型:全部加载同一份示例报告的完成态) */}
       <p className="mt-10 text-xs text-faint">历史研究</p>
       <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
         {drHistory.map((item) => (

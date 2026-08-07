@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Award, MapPin } from "lucide-react";
-import { FollowButton } from "@/components/features/scholar/follow-button";
+import { Award, Bookmark, BookmarkCheck, MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useUserPreferences } from "@/stores/user-preferences";
 import type { Institution } from "@/types";
 
 const TYPE_TONES: Record<Institution["type"], string> = {
@@ -19,6 +20,11 @@ export function InstitutionCard({
   institution: Institution;
   index: number;
 }) {
+  const { bookmarkedInstitutions, toggleInstitutionBookmark } =
+    useUserPreferences();
+  const bookmarked =
+    bookmarkedInstitutions[institution.id] ?? institution.bookmarked ?? false;
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 14 }}
@@ -40,10 +46,27 @@ export function InstitutionCard({
               <h3 className="text-lg font-bold text-ink">{institution.nameCn}</h3>
               <p className="mt-0.5 text-sm text-muted">{institution.nameEn}</p>
             </div>
-            <FollowButton
-              scholarId={`inst:${institution.id}`}
-              defaultFollowing={institution.followed}
-            />
+            <Button
+              variant={bookmarked ? "soft" : "outline"}
+              size="sm"
+              aria-pressed={bookmarked}
+              onClick={() =>
+                toggleInstitutionBookmark(institution.id, institution.bookmarked)
+              }
+              className="rounded-full px-3.5"
+            >
+              {bookmarked ? (
+                <>
+                  <BookmarkCheck className="size-3.5" />
+                  已收藏
+                </>
+              ) : (
+                <>
+                  <Bookmark className="size-3.5" />
+                  收藏
+                </>
+              )}
+            </Button>
           </div>
 
           <p className="mt-2.5 flex items-center gap-2 text-xs text-muted">

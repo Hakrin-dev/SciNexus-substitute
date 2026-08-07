@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Search } from "lucide-react";
 import { InstitutionCard } from "./institution-card";
 import { useDebounce } from "@/hooks/use-debounce";
 import { institutions } from "@/lib/data/institutions";
@@ -13,23 +12,23 @@ import type { Institution } from "@/types";
 const SORTS = [
   { key: "rank", label: "综合排名" },
   { key: "papers", label: "论文数" },
-  { key: "followed", label: "已关注" },
+  { key: "bookmarked", label: "已收藏" },
 ];
 
-/** 机构浏览区 —— 骨架对齐 ScholarsBrowser(横幅 + 搜索 + 排序),单列大卡片 */
+/** 机构浏览区 —— 搜索 + 排序 + 单列大卡片 */
 export function InstitutionsBrowser() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("rank");
   const debouncedQuery = useDebounce(query, 300);
-  const { followedScholars } = useUserPreferences();
+  const { bookmarkedInstitutions } = useUserPreferences();
 
-  const isFollowed = (i: Institution) =>
-    followedScholars[`inst:${i.id}`] ?? i.followed ?? false;
+  const isBookmarked = (i: Institution) =>
+    bookmarkedInstitutions[i.id] ?? i.bookmarked ?? false;
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
     let list = institutions;
-    if (sort === "followed") list = list.filter((i) => isFollowed(i));
+    if (sort === "bookmarked") list = list.filter((i) => isBookmarked(i));
     if (q) {
       list = list.filter((i) =>
         [i.nameCn, i.nameEn, i.location, ...i.fields]
@@ -41,32 +40,10 @@ export function InstitutionsBrowser() {
     return [...list].sort((a, b) =>
       sort === "papers" ? b.papersPerYear - a.papersPerYear : a.rank - b.rank,
     );
-  }, [debouncedQuery, sort, followedScholars]);
+  }, [debouncedQuery, sort, bookmarkedInstitutions]);
 
   return (
     <div className="space-y-5">
-      {/* 顶部横幅 */}
-      <section className="flex items-center justify-between rounded-2xl bg-card px-8 py-7 shadow-card">
-        <div className="flex items-center gap-4">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-primary-soft">
-            <Building2 className="size-6 text-primary" />
-          </span>
-          <div>
-            <p className="text-[15px] font-semibold text-ink">研究机构图谱</p>
-            <p className="mt-0.5 text-xs text-muted">
-              追踪全球顶尖高校、研究院与企业实验室的研究动态
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          className="rounded-full border-primary/40 text-primary hover:bg-primary-soft"
-        >
-          探索机构合作网络
-          <span aria-hidden>→</span>
-        </Button>
-      </section>
-
       {/* 搜索 + 排序 */}
       <div className="flex items-center gap-3">
         <div className="relative w-full max-w-[420px]">

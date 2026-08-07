@@ -227,7 +227,8 @@ export interface Institution {
   fields: string[];
   /** 代表性成果一句话 */
   highlight: string;
-  followed?: boolean;
+  /** 默认已收藏(mock) */
+  bookmarked?: boolean;
   /** 综合排名(升序排序用) */
   rank: number;
   /** 年论文数(降序排序用) */

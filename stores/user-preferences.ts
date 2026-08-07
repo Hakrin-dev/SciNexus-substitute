@@ -10,9 +10,15 @@ interface UserPreferencesState {
   likedPapers: Record<string, boolean>;
   /** 已收藏的论文 id 集合 */
   bookmarkedPapers: Record<string, boolean>;
+  /** 已收藏的机构 id 集合 */
+  bookmarkedInstitutions: Record<string, boolean>;
   toggleFollow: (scholarId: string, defaultFollowing?: boolean) => void;
   toggleLike: (paperId: string) => void;
   toggleBookmark: (paperId: string) => void;
+  toggleInstitutionBookmark: (
+    institutionId: string,
+    defaultBookmarked?: boolean,
+  ) => void;
 }
 
 export const useUserPreferences = create<UserPreferencesState>()(
@@ -21,6 +27,7 @@ export const useUserPreferences = create<UserPreferencesState>()(
       followedScholars: { "yoshua-bengio": true, "pieter-abbeel": true },
       likedPapers: {},
       bookmarkedPapers: {},
+      bookmarkedInstitutions: {},
       toggleFollow: (scholarId, defaultFollowing = false) =>
         set((s) => ({
           followedScholars: {
@@ -37,6 +44,15 @@ export const useUserPreferences = create<UserPreferencesState>()(
           bookmarkedPapers: {
             ...s.bookmarkedPapers,
             [paperId]: !s.bookmarkedPapers[paperId],
+          },
+        })),
+      toggleInstitutionBookmark: (institutionId, defaultBookmarked = false) =>
+        set((s) => ({
+          bookmarkedInstitutions: {
+            ...s.bookmarkedInstitutions,
+            [institutionId]: !(
+              s.bookmarkedInstitutions[institutionId] ?? defaultBookmarked
+            ),
           },
         })),
     }),

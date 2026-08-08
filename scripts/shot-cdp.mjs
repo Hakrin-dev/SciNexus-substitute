@@ -19,7 +19,7 @@
  *     --width 1440 --height 2400 --wait-text 参考文献 [--settle 500] [--timeout 45000]
  */
 import { spawn } from "node:child_process";
-import { writeFileSync, mkdirSync, mkdtempSync } from "node:fs";
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 
@@ -134,5 +134,11 @@ mkdirSync(dirname(args.out), { recursive: true });
 writeFileSync(args.out, Buffer.from(shot.data, "base64"));
 
 edge.kill();
-console.log(`${args.out} written (${found ? "ok" : "TIMEOUT"})`);
-process.exit(0);
+// 临时 profile 用完即删(Edge 释放句柄需稍作等待,失败不致命)
+setTimeout(() => {
+  try {
+    rmSync(profile, { recursive: true, force: true, maxRetries: 3 });
+  } catch {}
+  console.log(`${args.out} written (${found ? "ok" : "TIMEOUT"})`);
+  process.exit(0);
+}, 500);

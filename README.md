@@ -100,7 +100,6 @@ frontend_v1/
 ├── deploy/README.md          # 部署运维文档
 ├── .env.example              # 环境变量占位(接后端时填 NEXT_PUBLIC_API_URL 等)
 ├── demo.html                 # 单文件原型复现(双击即开,引用 ./brand/ 图)
-├── docs/superpowers/         # specs(品牌设计规范 v4)+ plans(知识图谱设计)
 ├── shot_pages.py             # 全页面截图验证(Edge headless)
 ├── shot_themes.py            # 日/夜模式对比截图
 └── shot_graph.py             # 知识图谱页日/夜截图
@@ -111,7 +110,7 @@ frontend_v1/
 - **标识**:用户书法定稿「深知」日/夜双版(白字黑底 / 黑字白底),成品直用;随主题 CSS 切换,无 JS 闪烁。资产管线见 `brand/process_logo.py`。
 - **配色「深识」体系**:主色深识蓝 `#002FA7`(夜间调浅 `#5B84F1`);辅助灵犀紫 / 探索青 / 桂冠金 `#f3d029`(金底一律配墨字)。
 - **日/夜模式**:`globals.css` 用 `.dark` 块重定义同名令牌,组件零改动;`layout.tsx` 内联脚本首屏定主题(`?theme=` > localStorage `shenzhi-theme` > 系统偏好);切换按钮在侧边栏 Logo 右侧与移动端顶栏。
-- 完整规范:[docs/superpowers/specs/2026-07-29-brand-logo-design.md](docs/superpowers/specs/2026-07-29-brand-logo-design.md)
+- 完整规范:见本地 `docs/superpowers/specs/`(仅本地工作文档,不入库)
 
 ---
 

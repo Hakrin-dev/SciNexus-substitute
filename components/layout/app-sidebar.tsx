@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import * as React from "react";
 import {
   ChevronDown,
   Compass,
@@ -21,6 +22,7 @@ import { SITE } from "@/lib/constants";
 import { useSidebarStore } from "@/stores/sidebar";
 import { Logo } from "./logo";
 import { SettingsMenu } from "./settings-menu";
+import { LoginModal } from "@/components/auth/login-modal";
 
 interface NavItem {
   href: string;
@@ -240,6 +242,7 @@ function ExpandableNav({
 export function AppSidebar() {
   const collapsed = useSidebarStore((s) => s.collapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggleCollapsed);
+  const [loginOpen, setLoginOpen] = React.useState(false);
 
   return (
     <aside
@@ -316,15 +319,24 @@ export function AppSidebar() {
       {/* 设置(悬停显示选项栏) */}
       <SettingsMenu collapsed={collapsed} />
 
-      {/* 用户卡片 */}
+      {/* 用户卡片(未登录,点击弹出登录弹窗) */}
       {collapsed ? (
         <div className="mt-2 flex justify-center">
-          <span className="flex size-9 items-center justify-center rounded-full bg-primary-soft">
+          <button
+            type="button"
+            aria-label="登录"
+            className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-primary-soft"
+            onClick={() => setLoginOpen(true)}
+          >
             <User className="size-4.5 text-primary" />
-          </span>
+          </button>
         </div>
       ) : (
-        <div className="mt-2 flex items-center gap-2.5 rounded-xl bg-card p-2.5 shadow-card">
+        <button
+          type="button"
+          className="mt-2 flex cursor-pointer items-center gap-2.5 rounded-xl bg-card p-2.5 text-left shadow-card transition-colors hover:bg-chip"
+          onClick={() => setLoginOpen(true)}
+        >
           <span className="flex size-9 items-center justify-center rounded-full bg-primary-soft">
             <User className="size-4.5 text-primary" />
           </span>
@@ -332,18 +344,19 @@ export function AppSidebar() {
             <span className="truncate text-[13px] font-semibold text-ink">
               {SITE.user.name}
             </span>
-            <span className="truncate text-[11px] text-muted">
-              {SITE.user.title}
-            </span>
+            {SITE.user.title && (
+              <span className="truncate text-[11px] text-muted">
+                {SITE.user.title}
+              </span>
+            )}
           </span>
-          <button
-            type="button"
-            aria-label="更多"
-            className="rounded-md p-1 text-faint hover:bg-chip"
+          <span
+            aria-hidden
+            className="rounded-md p-1 text-faint"
           >
             <MoreHorizontal className="size-4" />
-          </button>
-        </div>
+          </span>
+        </button>
       )}
 
       {/* 联系我们 */}
@@ -352,6 +365,8 @@ export function AppSidebar() {
           联系我们
         </p>
       )}
+
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </aside>
   );
 }

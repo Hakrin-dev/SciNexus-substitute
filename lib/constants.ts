@@ -4,8 +4,8 @@ export const SITE = {
   name: "深知",
   fullName: "ShenZhi · Research OS",
   user: {
-    name: "陈知行",
-    title: "研究员 · 清华 AI Lab",
+    name: "未登录",
+    title: "",
   },
 } as const;
 

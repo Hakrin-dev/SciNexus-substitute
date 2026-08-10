@@ -13,6 +13,7 @@ interface SidebarState {
   /** 整个左侧边栏是否折叠为图标栏 */
   collapsed: boolean;
   toggleCollapsed: () => void;
+  setCollapsed: (collapsed: boolean) => void;
 }
 
 export const useSidebarStore = create<SidebarState>()(
@@ -23,6 +24,7 @@ export const useSidebarStore = create<SidebarState>()(
         set((s) => ({ expanded: { ...s.expanded, [key]: open } })),
       collapsed: false,
       toggleCollapsed: () => set((s) => ({ collapsed: !s.collapsed })),
+      setCollapsed: (collapsed) => set({ collapsed }),
     }),
     { name: "shenzhi-sidebar" },
   ),

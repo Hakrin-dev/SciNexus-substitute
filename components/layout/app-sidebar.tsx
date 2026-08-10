@@ -13,12 +13,14 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Send,
   Sparkles,
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
+import { projects } from "@/lib/data/projects";
 import { useSidebarStore } from "@/stores/sidebar";
 import { Logo } from "./logo";
 import { SettingsMenu } from "./settings-menu";
@@ -59,9 +61,11 @@ const AGENT_SUB_NAV = [
   { href: "/agents/auto-research", label: "Auto Research" },
 ];
 
-const RESEARCH_NAV_AFTER: NavItem[] = [
-  { href: "/projects", label: "科研项目", icon: Layers, disabled: true },
-];
+/** 「科研项目」的子栏目即用户创建的项目列表(副标题 = 项目名称) */
+const PROJECT_SUB_NAV = projects.map((p) => ({
+  href: `/projects/${p.id}`,
+  label: p.name,
+}));
 
 const HISTORY_NAV: NavItem[] = [
   { href: "/history", label: "搜索", icon: History, disabled: true },
@@ -71,6 +75,7 @@ const HISTORY_NAV: NavItem[] = [
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const pathname = usePathname();
+  const setCollapsed = useSidebarStore((s) => s.setCollapsed);
   const active = item.matchPrefix
     ? pathname.startsWith(item.matchPrefix)
     : pathname === item.href;
@@ -109,6 +114,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       href={item.href}
       title={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
+      onClick={() => setCollapsed(true)}
       className={cn(
         "flex h-10 shrink-0 items-center rounded-xl transition-colors",
         collapsed ? "justify-center" : "gap-3 px-3",
@@ -128,6 +134,9 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
  * 特例:主页独立于副标题的栏目(如 AI 助手,/agents 不是副标题页),
  * 在副标题页点击先切回主页,再次点击才收起。
  * 右侧箭头只收起/展开,不跳转。侧边栏折叠时仅显示图标,点击直接进入主页。
+ * toggleOnly(科研项目):主体只展开/收起,绝不跳转;此时侧边栏图标态点击
+ * 改为展开整个侧边栏并展开子栏目。
+ * 除 toggleOnly 外,点击标题/副标题跳转后侧边栏默认折叠为图标栏。
  */
 function ExpandableNav({
   href,
@@ -135,29 +144,42 @@ function ExpandableNav({
   icon: Icon,
   subNav,
   collapsed,
+  toggleOnly = false,
+  footer,
 }: {
   href: string;
   label: string;
   icon: typeof Compass;
   subNav: { href: string; label: string }[];
   collapsed: boolean;
+  toggleOnly?: boolean;
+  /** 子栏目列表末尾的附加内容(如「新建项目」) */
+  footer?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const routeActive = pathname.startsWith(href);
   const stored = useSidebarStore((s) => s.expanded[href]);
   const setExpanded = useSidebarStore((s) => s.setExpanded);
+  const setCollapsed = useSidebarStore((s) => s.setCollapsed);
   const open = stored ?? routeActive;
   /** 主页是否独立于副标题(如 AI 助手:/agents 不是任何副标题页) */
   const hasOwnPage = !subNav.some((s) => s.href === href);
 
   const handleMainClick = () => {
+    if (toggleOnly) {
+      // 科研项目:仅展开/收起,不跳转
+      setExpanded(href, !open);
+      return;
+    }
     if (!open) {
       setExpanded(href, true);
       router.push(href);
+      setCollapsed(true);
     } else if (hasOwnPage && pathname !== href) {
       // 主页独立的栏目(AI 助手):在副标题页时先切回主页,再点才收起
       router.push(href);
+      setCollapsed(true);
     } else {
       setExpanded(href, false);
     }
@@ -168,7 +190,15 @@ function ExpandableNav({
       <button
         type="button"
         title={label}
-        onClick={() => router.push(href)}
+        onClick={() => {
+          if (toggleOnly) {
+            // 无主页可跳:展开侧边栏并展开子栏目
+            setCollapsed(false);
+            setExpanded(href, true);
+          } else {
+            router.push(href);
+          }
+        }}
         className={cn(
           "flex h-10 shrink-0 items-center justify-center rounded-xl transition-colors",
           routeActive
@@ -221,6 +251,9 @@ function ExpandableNav({
                 key={sub.href}
                 href={sub.href}
                 aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  if (!toggleOnly) setCollapsed(true);
+                }}
                 className={cn(
                   "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
                   active
@@ -232,6 +265,7 @@ function ExpandableNav({
               </Link>
             );
           })}
+          {footer}
         </div>
       )}
     </div>
@@ -296,9 +330,24 @@ export function AppSidebar() {
           subNav={KNOWLEDGE_SUB_NAV}
           collapsed={collapsed}
         />
-        {RESEARCH_NAV_AFTER.map((item) => (
-          <NavLink key={item.label} item={item} collapsed={collapsed} />
-        ))}
+        <ExpandableNav
+          href="/projects"
+          label="科研项目"
+          icon={Layers}
+          subNav={PROJECT_SUB_NAV}
+          collapsed={collapsed}
+          toggleOnly
+          footer={
+            <button
+              type="button"
+              title="新建项目(演示)"
+              className="flex h-9 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm text-faint transition-colors hover:bg-card hover:text-ink-2"
+            >
+              <Plus className="size-3.5" />
+              新建项目
+            </button>
+          }
+        />
         <ExpandableNav
           href="/submit"
           label="投稿"

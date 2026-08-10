@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Plus, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
+import { ComposerShell } from "./composer";
 
 interface Message {
   role: "user" | "assistant";
@@ -53,37 +53,13 @@ export function AgentChat() {
   };
 
   const composer = (
-    <div className="flex items-center gap-2 rounded-2xl bg-card p-2.5 shadow-pop">
-      <button
-        type="button"
-        aria-label="上传附件"
-        className="flex size-9 cursor-pointer items-center justify-center rounded-xl text-muted transition-colors hover:bg-chip"
-      >
-        <Plus className="size-5" />
-      </button>
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.nativeEvent.isComposing) send();
-        }}
-        placeholder="输入你的研究问题…"
-        className="h-9 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-faint"
-      />
-      <button
-        type="button"
-        aria-label="发送"
-        onClick={() => send()}
-        className={cn(
-          "flex size-9 cursor-pointer items-center justify-center rounded-xl transition-colors",
-          value.trim()
-            ? "bg-primary text-white hover:bg-primary/90"
-            : "bg-chip text-faint",
-        )}
-      >
-        <ArrowUp className="size-4" />
-      </button>
-    </div>
+    <ComposerShell
+      value={value}
+      onChange={setValue}
+      onSend={() => send()}
+      placeholder="输入你的研究问题…"
+      menuPlacement="down"
+    />
   );
 
   if (messages.length === 0) {
@@ -95,8 +71,8 @@ export function AgentChat() {
         <h1 className="text-xl font-semibold text-ink">
           有什么我可以帮你研究的?
         </h1>
-        <div className="w-full max-w-2xl">{composer}</div>
-        <div className="flex max-w-2xl flex-wrap items-center justify-center gap-2">
+        <div className="w-full max-w-4xl">{composer}</div>
+        <div className="flex max-w-4xl flex-wrap items-center justify-center gap-2">
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
@@ -115,7 +91,7 @@ export function AgentChat() {
   return (
     <div className="flex h-screen flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-6 px-6 py-8">
+        <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
           {messages.map((msg, i) =>
             msg.role === "user" ? (
               <div key={i} className="flex justify-end">
@@ -138,7 +114,7 @@ export function AgentChat() {
         </div>
       </div>
       <div className="px-6 pb-5">
-        <div className="mx-auto max-w-3xl">{composer}</div>
+        <div className="mx-auto max-w-5xl">{composer}</div>
       </div>
     </div>
   );

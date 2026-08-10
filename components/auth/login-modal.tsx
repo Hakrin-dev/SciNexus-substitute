@@ -98,7 +98,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
 
           <TabsContent value="register" className="mt-5 flex flex-col gap-4">
             <Field label="用户名" placeholder="请输入用户名" />
-            <Field label="账号(邮箱或手机号)" placeholder="请输入邮箱或手机号" />
+            <Field label="账号" placeholder="请输入邮箱或手机号" />
             <div className="flex flex-col gap-1.5">
               <span className="text-[13px] font-medium text-ink-2">验证码</span>
               <div className="flex gap-2">

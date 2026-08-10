@@ -1,16 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
   Bell,
   Bot,
-  CircleUserRound,
-  GraduationCap,
   KeyRound,
   Monitor,
   Moon,
-  Newspaper,
   Palette,
   Settings,
   Sparkles,
@@ -20,18 +18,15 @@ import {
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
 import { cn } from "@/lib/utils";
 
-/** 设置选项(原型阶段仅展示,未接页面) */
+/** 设置选项,自上而下与设置页 Tab 顺序一致,点击跳转对应 Tab */
 const MENU_ITEMS = [
-  { label: "个人资料", icon: UserRound },
-  { label: "账户", icon: CircleUserRound },
-  { label: "订阅", icon: Sparkles },
-  { label: "用量", icon: BarChart3 },
-  { label: "助手", icon: Bot },
-  { label: "外观", icon: Palette },
-  { label: "动态", icon: Newspaper },
-  { label: "通知", icon: Bell },
-  { label: "Google 学术", icon: GraduationCap },
-  { label: "API 密钥", icon: KeyRound },
+  { label: "个人", icon: UserRound, href: "/settings?tab=profile" },
+  { label: "订阅", icon: Sparkles, href: "/settings?tab=subscription" },
+  { label: "用量统计", icon: BarChart3, href: "/settings?tab=usage" },
+  { label: "Agent设置", icon: Bot, href: "/settings?tab=agent" },
+  { label: "API设置", icon: KeyRound, href: "/settings?tab=api" },
+  { label: "外观", icon: Palette, href: "/settings?tab=appearance" },
+  { label: "通知", icon: Bell, href: "/settings?tab=notifications" },
 ];
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
@@ -50,8 +45,8 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div className="group relative mt-4 shrink-0">
-      <button
-        type="button"
+      <Link
+        href="/settings"
         title="设置"
         className={cn(
           "flex h-10 w-full items-center gap-3 rounded-xl text-ink-2 transition-colors hover:bg-card",
@@ -60,20 +55,20 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
       >
         <Settings className="size-[18px] shrink-0" strokeWidth={1.8} />
         {!collapsed && <span className="flex-1 text-left text-[15px] font-medium">设置</span>}
-      </button>
+      </Link>
 
       {/* 悬停选项栏:出现在条目右侧,底部对齐向上展开 */}
       <div className="pointer-events-none absolute bottom-0 left-full z-50 pl-2 opacity-0 transition-opacity duration-100 group-hover:pointer-events-auto group-hover:opacity-100">
         <div className="w-52 rounded-2xl border border-line bg-card p-2 shadow-pop">
           {MENU_ITEMS.map((item) => (
-            <button
+            <Link
               key={item.label}
-              type="button"
+              href={item.href}
               className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
             >
               <item.icon className="size-4 shrink-0 text-muted" strokeWidth={1.8} />
               {item.label}
-            </button>
+            </Link>
           ))}
 
           {/* 主题:日间 / 夜间 / 跟随系统 */}

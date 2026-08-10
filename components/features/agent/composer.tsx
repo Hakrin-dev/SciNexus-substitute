@@ -9,8 +9,8 @@ import {
   Lightbulb,
   Plug,
   Plus,
+  Scroll,
   Search,
-  WandSparkles,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,7 +47,7 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
 
   const ITEMS = [
     { label: "插件", icon: Plug },
-    { label: "技能", icon: WandSparkles },
+    { label: "技能", icon: Scroll },
     { label: "联网搜索", icon: Globe },
   ];
 

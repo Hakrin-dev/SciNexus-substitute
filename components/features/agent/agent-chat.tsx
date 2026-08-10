@@ -57,7 +57,7 @@ export function AgentChat() {
       value={value}
       onChange={setValue}
       onSend={() => send()}
-      placeholder="输入你的研究问题…"
+      placeholder="使用'@'引用或使用'/'唤起插件或技能…"
       menuPlacement="down"
     />
   );

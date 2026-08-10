@@ -5,16 +5,27 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Apple,
   Award,
+  Bell,
+  BarChart3,
+  Bot,
+  ChevronDown,
+  ChevronRight,
   Chrome,
   Github,
   GraduationCap,
+  KeyRound,
   Medal,
   Monitor,
   Moon,
+  Newspaper,
   Smile,
+  Sparkles,
   Sun,
   Trophy,
   User,
+  UserRound,
+  Users,
+  type LucideIcon,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -22,14 +33,37 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
 
+/**
+ * MCP 图标:官方 logo 的结形路径,改为 currentColor 描边,
+ * 与其他 lucide 图标同源同风格(随文字颜色变化)
+ */
+export function McpIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="10 24 166 166"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={12}
+      strokeLinecap="round"
+      aria-hidden
+      className={className}
+    >
+      <path d="M25 97.8528L92.8823 29.9706C102.255 20.598 117.451 20.598 126.823 29.9706V29.9706C136.196 39.3431 136.196 54.5391 126.823 63.9117L75.5581 115.177" />
+      <path d="M76.2653 114.47L126.823 63.9117C136.196 54.5391 151.392 54.5391 160.765 63.9117L161.118 64.2652C170.491 73.6378 170.491 88.8338 161.118 98.2063L99.7248 159.6C96.6006 162.724 96.6006 167.789 99.7248 170.913L112.331 183.52" />
+      <path d="M109.853 46.9411L59.6482 97.1457C50.2757 106.518 50.2757 121.714 59.6482 131.087V131.087C69.0208 140.459 84.2168 140.459 93.5894 131.087L143.794 80.8822" />
+    </svg>
+  );
+}
+
 /** 设置页 Tab(顺序与侧边栏浮动标签栏一致) */
 export const SETTINGS_TABS = [
-  { value: "profile", label: "个人" },
-  { value: "subscription", label: "订阅" },
-  { value: "usage", label: "用量统计" },
-  { value: "agent", label: "Agent设置" },
-  { value: "api", label: "API设置" },
-  { value: "notifications", label: "通知" },
+  { value: "profile", label: "个人", icon: UserRound },
+  { value: "subscription", label: "订阅", icon: Sparkles },
+  { value: "usage", label: "用量统计", icon: BarChart3 },
+  { value: "agent", label: "Agent设置", icon: Bot },
+  { value: "mcp", label: "MCP", icon: null },
+  { value: "api", label: "API", icon: KeyRound },
+  { value: "notifications", label: "通知", icon: Bell },
 ] as const;
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
@@ -256,6 +290,127 @@ function ProfilePanel() {
   );
 }
 
+/** 通知条目(演示):主标题 + 开关 + 展开/折叠,副标题可选 */
+const NOTIFICATION_ITEMS: {
+  title: string;
+  subtitle?: string;
+  icon: LucideIcon;
+  detail: string;
+}[] = [
+  {
+    title: "动态通知",
+    subtitle: "你关注/收藏的学者/机构的动态通知",
+    icon: Newspaper,
+    detail: "演示:何恺明 发表了新论文《…》;清华大学 AI Lab 发布了新动态。",
+  },
+  {
+    title: "订阅消息",
+    subtitle: "你的订阅和用量统计消息",
+    icon: Sparkles,
+    detail: "演示:本月用量已统计完成;订阅将于 30 天后到期。",
+  },
+  {
+    title: "互动消息",
+    subtitle: "与你互动的消息",
+    icon: Users,
+    detail: "演示:有学者认领了你关注的主页;你的收藏被推荐了。",
+  },
+  {
+    title: "系统通知",
+    icon: Bell,
+    detail: "演示:深知将于本周六 02:00-04:00 进行系统维护。",
+  },
+];
+
+/** 开关(纯演示) */
+function Switch({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(!checked);
+      }}
+      className={cn(
+        "relative h-5.5 w-10 shrink-0 cursor-pointer rounded-full transition-colors",
+        checked ? "bg-primary" : "bg-line",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute left-0.5 top-[3px] size-4 rounded-full bg-white shadow-sm transition-transform",
+          checked && "translate-x-5",
+        )}
+      />
+    </button>
+  );
+}
+
+function NotificationItem({
+  item,
+}: {
+  item: (typeof NOTIFICATION_ITEMS)[number];
+}) {
+  const [enabled, setEnabled] = useState(true);
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div className="rounded-2xl bg-card px-5 py-4 shadow-card">
+      <div className="flex items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-chip">
+          <item.icon className="size-4.5 text-ink-2" strokeWidth={1.8} />
+        </span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-10">
+            <h4 className="text-sm font-semibold text-ink">{item.title}</h4>
+            <Switch checked={enabled} onChange={setEnabled} />
+          </div>
+          {item.subtitle && (
+            <p className="mt-0.5 text-xs text-muted">{item.subtitle}</p>
+          )}
+        </div>
+        <button
+          type="button"
+          aria-label={expanded ? "折叠" : "展开"}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+          className="ml-auto shrink-0 cursor-pointer rounded-md p-1.5 text-faint transition-colors hover:bg-chip hover:text-ink-2"
+        >
+          {expanded ? (
+            <ChevronDown className="size-4" />
+          ) : (
+            <ChevronRight className="size-4" />
+          )}
+        </button>
+      </div>
+      {expanded && (
+        <p className="mt-3 border-t border-line pt-3 text-[13px] leading-relaxed text-muted">
+          {item.detail}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** 通知:四类消息条目 */
+function NotificationsPanel() {
+  return (
+    <div className="space-y-4">
+      {NOTIFICATION_ITEMS.map((item) => (
+        <NotificationItem key={item.title} item={item} />
+      ))}
+    </div>
+  );
+}
+
 /** 演示占位面板 */
 function Placeholder({ text }: { text: string }) {
   return (
@@ -279,9 +434,14 @@ export function SettingsTabs() {
       value={active}
       onValueChange={(v) => router.replace(`/settings?tab=${v}`, { scroll: false })}
     >
-      <TabsList className="border-b border-line">
+      <TabsList className="gap-4 border-b border-line">
         {SETTINGS_TABS.map((t) => (
-          <TabsTrigger key={t.value} value={t.value}>
+          <TabsTrigger key={t.value} value={t.value} className="flex items-center gap-1.5">
+            {t.icon ? (
+              <t.icon className="size-4" strokeWidth={1.8} />
+            ) : (
+              <McpIcon className="size-4" />
+            )}
             {t.label}
           </TabsTrigger>
         ))}
@@ -299,11 +459,14 @@ export function SettingsTabs() {
       <TabsContent value="agent" className="mt-6">
         <Placeholder text="Agent 设置(演示占位)" />
       </TabsContent>
+      <TabsContent value="mcp" className="mt-6">
+        <Placeholder text="MCP 服务器配置(演示占位)" />
+      </TabsContent>
       <TabsContent value="api" className="mt-6">
         <Placeholder text="API 密钥管理(演示占位)" />
       </TabsContent>
       <TabsContent value="notifications" className="mt-6">
-        <Placeholder text="通知偏好(演示占位)" />
+        <NotificationsPanel />
       </TabsContent>
     </Tabs>
   );

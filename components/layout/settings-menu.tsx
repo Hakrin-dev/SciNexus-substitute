@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
 import { cn } from "@/lib/utils";
+import { McpIcon } from "@/app/settings/settings-tabs";
 
 /** 设置选项,自上而下与设置页 Tab 顺序一致,点击跳转对应 Tab */
 const MENU_ITEMS = [
@@ -23,7 +24,8 @@ const MENU_ITEMS = [
   { label: "订阅", icon: Sparkles, href: "/settings?tab=subscription" },
   { label: "用量统计", icon: BarChart3, href: "/settings?tab=usage" },
   { label: "Agent设置", icon: Bot, href: "/settings?tab=agent" },
-  { label: "API设置", icon: KeyRound, href: "/settings?tab=api" },
+  { label: "MCP", icon: null, href: "/settings?tab=mcp" },
+  { label: "API", icon: KeyRound, href: "/settings?tab=api" },
   { label: "通知", icon: Bell, href: "/settings?tab=notifications" },
 ];
 
@@ -64,7 +66,11 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
               href={item.href}
               className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
             >
-              <item.icon className="size-4 shrink-0 text-muted" strokeWidth={1.8} />
+              {item.icon ? (
+                <item.icon className="size-4 shrink-0 text-muted" strokeWidth={1.8} />
+              ) : (
+                <McpIcon className="size-4 shrink-0 text-muted" />
+              )}
               {item.label}
             </Link>
           ))}

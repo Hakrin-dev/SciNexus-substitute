@@ -9,7 +9,6 @@ import {
   KeyRound,
   Monitor,
   Moon,
-  Palette,
   Settings,
   Sparkles,
   Sun,
@@ -25,7 +24,6 @@ const MENU_ITEMS = [
   { label: "用量统计", icon: BarChart3, href: "/settings?tab=usage" },
   { label: "Agent设置", icon: Bot, href: "/settings?tab=agent" },
   { label: "API设置", icon: KeyRound, href: "/settings?tab=api" },
-  { label: "外观", icon: Palette, href: "/settings?tab=appearance" },
   { label: "通知", icon: Bell, href: "/settings?tab=notifications" },
 ];
 

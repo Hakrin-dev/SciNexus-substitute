@@ -75,6 +75,12 @@ const HISTORY_NAV: NavItem[] = [
   { href: "/deliveries", label: "投递", icon: Send, disabled: true },
 ];
 
+/** 路径所属主标题栏目(取首段):/knowledge/papers → /knowledge,/ → / */
+function sectionOf(path: string): string {
+  const seg = path.split("/")[1];
+  return seg ? `/${seg}` : "/";
+}
+
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const pathname = usePathname();
   const setCollapsed = useSidebarStore((s) => s.setCollapsed);
@@ -82,6 +88,10 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     ? pathname.startsWith(item.matchPrefix)
     : pathname === item.href;
   const Icon = item.icon;
+  /** 展开态:点击当前所在主标题时折叠侧边栏;点击其他主标题仅跳转 */
+  const collapseIfSameSection = () => {
+    if (sectionOf(item.href) === sectionOf(pathname)) setCollapsed(true);
+  };
 
   const inner = (
     <>
@@ -111,7 +121,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     );
   }
 
-  // “发现”等无子菜单入口在图标栏状态下直接跳转，不经过展开面板。
+  // 折叠(图标栏)态:点击图标先跳转;再次点击当前栏目图标则展开侧边栏
   if (collapsed) {
     return (
       <Link
@@ -119,6 +129,9 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
         title={item.label}
         aria-label={item.label}
         aria-current={active ? "page" : undefined}
+        onClick={() => {
+          if (active) setCollapsed(false);
+        }}
         className={cn(
           "flex h-10 shrink-0 items-center justify-center rounded-xl transition-colors",
           active
@@ -136,7 +149,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       href={item.href}
       title={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
-      onClick={() => setCollapsed(true)}
+      onClick={collapseIfSameSection}
       className={cn(
         "flex h-10 shrink-0 items-center rounded-xl transition-colors",
         "gap-3 px-3",
@@ -152,14 +165,13 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
 
 /**
  * 可展开导航项 —— 展开状态存于全局 store,切换到其他条目后仍保持展开。
- * 图标栏状态下点击任意主栏目只展开侧栏与对应子栏目,不立即导航。
- * 展开后点击具体栏目/子栏目完成导航并自动收回为图标栏。
- * 特例:主页独立于副标题的栏目(如 AI 助手,/agents 不是副标题页),
- * 在副标题页点击先切回主页,再次点击才收起。
- * 右侧箭头只收起/展开,不跳转。
- * toggleOnly(科研项目):主体只展开/收起,绝不跳转;此时侧边栏图标态点击
- * 改为展开整个侧边栏并展开子栏目。
- * 除 toggleOnly 外,点击标题/副标题跳转后侧边栏默认折叠为图标栏。
+ * 折叠/展开规则(与 NavLink / 设置菜单一致):
+ * - 侧边栏展开时,点击主标题:副标题折叠则展开并跳转(有主标题页跳主标题页,
+ *   没有则跳第一个副标题页);副标题已展开且当前处于同一主标题下,则折叠侧边栏;
+ *   副标题已展开但处于其他栏目,仅按跳转逻辑跳转;
+ * - 侧边栏折叠(图标栏)时,点击图标先跳转;再次点击当前栏目的图标,
+ *   则展开侧边栏并展开副标题。
+ * 右侧箭头只收起/展开副标题,不跳转。
  */
 function ExpandableNav({
   href,
@@ -167,7 +179,6 @@ function ExpandableNav({
   icon: Icon,
   subNav,
   collapsed,
-  toggleOnly = false,
   footer,
 }: {
   href: string;
@@ -175,7 +186,6 @@ function ExpandableNav({
   icon: typeof Compass;
   subNav: { href: string; label: string }[];
   collapsed: boolean;
-  toggleOnly?: boolean;
   /** 子栏目列表末尾的附加内容(如「新建项目」) */
   footer?: React.ReactNode;
 }) {
@@ -188,23 +198,20 @@ function ExpandableNav({
   const open = stored ?? routeActive;
   /** 主页是否独立于副标题(如 AI 助手:/agents 不是任何副标题页) */
   const hasOwnPage = !subNav.some((s) => s.href === href);
+  /** 跳转目标:有主标题页跳主标题页,没有则跳第一个副标题页 */
+  const dest = hasOwnPage ? href : subNav[0].href;
 
   const handleMainClick = () => {
-    if (toggleOnly) {
-      // 科研项目:仅展开/收起,不跳转
-      setExpanded(href, !open);
-      return;
-    }
     if (!open) {
+      // 副标题折叠:展开副标题并跳转
       setExpanded(href, true);
-      router.push(href);
+      if (pathname !== dest) router.push(dest);
+    } else if (routeActive) {
+      // 副标题展开且处于同一主标题下:折叠侧边栏
       setCollapsed(true);
-    } else if (hasOwnPage && pathname !== href) {
-      // 主页独立的栏目(AI 助手):在副标题页时先切回主页,再点才收起
-      router.push(href);
-      setCollapsed(true);
-    } else {
-      setExpanded(href, false);
+    } else if (pathname !== dest) {
+      // 副标题展开但处于其他栏目:仅跳转
+      router.push(dest);
     }
   };
 
@@ -214,9 +221,14 @@ function ExpandableNav({
         type="button"
         title={label}
         onClick={() => {
-          // 所有主栏目统一:图标态第一次点击只展开侧栏和对应子栏目。
-          setCollapsed(false);
-          setExpanded(href, true);
+          if (routeActive) {
+            // 再次点击当前栏目图标:展开侧边栏并展开副标题
+            setCollapsed(false);
+            setExpanded(href, true);
+          } else {
+            // 先跳转,保持图标栏
+            router.push(dest);
+          }
         }}
         className={cn(
           "flex h-10 shrink-0 items-center justify-center rounded-xl transition-colors",
@@ -270,7 +282,10 @@ function ExpandableNav({
                 key={sub.href}
                 href={sub.href}
                 aria-current={active ? "page" : undefined}
-                onClick={() => setCollapsed(true)}
+                onClick={() => {
+                  // 同一主标题下点击副标题:折叠侧边栏
+                  if (routeActive) setCollapsed(true);
+                }}
                 className={cn(
                   "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
                   active
@@ -353,7 +368,6 @@ export function AppSidebar() {
           icon={Layers}
           subNav={PROJECT_SUB_NAV}
           collapsed={collapsed}
-          toggleOnly
           footer={
             <button
               type="button"

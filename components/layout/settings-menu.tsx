@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import {
   BarChart3,
@@ -47,6 +48,11 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
     () => false,
   );
   const setCollapsed = useSidebarStore((s) => s.setCollapsed);
+  const pathname = usePathname();
+  // 与侧边栏一致:已处于设置栏目时再点击才折叠;从其他栏目进入仅跳转
+  const collapseIfSameSection = () => {
+    if (pathname.startsWith("/settings")) setCollapsed(true);
+  };
 
   return (
     <div className="group relative mt-4 shrink-0">
@@ -55,6 +61,10 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
           href="/settings"
           title="设置"
           aria-label="设置"
+          onClick={() => {
+            // 图标栏:再次点击当前栏目图标则展开侧边栏
+            if (pathname.startsWith("/settings")) setCollapsed(false);
+          }}
           className="flex h-10 w-full items-center justify-center rounded-xl text-ink-2 transition-colors hover:bg-card"
         >
           <Settings className="size-[18px] shrink-0" strokeWidth={1.8} />
@@ -63,7 +73,7 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
         <Link
           href="/settings"
           title="设置"
-          onClick={() => setCollapsed(true)}
+          onClick={collapseIfSameSection}
           className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-ink-2 transition-colors hover:bg-card"
         >
           <Settings className="size-[18px] shrink-0" strokeWidth={1.8} />
@@ -78,7 +88,7 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
             <Link
               key={item.label}
               href={item.href}
-              onClick={() => setCollapsed(true)}
+              onClick={collapseIfSameSection}
               className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
             >
               {item.icon ? (

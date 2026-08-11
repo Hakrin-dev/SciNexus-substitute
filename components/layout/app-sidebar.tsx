@@ -11,7 +11,6 @@ import {
   Layers,
   Library,
   LogOut,
-  MessageSquare,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -72,7 +71,6 @@ const PROJECT_SUB_NAV = projects.map((p) => ({
 
 const HISTORY_NAV: NavItem[] = [
   { href: "/history", label: "搜索", icon: History, disabled: true },
-  { href: "/qa", label: "研究", icon: MessageSquare, disabled: true },
   { href: "/my-projects", label: "项目", icon: Folder, disabled: true },
   { href: "/deliveries", label: "投递", icon: Send, disabled: true },
 ];

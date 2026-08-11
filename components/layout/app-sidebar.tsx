@@ -10,6 +10,7 @@ import {
   History,
   Layers,
   Library,
+  LogOut,
   MessageSquare,
   MoreHorizontal,
   PanelLeftClose,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
 import { projects } from "@/lib/data/projects";
 import { useSidebarStore } from "@/stores/sidebar";
+import { useAuthStore } from "@/stores/auth";
 import { Logo } from "./logo";
 import { SettingsMenu } from "./settings-menu";
 import { LoginModal } from "@/components/auth/login-modal";
@@ -304,11 +306,53 @@ function ExpandableNav({
   );
 }
 
+/** 登录后「···」向上弹出的标签栏:登出 */
+function LogoutPopup({ onClose }: { onClose: () => void }) {
+  const logout = useAuthStore((s) => s.logout);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute bottom-full right-0 z-50 mb-2 w-28 rounded-xl border border-line bg-card p-1.5 shadow-pop"
+    >
+      <button
+        type="button"
+        onClick={() => {
+          logout();
+          onClose();
+        }}
+        className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
+      >
+        <LogOut className="size-4 text-muted" strokeWidth={1.8} />
+        登出
+      </button>
+    </div>
+  );
+}
+
 /** 全局侧边栏 —— 对应 SVG 原型 240px 左侧栏(背景 #EEF1F8),可折叠为 64px 图标栏 */
 export function AppSidebar() {
   const collapsed = useSidebarStore((s) => s.collapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggleCollapsed);
+  const userName = useAuthStore((s) => s.userName);
   const [loginOpen, setLoginOpen] = React.useState(false);
+  const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   return (
     <aside
@@ -399,17 +443,49 @@ export function AppSidebar() {
       {/* 设置(悬停显示选项栏) */}
       <SettingsMenu collapsed={collapsed} />
 
-      {/* 用户卡片(未登录,点击弹出登录弹窗) */}
+      {/* 用户卡片:未登录点击弹出登录弹窗;登录后「···」向上弹出「登出」 */}
       {collapsed ? (
-        <div className="mt-2 flex justify-center">
+        <div className="relative mt-2 flex justify-center">
           <button
             type="button"
-            aria-label="登录"
+            aria-label={userName ? "账号菜单" : "登录"}
             className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-primary-soft"
-            onClick={() => setLoginOpen(true)}
+            onClick={() =>
+              userName ? setLogoutOpen((v) => !v) : setLoginOpen(true)
+            }
           >
-            <User className="size-4.5 text-primary" />
+            {userName ? (
+              <span className="text-[13px] font-semibold text-primary">
+                {userName.slice(0, 1)}
+              </span>
+            ) : (
+              <User className="size-4.5 text-primary" />
+            )}
           </button>
+          {userName && logoutOpen && <LogoutPopup onClose={() => setLogoutOpen(false)} />}
+        </div>
+      ) : userName ? (
+        <div className="relative mt-2">
+          <div className="flex items-center gap-2.5 rounded-xl bg-card p-2.5 shadow-card">
+            <span className="flex size-9 items-center justify-center rounded-full bg-primary-soft text-[13px] font-semibold text-primary">
+              {userName.slice(0, 1)}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col leading-tight">
+              <span className="truncate text-[13px] font-semibold text-ink">
+                {userName}
+              </span>
+            </span>
+            <button
+              type="button"
+              aria-label="账号菜单"
+              aria-expanded={logoutOpen}
+              className="cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-chip hover:text-ink-2"
+              onClick={() => setLogoutOpen((v) => !v)}
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+          </div>
+          {logoutOpen && <LogoutPopup onClose={() => setLogoutOpen(false)} />}
         </div>
       ) : (
         <button
@@ -424,16 +500,8 @@ export function AppSidebar() {
             <span className="truncate text-[13px] font-semibold text-ink">
               {SITE.user.name}
             </span>
-            {SITE.user.title && (
-              <span className="truncate text-[11px] text-muted">
-                {SITE.user.title}
-              </span>
-            )}
           </span>
-          <span
-            aria-hidden
-            className="rounded-md p-1 text-faint"
-          >
+          <span aria-hidden className="rounded-md p-1 text-faint">
             <MoreHorizontal className="size-4" />
           </span>
         </button>

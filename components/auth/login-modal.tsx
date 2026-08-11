@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuthStore } from "@/stores/auth";
 
 /**
  * 登录弹窗(纯演示,不做真实登录/注册逻辑)
@@ -30,6 +31,13 @@ function Field({
 }
 
 export function LoginModal({ open, onClose }: LoginModalProps) {
+  const login = useAuthStore((s) => s.login);
+  /** 演示:点击登录即视为登录成功 */
+  const handleLogin = () => {
+    login();
+    onClose();
+  };
+
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -85,7 +93,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
                 忘记密码?
               </Link>
             </div>
-            <Button className="w-full" onClick={onClose}>
+            <Button className="w-full" onClick={handleLogin}>
               登录
             </Button>
           </TabsContent>
@@ -101,7 +109,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
                 </Button>
               </div>
             </div>
-            <Button className="mt-1 w-full" onClick={onClose}>
+            <Button className="mt-1 w-full" onClick={handleLogin}>
               登录
             </Button>
           </TabsContent>

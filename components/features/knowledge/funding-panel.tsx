@@ -18,11 +18,15 @@ export function FundingPanel({
   categories,
   activeCategory,
   onCategoryChange,
+  activeStatus,
+  onStatusChange,
 }: {
   categories: FundingCategoryCount[];
   /** null = 全部 */
   activeCategory: string | null;
   onCategoryChange: (category: string | null) => void;
+  activeStatus: string | null;
+  onStatusChange: (status: string | null) => void;
 }) {
   const total = categories.reduce((sum, c) => sum + c.count, 0);
 
@@ -80,12 +84,19 @@ export function FundingPanel({
       <p className="mt-5 px-1 text-xs text-faint">项目状态</p>
       <div className="mt-2 flex flex-wrap gap-2 px-1">
         {fundingStatuses.map((status, i) => (
-          <span
+          <button
+            type="button"
             key={status}
-            className={cn("rounded-md px-2 py-1 text-xs", TAG_COLORS[i % TAG_COLORS.length])}
+            aria-pressed={activeStatus === status}
+            onClick={() => onStatusChange(activeStatus === status ? null : status)}
+            className={cn(
+              "rounded-md border px-2 py-1 text-xs transition-all",
+              TAG_COLORS[i % TAG_COLORS.length],
+              activeStatus === status ? "border-primary ring-2 ring-primary/15" : "border-transparent",
+            )}
           >
             {status}
-          </span>
+          </button>
         ))}
       </div>
     </aside>

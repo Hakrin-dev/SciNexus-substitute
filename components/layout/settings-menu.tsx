@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import {
   BarChart3,
   Bell,
@@ -17,6 +17,7 @@ import {
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
 import { cn } from "@/lib/utils";
 import { McpIcon } from "@/app/settings/settings-tabs";
+import { useSidebarStore } from "@/stores/sidebar";
 
 /** 设置选项,自上而下与设置页 Tab 顺序一致,点击跳转对应 Tab */
 const MENU_ITEMS = [
@@ -40,22 +41,35 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
   const mode = useThemeStore((s) => s.mode);
   const setMode = useThemeStore((s) => s.setMode);
   // persist 的主题在客户端水合后才可读,避免水合不一致
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
+  const setCollapsed = useSidebarStore((s) => s.setCollapsed);
 
   return (
     <div className="group relative mt-4 shrink-0">
-      <Link
-        href="/settings"
-        title="设置"
-        className={cn(
-          "flex h-10 w-full items-center gap-3 rounded-xl text-ink-2 transition-colors hover:bg-card",
-          collapsed ? "justify-center" : "px-3",
-        )}
-      >
-        <Settings className="size-[18px] shrink-0" strokeWidth={1.8} />
-        {!collapsed && <span className="flex-1 text-left text-[15px] font-medium">设置</span>}
-      </Link>
+      {collapsed ? (
+        <Link
+          href="/settings"
+          title="设置"
+          aria-label="设置"
+          className="flex h-10 w-full items-center justify-center rounded-xl text-ink-2 transition-colors hover:bg-card"
+        >
+          <Settings className="size-[18px] shrink-0" strokeWidth={1.8} />
+        </Link>
+      ) : (
+        <Link
+          href="/settings"
+          title="设置"
+          onClick={() => setCollapsed(true)}
+          className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-ink-2 transition-colors hover:bg-card"
+        >
+          <Settings className="size-[18px] shrink-0" strokeWidth={1.8} />
+          <span className="flex-1 text-left text-[15px] font-medium">设置</span>
+        </Link>
+      )}
 
       {/* 悬停选项栏:出现在条目右侧,底部对齐向上展开 */}
       <div className="pointer-events-none absolute bottom-0 left-full z-50 pl-2 opacity-0 transition-opacity duration-100 group-hover:pointer-events-auto group-hover:opacity-100">
@@ -64,6 +78,7 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
             <Link
               key={item.label}
               href={item.href}
+              onClick={() => setCollapsed(true)}
               className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
             >
               {item.icon ? (

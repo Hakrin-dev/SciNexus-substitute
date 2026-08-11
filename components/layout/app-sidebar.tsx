@@ -111,6 +111,26 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     );
   }
 
+  // “发现”等无子菜单入口在图标栏状态下直接跳转，不经过展开面板。
+  if (collapsed) {
+    return (
+      <Link
+        href={item.href}
+        title={item.label}
+        aria-label={item.label}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex h-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+          active
+            ? "bg-primary text-white shadow-sm"
+            : "text-ink-2 hover:bg-card",
+        )}
+      >
+        <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={item.href}
@@ -119,7 +139,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       onClick={() => setCollapsed(true)}
       className={cn(
         "flex h-10 shrink-0 items-center rounded-xl transition-colors",
-        collapsed ? "justify-center" : "gap-3 px-3",
+        "gap-3 px-3",
         active
           ? "bg-primary text-white shadow-sm"
           : "text-ink-2 hover:bg-card",
@@ -132,10 +152,11 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
 
 /**
  * 可展开导航项 —— 展开状态存于全局 store,切换到其他条目后仍保持展开。
- * 点击主体:折叠时展开并进入主页;已展开时折叠收起。
+ * 图标栏状态下点击任意主栏目只展开侧栏与对应子栏目,不立即导航。
+ * 展开后点击具体栏目/子栏目完成导航并自动收回为图标栏。
  * 特例:主页独立于副标题的栏目(如 AI 助手,/agents 不是副标题页),
  * 在副标题页点击先切回主页,再次点击才收起。
- * 右侧箭头只收起/展开,不跳转。侧边栏折叠时仅显示图标,点击直接进入主页。
+ * 右侧箭头只收起/展开,不跳转。
  * toggleOnly(科研项目):主体只展开/收起,绝不跳转;此时侧边栏图标态点击
  * 改为展开整个侧边栏并展开子栏目。
  * 除 toggleOnly 外,点击标题/副标题跳转后侧边栏默认折叠为图标栏。
@@ -193,13 +214,9 @@ function ExpandableNav({
         type="button"
         title={label}
         onClick={() => {
-          if (toggleOnly) {
-            // 无主页可跳:展开侧边栏并展开子栏目
-            setCollapsed(false);
-            setExpanded(href, true);
-          } else {
-            router.push(href);
-          }
+          // 所有主栏目统一:图标态第一次点击只展开侧栏和对应子栏目。
+          setCollapsed(false);
+          setExpanded(href, true);
         }}
         className={cn(
           "flex h-10 shrink-0 items-center justify-center rounded-xl transition-colors",
@@ -253,9 +270,7 @@ function ExpandableNav({
                 key={sub.href}
                 href={sub.href}
                 aria-current={active ? "page" : undefined}
-                onClick={() => {
-                  if (!toggleOnly) setCollapsed(true);
-                }}
+                onClick={() => setCollapsed(true)}
                 className={cn(
                   "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
                   active

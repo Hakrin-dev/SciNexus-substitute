@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Network, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ScholarCard } from "./scholar-card";
+import { DirectionFilter } from "./direction-filter";
 import { useDebounce } from "@/hooks/use-debounce";
 import { scholars } from "@/lib/data/scholars";
 import { cn } from "@/lib/utils";
@@ -18,11 +19,13 @@ const SORTS = [
 export function ScholarsBrowser() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("top");
+  const [direction, setDirection] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 300);
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
     let list = scholars;
+    if (direction) list = list.filter((s) => s.tags.includes(direction));
     if (sort === "followed") list = list.filter((s) => s.followed);
     if (q) {
       list = list.filter((s) =>
@@ -33,10 +36,12 @@ export function ScholarsBrowser() {
       );
     }
     return list;
-  }, [debouncedQuery, sort]);
+  }, [debouncedQuery, direction, sort]);
 
   return (
-    <div className="min-w-0 flex-1 space-y-5">
+    <>
+      <DirectionFilter activeDirection={direction} onDirectionChange={setDirection} />
+      <div className="min-w-0 flex-1 space-y-5 px-8 py-6">
       {/* 顶部横幅:探索学者关系图谱 */}
       <section className="flex items-center justify-between rounded-2xl bg-card px-8 py-7 shadow-card">
         <div className="flex items-center gap-4">
@@ -50,10 +55,10 @@ export function ScholarsBrowser() {
             </p>
           </div>
         </div>
-        <Button variant="outline" className="rounded-full border-primary/40 text-primary hover:bg-primary-soft">
+        <Link href="/knowledge/scholars/graph" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-primary/40 px-4 text-[13px] font-medium text-primary transition-colors hover:bg-primary-soft">
           探索学者关系图谱
           <span aria-hidden>→</span>
-        </Button>
+        </Link>
       </section>
 
       {/* 搜索 + 排序 */}
@@ -97,6 +102,7 @@ export function ScholarsBrowser() {
           未找到匹配的学者
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

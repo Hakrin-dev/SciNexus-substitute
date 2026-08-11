@@ -19,6 +19,10 @@ export function FundingTable({
   query: string;
   onQueryChange: (q: string) => void;
 }) {
+  const totalAmount = items.reduce((sum, item) => sum + (Number.parseFloat(item.amount) || 0), 0);
+  const activeCount = items.filter((item) => item.status === "在研").length;
+  const completedCount = items.filter((item) => item.status === "结题").length;
+
   return (
     <div className="min-w-0 flex-1 p-8">
       <div className="flex items-center justify-between">
@@ -30,8 +34,14 @@ export function FundingTable({
         </div>
       </div>
 
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl bg-card px-4 py-3 shadow-card"><p className="text-lg font-bold text-ink">{totalAmount.toLocaleString()} 万元</p><p className="mt-0.5 text-[11px] text-faint">当前结果资助总额</p></div>
+        <div className="rounded-xl bg-card px-4 py-3 shadow-card"><p className="text-lg font-bold text-success">{activeCount}</p><p className="mt-0.5 text-[11px] text-faint">在研项目</p></div>
+        <div className="rounded-xl bg-card px-4 py-3 shadow-card"><p className="text-lg font-bold text-ink-2">{completedCount}</p><p className="mt-0.5 text-[11px] text-faint">已结题项目</p></div>
+      </div>
+
       {/* 搜索 */}
-      <div className="mt-5">
+      <div className="mt-4">
         <div className="relative w-full max-w-[420px]">
           <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" />
           <input

@@ -10,6 +10,7 @@ import { fundings } from "@/lib/data/funding";
 export function FundingBrowser() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 300);
 
   const categories = useMemo(() => {
@@ -22,6 +23,7 @@ export function FundingBrowser() {
     const q = debouncedQuery.trim().toLowerCase();
     let list = fundings;
     if (category) list = list.filter((f) => f.category === category);
+    if (status) list = list.filter((f) => f.status === status);
     if (q) {
       list = list.filter((f) =>
         [f.title, f.grantNo, f.pi, f.institution]
@@ -31,7 +33,7 @@ export function FundingBrowser() {
       );
     }
     return list;
-  }, [debouncedQuery, category]);
+  }, [debouncedQuery, category, status]);
 
   return (
     <>
@@ -39,6 +41,8 @@ export function FundingBrowser() {
         categories={categories}
         activeCategory={category}
         onCategoryChange={setCategory}
+        activeStatus={status}
+        onStatusChange={setStatus}
       />
       <FundingTable
         items={filtered}

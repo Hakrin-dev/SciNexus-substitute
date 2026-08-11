@@ -10,6 +10,7 @@ import { patents } from "@/lib/data/patents";
 export function PatentsBrowser() {
   const [query, setQuery] = useState("");
   const [field, setField] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [sort, setSort] = useState<PatentSort>("latest");
   const debouncedQuery = useDebounce(query, 300);
 
@@ -23,6 +24,7 @@ export function PatentsBrowser() {
     const q = debouncedQuery.trim().toLowerCase();
     let list = patents;
     if (field) list = list.filter((p) => p.field === field);
+    if (status) list = list.filter((p) => p.status === status);
     if (q) {
       list = list.filter((p) =>
         [p.title, p.applicationNo, p.applicant]
@@ -36,11 +38,11 @@ export function PatentsBrowser() {
         ? b.publishedAt.localeCompare(a.publishedAt)
         : b.citations - a.citations,
     );
-  }, [debouncedQuery, field, sort]);
+  }, [debouncedQuery, field, sort, status]);
 
   return (
     <>
-      <PatentPanel fields={fields} activeField={field} onFieldChange={setField} />
+      <PatentPanel fields={fields} activeField={field} onFieldChange={setField} activeStatus={status} onStatusChange={setStatus} />
       <PatentTable
         items={filtered}
         totalCount={patents.length}

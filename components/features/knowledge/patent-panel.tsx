@@ -20,11 +20,15 @@ export function PatentPanel({
   fields,
   activeField,
   onFieldChange,
+  activeStatus,
+  onStatusChange,
 }: {
   fields: PatentFieldCount[];
   /** null = 全部 */
   activeField: string | null;
   onFieldChange: (field: string | null) => void;
+  activeStatus: string | null;
+  onStatusChange: (status: string | null) => void;
 }) {
   const total = fields.reduce((sum, f) => sum + f.count, 0);
 
@@ -78,12 +82,22 @@ export function PatentPanel({
       <p className="mt-5 px-1 text-xs text-faint">法律状态</p>
       <div className="mt-2 flex flex-wrap gap-2 px-1">
         {patentStatuses.map((status, i) => (
-          <span
+          <button
+            type="button"
             key={status}
-            className={cn("rounded-md px-2 py-1 text-xs", TAG_COLORS[i % TAG_COLORS.length])}
+            aria-pressed={activeStatus === (status.startsWith("PCT") ? "PCT" : status)}
+            onClick={() => {
+              const value = status.startsWith("PCT") ? "PCT" : status;
+              onStatusChange(activeStatus === value ? null : value);
+            }}
+            className={cn(
+              "rounded-md border px-2 py-1 text-xs transition-all",
+              TAG_COLORS[i % TAG_COLORS.length],
+              activeStatus === (status.startsWith("PCT") ? "PCT" : status) ? "border-primary ring-2 ring-primary/15" : "border-transparent",
+            )}
           >
             {status}
-          </span>
+          </button>
         ))}
       </div>
     </aside>

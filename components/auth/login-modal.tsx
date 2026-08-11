@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +76,16 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
           <TabsContent value="password" className="mt-5 flex flex-col gap-4">
             <Field label="账号/用户名" placeholder="请输入账号或用户名" />
             <Field label="密码" type="password" placeholder="请输入密码" />
-            <Button className="mt-1 w-full" onClick={onClose}>
+            <div className="-mt-1.5 flex justify-end">
+              <Link
+                href="/reset-password"
+                onClick={onClose}
+                className="text-[13px] font-medium text-primary hover:underline"
+              >
+                忘记密码?
+              </Link>
+            </div>
+            <Button className="w-full" onClick={onClose}>
               登录
             </Button>
           </TabsContent>

@@ -123,6 +123,15 @@ while (Date.now() < deadline) {
 if (!found)
   console.error(`WARN: 等待文本「${args.waitText}」超时,按当前状态截图`);
 
+// 可选:截图前执行一段 JS(如点击折叠按钮),随后等 settle 再拍
+if (args.eval) {
+  await cdp(
+    "Runtime.evaluate",
+    { expression: args.eval, returnByValue: true },
+    sessionId,
+  );
+}
+
 await new Promise((r) => setTimeout(r, args.settle));
 
 const shot = await cdp(

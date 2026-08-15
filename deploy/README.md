@@ -113,7 +113,7 @@ docker compose up -d --no-deps web ghcr.io/hakrin-dev/scinexus-frontend:<旧sha>
 ## 六、后续扩展(规划中)
 
 ### 6.1 将 GHCR 镜像设为 Public(可选)
-1. 访问 `https://github.com/users/Hakrin-dev/packages/container/package/scinexus-frontend`
+1. 访问 `https://github.com/users/Hakrin-dev/packages/container/package/SciNexus-substitute`
 2. **Package settings** → Change visibility → **Public**
 3. 之后 ECS 拉取无需登录,GHCR_PAT 过期也不受影响
 

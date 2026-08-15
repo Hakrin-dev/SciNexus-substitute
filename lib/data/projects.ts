@@ -84,8 +84,8 @@ export const projects: Project[] = [
       { name: "李识", role: "算法" },
     ],
     links: [
-      { label: "GitHub 仓库", href: "https://github.com/Hakrin-dev/scinexus" },
-      { label: "GHCR 镜像", href: "https://ghcr.io/hakrin-dev/scinexus" },
+      { label: "GitHub 仓库", href: "https://github.com/Hakrin-dev/SciNexus-substitute" },
+      { label: "GHCR 镜像", href: "https://ghcr.io/Hakrin-dev/SciNexus-substitute" },
     ],
   },
 ];

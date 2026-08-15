@@ -322,6 +322,22 @@ export function AppSidebar() {
   const [loginOpen, setLoginOpen] = React.useState(false);
   const [logoutOpen, setLogoutOpen] = React.useState(false);
 
+  const toggleBtn = (
+    <button
+      type="button"
+      onClick={toggleCollapsed}
+      aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
+      title={collapsed ? "展开侧边栏" : "折叠侧边栏"}
+      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-chip hover:text-ink"
+    >
+      {collapsed ? (
+        <PanelLeftOpen className="size-4" strokeWidth={1.8} />
+      ) : (
+        <PanelLeftClose className="size-4" strokeWidth={1.8} />
+      )}
+    </button>
+  );
+
   return (
     <aside
       className={cn(
@@ -329,27 +345,23 @@ export function AppSidebar() {
         collapsed ? "w-16 px-2" : "w-60 px-4",
       )}
     >
-      <div
-        className={cn(
-          "flex items-center gap-2",
-          collapsed ? "flex-col" : "justify-between",
-        )}
-      >
-        <Logo compact={collapsed} />
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
-          title={collapsed ? "展开侧边栏" : "折叠侧边栏"}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-chip hover:text-ink"
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="size-4" strokeWidth={1.8} />
-          ) : (
-            <PanelLeftClose className="size-4" strokeWidth={1.8} />
-          )}
-        </button>
-      </div>
+      {/* 展开态:SciNexus wordmark 居上,下方「研枢」与折叠键并列;折叠态:三十字星 + 展开键纵向排列 */}
+      {collapsed ? (
+        <div className="flex flex-col items-center gap-2">
+          <Logo compact />
+          {toggleBtn}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <Logo withName={false} />
+          <div className="flex items-center justify-between">
+            <span className="px-1 text-[15px] font-bold text-ink">
+              {SITE.name}
+            </span>
+            {toggleBtn}
+          </div>
+        </div>
+      )}
 
       <nav className="scrollbar-subtle mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto">
         {!collapsed && (

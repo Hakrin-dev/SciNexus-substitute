@@ -22,16 +22,16 @@ pnpm lint           # ESLint
 
 ## 部署(已上线 ✅)
 
-**线上地址:http://47.238.241.77**(阿里云香港 ECS,免备案)
+**线上地址:http://47.76.187.249**(阿里云香港 ECS,免备案)
 
 ```
 git push origin main
    │
    ▼
-GitHub Actions:docker build → 推 GHCR(私有)→ Trivy 安全扫描 → SSH 到 ECS 部署
+GitHub Actions:docker build → 推 GHCR(私有)→ Trivy 安全扫描
    │
    ▼
-ECS:/opt/scinexus, docker compose(80 → web:3000),约 1~3 分钟自动上线
+ECS:Watchtower 每 60s 轮询 GHCR,发现新镜像自动 pull + 重建(/opt/scinexus,80 → web:3000)
 ```
 
 - **日常迭代 = `git push`**,无需其他操作;Actions 页面可看每次部署状态
@@ -91,10 +91,10 @@ frontend_v1/
 ├── providers/                # query-provider
 ├── stores/                   # user-preferences(zustand persist)
 ├── types/                    # 全局类型
-├── brand/                    # 品牌资产:logo-day.png / logo-night.png(书法成品,直用勿改,由 logo.tsx 静态导入)+ 母版日间/夜间logo.png 与管线
+├── brand/                    # 品牌资产:logo-wordmark.png(SciNexus 透明字标,日夜通用,由 logo.tsx 静态导入)+ 母版 logo.png 与管线(process_brand_assets.cjs)
 ├── Dockerfile                # 多阶段构建(node:22-alpine,standalone 产物;apk/pnpm 走国内镜像站,本地可构建)
-├── docker-compose.yml        # ECS 部署用(CI 每次自动同步到 /opt/scinexus)
-├── .github/workflows/        # deploy.yml:push → 构建 → 推 GHCR → Trivy 扫描 → SSH 部署
+├── docker-compose.yml        # ECS 部署用(仓库为唯一事实来源,改动后手动同步到 /opt/scinexus)
+├── .github/workflows/        # deploy.yml:push → 构建 → 推 GHCR → Trivy 扫描(ECS 端 Watchtower 拉取式更新)
 ├── deploy/README.md          # 部署运维文档
 ├── .env.example              # 环境变量占位(接后端时填 NEXT_PUBLIC_API_URL 等)
 ├── demo.html                 # 单文件原型复现(双击即开,引用 ./brand/ 图)
@@ -105,7 +105,7 @@ frontend_v1/
 
 ## 品牌与设计令牌
 
-- **标识**:用户书法定稿「研枢」日/夜双版(白字黑底 / 黑字白底),成品直用;随主题 CSS 切换,无 JS 闪烁。资产管线见 `brand/process_logo.py`。
+- **标识**:SciNexus 英文透明字标(自 `brand/logo.png` 提取,日夜通用),展开侧边栏居上 +「研枢」与折叠键并列;折叠态为橙底白三十字星(lucide Sparkles,同 `app/icon.png`)。资产管线见 `brand/process_brand_assets.cjs`。
 - **配色「深识」体系**:主色深识蓝 `#002FA7`(夜间调浅 `#5B84F1`);辅助灵犀紫 / 探索青 / 桂冠金 `#f3d029`(金底一律配墨字)。
 - **日/夜模式**:`globals.css` 用 `.dark` 块重定义同名令牌,组件零改动;`layout.tsx` 内联脚本首屏定主题(`?theme=` > localStorage `scinexus-theme` > 系统偏好);切换按钮在侧边栏 Logo 右侧与移动端顶栏。
 - 完整规范:见本地 `docs/superpowers/specs/`(仅本地工作文档,不入库)

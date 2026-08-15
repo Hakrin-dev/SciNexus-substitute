@@ -19,7 +19,7 @@ GitHub Actions ──build + push 镜像──▶ GHCR (ghcr.io/hakrin-dev/scine
                               ECS: Watchtower ── 发现新 digest ──▶ pull + 重建 web
                                           │
                                           ▼
-                              http://47.76.152.223 (80 → web:3000)
+                              http://47.76.187.249 (80 → web:3000)
 ```
 
 | 组件 | 说明 |
@@ -34,18 +34,19 @@ GitHub Actions ──build + push 镜像──▶ GHCR (ghcr.io/hakrin-dev/scine
 
 ---
 
-## 二、一次性初始化(已完成 ✅)
+## 二、一次性初始化
 
 ### 2.1 ECS
-- 阿里云;镜像:Ubuntu 22.04 LTS;规格 2c4g + 2G swap
-- 公网 IP:`47.76.152.223`
-- 安全组入方向:80 / 443 必须;**22 现在可以只放行自己的 IP**(CI 不再需要 SSH 入站)
+- 阿里云香港;镜像:Ubuntu 22.04 LTS;规格 2c4g
+- 公网 IP:`47.76.187.249`,私网:`172.24.228.171`
+- 安全组入方向:80 必须;**22 只放行自己的 IP / Tailscale**(CI 不需要 SSH 入站)
+- ⚠️ 阿里云内网 DNS(100.100.2.136/138)曾整体失联导致 ghcr.io 解析超时,初始化时
+  已用 `/etc/netplan/60-dns-override.yaml` 把 DNS 固定为 `223.5.5.5` + `8.8.8.8`
 
-### 2.2 Docker + Compose(已在 ECS 装好)
+### 2.2 Docker + Compose(初始化时安装)
 ```bash
-docker --version          # Docker 29.7.1 ✅
-docker compose version    # Compose v5.4.0 ✅
-free -h                   # Swap 2.0G ✅
+docker --version
+docker compose version
 ```
 
 ### 2.3 镜像仓库:GHCR(GitHub Container Registry)
@@ -56,7 +57,7 @@ free -h                   # Swap 2.0G ✅
 
 ### 2.4 SSH 密钥(仅运维用,CI 不再使用)
 - 本地 `~/.ssh/scinexus_ecs`(私钥)+ `scinexus_ecs.pub`(公钥已放到 ECS)
-- 验证:`ssh -i ~/.ssh/scinexus_ecs root@47.76.152.223`
+- 验证:`ssh -i ~/.ssh/scinexus_ecs root@47.76.187.249`
 
 ---
 
@@ -89,11 +90,11 @@ GitHub Actions 构建并推镜像(约 2~4 分钟);Watchtower 在 60s 轮询周�
 
 ### 5.2 查看部署状态
 - GitHub 仓库 → **Actions** 标签页 → 最新 workflow 是否绿(绿 = 镜像已推 GHCR)
-- 线上验证(真正生效):`curl -s http://47.76.152.223/ | head -c 200` 或访问具体页面
+- 线上验证(真正生效):`curl -s http://47.76.187.249/ | head -c 200` 或访问具体页面
 
 ### 5.3 ECS 端检查
 ```bash
-ssh -i ~/.ssh/scinexus_ecs root@47.76.152.223
+ssh -i ~/.ssh/scinexus_ecs root@47.76.187.249
 docker compose -f /opt/scinexus/docker-compose.yml ps                # web / watchtower 状态
 docker logs scinexus-watchtower-1 --tail 20                          # Watchtower 轮询/更新记录
 docker compose -f /opt/scinexus/docker-compose.yml logs --tail 50 web
@@ -135,5 +136,5 @@ docker compose up -d --no-deps web ghcr.io/hakrin-dev/scinexus-frontend:<旧sha>
 | Actions 绿但线上没更新 | `docker logs scinexus-watchtower-1` 看轮询是否报错(GHCR 凭证过期 → 重新 docker login);或镜像 digest 未变(确认 revision label 存在) |
 | Watchtower 报 `client version too old` | 镜像要用 `ghcr.io/nicholas-fedor/watchtower`,containrrr 官方版已归档不兼容 Docker 29 |
 | ECS `docker compose pull` 报 denied/not found | root 的 ghcr.io 登录失效 → 重新 `docker login`;或将 Package 设为 Public(6.1) |
-| 构建失败 Module not found brand/... | 确认 `.dockerignore` **没有排除** `brand/logo-day.png` 与 `brand/logo-night.png` |
+| 构建失败 Module not found brand/... | 确认 `.dockerignore` **没有排除** `brand/logo-wordmark.png`(被 `components/layout/logo.tsx` 静态导入) |
 | 访问 http://IP 打不开 | 安全组 80 是否放行;`docker compose ps` 是否 healthy;`curl -I http://127.0.0.1/` 是否 200 |

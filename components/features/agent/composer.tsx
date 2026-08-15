@@ -19,12 +19,12 @@ import { AttachmentMenu } from "./attachment-menu";
 /** 模型选择(演示) */
 const MODELS = ["默认", "订阅", "API接入"] as const;
 
-/** 模式选择(演示):快速 / 深度 / 灵感 / 质疑 */
+/** 模式选择(演示):快速 / 深度 / 灵感 / 疑惑 */
 const MODES = [
   { value: "fast", label: "快速", icon: Zap },
   { value: "deep", label: "深度", icon: Atom },
   { value: "idea", label: "灵感", icon: Lightbulb },
-  { value: "doubt", label: "质疑", icon: QuestionOutline },
+  { value: "doubt", label: "疑惑", icon: QuestionOutline },
 ] as const;
 
 function useCloseOnOutside(open: boolean, close: () => void) {

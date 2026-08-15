@@ -32,8 +32,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/hakrin-dev/shenzhi-frontend:latest
-            ghcr.io/hakrin-dev/shenzhi-frontend:${{ github.sha }}
+            ghcr.io/hakrin-dev/scinexus-frontend:latest
+            ghcr.io/hakrin-dev/scinexus-frontend:${{ github.sha }}
           # 每次提交写入 revision 标签:镜像 config 变化 → digest 必变,
           # 保证 ECS 上的 Watchtower 总能检测到更新(即使应用代码未变)
           labels: org.opencontainers.image.revision=${{ github.sha }}
@@ -45,7 +45,7 @@ jobs:
       - name: Scan image (vulns + secrets)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/hakrin-dev/shenzhi-frontend:${{ github.sha }}
+          image-ref: ghcr.io/hakrin-dev/scinexus-frontend:${{ github.sha }}
           scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true

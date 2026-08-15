@@ -112,7 +112,7 @@ export function ScholarNetwork() {
               const visible = visibleIds.has(scholar.id);
               const active = scholar.id === selected.id;
               return (
-                <g key={scholar.id} onClick={() => visible && setSelectedId(scholar.id)} className={cn("cursor-pointer transition-opacity", visible ? "opacity-100" : "pointer-events-none opacity-15")} role="button" tabIndex={visible ? 0 : -1}>
+                <g key={scholar.id} onClick={() => visible && setSelectedId(scholar.id)} className={cn("cursor-pointer outline-none transition-opacity", visible ? "opacity-100" : "pointer-events-none opacity-15")} role="button" tabIndex={visible ? 0 : -1}>
                   {active && <circle cx={position.x} cy={position.y} r="48" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeDasharray="5 5" opacity="0.45" />}
                   <circle cx={position.x} cy={position.y} r={active ? 35 : 30} fill={scholar.avatarColor} stroke="var(--color-card)" strokeWidth="5" filter="url(#node-shadow)" />
                   <text x={position.x} y={position.y + 5} textAnchor="middle" fill="white" fontSize="14" fontWeight="700">{scholar.initials}</text>

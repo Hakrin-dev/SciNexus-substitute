@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
+  Atom,
   ChevronDown,
-  CircleHelp,
   Globe,
   Lightbulb,
   Plug,
   Plus,
   Scroll,
-  Search,
   Zap,
 } from "lucide-react";
+import { QuestionOutline } from "@/components/icons/question-outline";
 import { cn } from "@/lib/utils";
 import { AttachmentMenu } from "./attachment-menu";
 
@@ -22,9 +22,9 @@ const MODELS = ["默认", "订阅", "API接入"] as const;
 /** 模式选择(演示):快速 / 深度 / 灵感 / 质疑 */
 const MODES = [
   { value: "fast", label: "快速", icon: Zap },
-  { value: "deep", label: "深度", icon: Search },
+  { value: "deep", label: "深度", icon: Atom },
   { value: "idea", label: "灵感", icon: Lightbulb },
-  { value: "doubt", label: "质疑", icon: CircleHelp },
+  { value: "doubt", label: "质疑", icon: QuestionOutline },
 ] as const;
 
 function useCloseOnOutside(open: boolean, close: () => void) {

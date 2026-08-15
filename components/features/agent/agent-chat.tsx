@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MessageSquarePlus, Sparkles } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
+import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
 import { ComposerShell } from "./composer";
 
@@ -117,7 +118,7 @@ export function AgentChat() {
         {historyPanel}
         <div className="flex min-h-screen min-w-0 flex-1 flex-col items-center justify-center gap-6 px-6">
           <span className="flex size-12 items-center justify-center rounded-2xl bg-primary-soft">
-            <Sparkles className="size-6 text-primary" />
+            <PromptCircle className="size-6 text-primary" />
           </span>
           <h1 className="text-xl font-semibold text-ink">
             有什么我可以帮你研究的?
@@ -156,7 +157,7 @@ export function AgentChat() {
               ) : (
                 <div key={i} className="flex items-start gap-3">
                   <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft">
-                    <Sparkles className="size-4 text-primary" />
+                    <PromptCircle className="size-4 text-primary" />
                   </span>
                   <p className="max-w-[80%] rounded-2xl rounded-tl-md bg-card px-4 py-2.5 text-sm leading-relaxed text-ink shadow-card">
                     {msg.content}

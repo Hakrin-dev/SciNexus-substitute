@@ -7,8 +7,8 @@ import {
   ChevronDown,
   Compass,
   Folder,
+  FolderOpen,
   History,
-  Layers,
   Library,
   LogOut,
   MoreHorizontal,
@@ -16,9 +16,9 @@ import {
   PanelLeftOpen,
   Plus,
   Send,
-  Sparkles,
   User,
 } from "lucide-react";
+import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
 import { projects } from "@/lib/data/projects";
@@ -41,7 +41,7 @@ interface NavItem {
 const RESEARCH_NAV: NavItem[] = [
   { href: "/", label: "发现", icon: Compass, badge: "新" },
   // AI 助手无子栏目,用前缀匹配让 /agents/deep-search 等子页保持高亮
-  { href: "/agents", label: "AI 助手", icon: Sparkles, matchPrefix: "/agents" },
+  { href: "/agents", label: "AI 助手", icon: PromptCircle, matchPrefix: "/agents" },
 ];
 
 /** 「投稿」为单页(会议 / 期刊 / 投递历史 在页内切换),用前缀匹配保持高亮 */
@@ -67,7 +67,7 @@ const PROJECT_SUB_NAV = projects.map((p) => ({
 
 const HISTORY_NAV: NavItem[] = [
   { href: "/history", label: "搜索", icon: History, disabled: true },
-  { href: "/my-projects", label: "项目", icon: Folder, disabled: true },
+  { href: "/my-projects", label: "项目", icon: FolderOpen, disabled: true },
 ];
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
@@ -382,7 +382,7 @@ export function AppSidebar() {
         <ExpandableNav
           href="/projects"
           label="科研项目"
-          icon={Layers}
+          icon={Folder}
           subNav={PROJECT_SUB_NAV}
           collapsed={collapsed}
           footer={

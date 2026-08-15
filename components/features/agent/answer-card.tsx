@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Bookmark, BookmarkCheck, Copy, Sparkles } from "lucide-react";
+import { Bookmark, BookmarkCheck, Copy } from "lucide-react";
+import { PromptCircle } from "@/components/icons/prompt-circle";
 import { answerBlocks, agentReferences, agentSession } from "@/lib/data/agent";
 import { withCitations } from "@/lib/citations";
 import { CiteMenu } from "./cite-menu";
@@ -35,7 +36,7 @@ export function AnswerCard() {
       {/* 头部 */}
       <div className="flex items-center gap-2.5 border-b border-line pb-4">
         <span className="flex size-8 items-center justify-center rounded-full bg-primary">
-          <Sparkles className="size-4 text-white" />
+          <PromptCircle className="size-4 text-white" />
         </span>
         <span className="text-sm font-semibold text-ink">研枢 AI · 深度研究</span>
         <span className="rounded bg-brand-violet px-1.5 py-0.5 text-[10px] font-bold text-white">

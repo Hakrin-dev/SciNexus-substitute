@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 
 const TAG_COLORS = [
   "bg-primary-soft text-primary",
-  "bg-[#FEF3C7] text-[#B45309] dark:bg-[#3a2f10] dark:text-[#f0c94e]",
-  "bg-success-soft text-[#059669] dark:text-success",
+  "bg-brand-blue-soft text-brand-blue",
+  "bg-success-soft text-success",
   "bg-danger-soft text-danger",
-  "bg-[#EDE9FE] text-[#7C3AED] dark:bg-[#2a2150] dark:text-brand-violet",
+  "bg-brand-violet-soft text-brand-violet",
 ];
 
 /** 我的文献库面板 —— 文件夹树 + 标签(对应知识库页面 SVG 第二栏) */

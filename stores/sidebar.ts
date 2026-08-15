@@ -26,6 +26,6 @@ export const useSidebarStore = create<SidebarState>()(
       toggleCollapsed: () => set((s) => ({ collapsed: !s.collapsed })),
       setCollapsed: (collapsed) => set({ collapsed }),
     }),
-    { name: "shenzhi-sidebar" },
+    { name: "scinexus-sidebar" },
   ),
 );

@@ -16,7 +16,7 @@ export function CitationChart({
     <section className="rounded-2xl bg-card p-5 shadow-card">
       <div className="flex items-center justify-between">
         <h3 className="text-[15px] font-semibold text-ink">年度引用</h3>
-        <span className="text-xs font-medium text-[#B91C1C] dark:text-[#f87171]">
+        <span className="text-xs font-medium text-danger">
           {highlight}
         </span>
       </div>
@@ -26,7 +26,7 @@ export function CitationChart({
             key={years[i]}
             title={`${years[i]}: ${value.toLocaleString()}`}
             className={cn(
-              "flex-1 rounded-t-sm bg-[#B91C1C] transition-opacity hover:opacity-80 dark:bg-[#f87171]",
+              "flex-1 rounded-t-sm bg-danger transition-opacity hover:opacity-80",
               i < 2 && "opacity-40",
               i >= 2 && i < 5 && "opacity-60",
             )}

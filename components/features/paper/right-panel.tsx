@@ -10,7 +10,7 @@ import {
 } from "@/lib/data/paper-detail";
 import { cn } from "@/lib/utils";
 
-/** 右侧面板 —— Assistant / My Notes / Similar(对应原型热区面板切换) */
+/** 右侧面板 —— Assistant / 笔记 / 相关(对应原型热区面板切换) */
 export function PaperRightPanel() {
   return (
     <aside className="hidden w-80 shrink-0 flex-col border-l border-line bg-card lg:flex">
@@ -18,8 +18,8 @@ export function PaperRightPanel() {
         <TabsList className="shrink-0 gap-2 border-b border-line px-4 py-3">
           {[
             { value: "assistant", label: "Assistant" },
-            { value: "notes", label: "My Notes" },
-            { value: "similar", label: "Similar" },
+            { value: "notes", label: "笔记" },
+            { value: "similar", label: "相关" },
           ].map((tab) => (
             <TabsTrigger
               key={tab.value}
@@ -89,7 +89,7 @@ export function PaperRightPanel() {
           </div>
         </TabsContent>
 
-        {/* My Notes */}
+        {/* 笔记 */}
         <TabsContent value="notes" className="flex-1 p-4">
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <span className="flex size-12 items-center justify-center rounded-full bg-chip">
@@ -102,7 +102,7 @@ export function PaperRightPanel() {
           </div>
         </TabsContent>
 
-        {/* Similar —— 对应 prototype_v1.html 的 Similar 覆盖面板 */}
+        {/* 相关 —— 对应 prototype_v1.html 的 相关 覆盖面板 */}
         <TabsContent value="similar" className="flex-1 space-y-5 overflow-y-auto p-4">
           <section>
             <h3 className="border-b border-chip pb-2 text-[13px] font-semibold text-ink">

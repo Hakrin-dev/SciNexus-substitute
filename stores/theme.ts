@@ -4,7 +4,7 @@ import { create } from "zustand";
 
 export type ThemeMode = "light" | "dark" | "system";
 
-const STORAGE_KEY = "shenzhi-theme";
+const STORAGE_KEY = "scinexus-theme";
 
 function prefersDark() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;

@@ -14,8 +14,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { feedPapers } from "@/lib/data/papers";
-import { patents } from "@/lib/data/patents";
-import { fundings } from "@/lib/data/funding";
 import { scholars } from "@/lib/data/scholars";
 import { institutions } from "@/lib/data/institutions";
 import { projects } from "@/lib/data/projects";
@@ -28,8 +26,6 @@ interface RefGroup {
 
 const KNOWLEDGE_GROUPS: RefGroup[] = [
   { label: "论文库", items: feedPapers.slice(0, 3).map((p) => p.title) },
-  { label: "专利库", items: patents.slice(0, 3).map((p) => p.title) },
-  { label: "项目基金库", items: fundings.slice(0, 3).map((f) => f.title) },
   {
     label: "学者关系",
     items: scholars.slice(0, 3).map((s) => `${s.nameCn} · ${s.affiliation}`),
@@ -51,7 +47,7 @@ const HISTORY_GROUPS: RefGroup[] = [
   },
   {
     label: "扩散模型效率优化",
-    items: ["视频帧插值的专利空白点", "整理成周报"],
+    items: ["视频帧插值的技术空白点", "整理成周报"],
   },
 ];
 

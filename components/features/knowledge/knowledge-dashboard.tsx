@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, type ComponentType } from "react";
 import {
   ArrowRight,
-  Award,
-  Banknote,
   BookOpen,
   Building2,
   Clock3,
@@ -19,13 +17,11 @@ import {
   Users,
 } from "lucide-react";
 import { libraryFolders, libraryItems, libraryTags } from "@/lib/data/library";
-import { patents } from "@/lib/data/patents";
-import { fundings } from "@/lib/data/funding";
 import { scholars } from "@/lib/data/scholars";
 import { institutions } from "@/lib/data/institutions";
 import { cn } from "@/lib/utils";
 
-type SearchType = "全部" | "论文" | "专利" | "基金" | "学者" | "机构";
+type SearchType = "全部" | "论文" | "学者" | "机构";
 
 interface SearchEntry {
   type: Exclude<SearchType, "全部">;
@@ -34,14 +30,12 @@ interface SearchEntry {
   href: string;
 }
 
-const searchTypes: SearchType[] = ["全部", "论文", "专利", "基金", "学者", "机构"];
+const searchTypes: SearchType[] = ["全部", "论文", "学者", "机构"];
 
 const typeStyle: Record<Exclude<SearchType, "全部">, string> = {
   论文: "bg-primary-soft text-primary",
-  专利: "bg-brand-violet/10 text-brand-violet",
-  基金: "bg-brand-gold/20 text-ink",
   学者: "bg-success-soft text-success",
-  机构: "bg-brand-cyan/10 text-brand-cyan",
+  机构: "bg-brand-blue/10 text-brand-blue",
 };
 
 function Metric({ value, label }: { value: string; label: string }) {
@@ -64,13 +58,12 @@ function CardHeader({
   title: string;
   description: string;
   href: string;
-  tone?: "primary" | "violet" | "gold" | "cyan" | "green";
+  tone?: "primary" | "violet" | "blue" | "green";
 }) {
   const tones = {
     primary: "bg-primary-soft text-primary",
     violet: "bg-brand-violet/10 text-brand-violet",
-    gold: "bg-brand-gold/20 text-ink",
-    cyan: "bg-brand-cyan/10 text-brand-cyan",
+    blue: "bg-brand-blue/10 text-brand-blue",
     green: "bg-success-soft text-success",
   };
 
@@ -121,7 +114,7 @@ function MiniNetwork({ institution = false }: { institution?: boolean }) {
           cx={x}
           cy={y}
           r={r}
-          className={index === 2 ? "fill-primary" : institution ? "fill-brand-cyan/55" : "fill-primary/35"}
+          className={index === 2 ? "fill-primary" : institution ? "fill-brand-blue/55" : "fill-primary/35"}
         />
       ))}
     </svg>
@@ -139,18 +132,6 @@ export function KnowledgeDashboard() {
       title: item.title,
       meta: `${item.venue} · ${item.authors}`,
       href: `/papers/${item.id}`,
-    })),
-    ...patents.map((item) => ({
-      type: "专利" as const,
-      title: item.title,
-      meta: `${item.applicant} · ${item.status}`,
-      href: "/knowledge/patents",
-    })),
-    ...fundings.map((item) => ({
-      type: "基金" as const,
-      title: item.title,
-      meta: `${item.institution} · ${item.amount}`,
-      href: "/knowledge/funding",
     })),
     ...scholars.map((item) => ({
       type: "学者" as const,
@@ -191,7 +172,7 @@ export function KnowledgeDashboard() {
             <h1 className="text-2xl font-bold tracking-tight text-ink">知识库</h1>
             <span className="rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-medium text-primary">科研资产中心</span>
           </div>
-          <p className="mt-1.5 text-sm text-muted">连接论文、专利、基金、学者与机构，让知识不再彼此孤立</p>
+          <p className="mt-1.5 text-sm text-muted">连接论文、学者与机构，让知识不再彼此孤立</p>
         </div>
         <Link href="/knowledge/graph" className="flex h-9 items-center gap-2 rounded-lg border border-line bg-card px-3.5 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
           <Network className="size-4" />
@@ -205,7 +186,7 @@ export function KnowledgeDashboard() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索论文、专利、基金、学者或研究机构…"
+            placeholder="搜索论文、学者或研究机构…"
             className="h-12 min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-faint"
           />
           <span className="hidden items-center gap-1 text-[11px] text-faint sm:flex">
@@ -250,10 +231,8 @@ export function KnowledgeDashboard() {
         )}
       </section>
 
-      <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Metric value="93" label="文献资产" />
-        <Metric value={String(patents.length)} label="专利记录" />
-        <Metric value={String(fundings.length)} label="基金项目" />
         <Metric value={String(scholars.length)} label="关注学者" />
         <Metric value={String(institutions.length)} label="研究机构" />
       </section>
@@ -264,7 +243,7 @@ export function KnowledgeDashboard() {
           tabIndex={0}
           onClick={() => openCard("/knowledge/papers")}
           onKeyDown={(event) => cardKeyDown(event, "/knowledge/papers")}
-          className="group overflow-hidden rounded-2xl bg-card p-6 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-primary xl:col-span-7 xl:row-span-2"
+          className="group overflow-hidden rounded-2xl bg-card p-6 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-primary xl:col-span-12"
         >
           <CardHeader icon={BookOpen} title="论文库" description="管理私有论文与收藏文献，按文件夹、标签和研究主题组织" href="/knowledge/papers" />
           <div className="mt-5 grid gap-5 lg:grid-cols-[180px_1fr]">
@@ -301,25 +280,7 @@ export function KnowledgeDashboard() {
           </div>
         </article>
 
-        <article role="link" tabIndex={0} onClick={() => openCard("/knowledge/patents")} onKeyDown={(event) => cardKeyDown(event, "/knowledge/patents")} className="rounded-2xl bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-primary xl:col-span-5">
-          <CardHeader icon={Award} title="专利库" description="按技术领域与法律状态追踪创新成果" href="/knowledge/patents" tone="violet" />
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <Metric value="4" label="已授权" /><Metric value="3" label="审查中" /><Metric value="5" label="技术领域" />
-          </div>
-          <p className="mt-4 truncate text-xs text-muted"><span className="font-medium text-ink-2">最新：</span>{patents[0]?.title}</p>
-        </article>
-
-        <article role="link" tabIndex={0} onClick={() => openCard("/knowledge/funding")} onKeyDown={(event) => cardKeyDown(event, "/knowledge/funding")} className="rounded-2xl bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-primary xl:col-span-5">
-          <CardHeader icon={Banknote} title="项目基金库" description="洞察资助方向、项目金额与研究进展" href="/knowledge/funding" tone="gold" />
-          <div className="mt-4 flex items-end gap-2">
-            {[42, 66, 52, 84, 72, 94].map((height, index) => (
-              <div key={index} className="flex-1 rounded-t-md bg-primary/15" style={{ height }}><div className="w-full rounded-t-md bg-primary" style={{ height: `${Math.max(10, height - 36)}px` }} /></div>
-            ))}
-            <div className="ml-2 shrink-0 pb-1 text-right"><p className="text-xl font-bold text-ink">10</p><p className="text-[11px] text-faint">项目在库</p></div>
-          </div>
-        </article>
-
-        <article role="link" tabIndex={0} onClick={() => openCard("/knowledge/scholars")} onKeyDown={(event) => cardKeyDown(event, "/knowledge/scholars")} className="rounded-2xl bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-primary xl:col-span-5">
+        <article role="link" tabIndex={0} onClick={() => openCard("/knowledge/scholars")} onKeyDown={(event) => cardKeyDown(event, "/knowledge/scholars")} className="rounded-2xl bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-primary xl:col-span-6">
           <CardHeader icon={Users} title="学者关系" description="从合作网络与引用脉络中发现关键学者" href="/knowledge/scholars" tone="green" />
           <div className="mt-2 grid grid-cols-[1fr_120px] items-center gap-3">
             <div className="space-y-2">
@@ -334,8 +295,8 @@ export function KnowledgeDashboard() {
           </div>
         </article>
 
-        <article role="link" tabIndex={0} onClick={() => openCard("/knowledge/institutions")} onKeyDown={(event) => cardKeyDown(event, "/knowledge/institutions")} className="rounded-2xl bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-primary xl:col-span-7">
-          <CardHeader icon={Building2} title="研究机构" description="浏览高校、研究院与企业实验室的科研画像和优势方向" href="/knowledge/institutions" tone="cyan" />
+        <article role="link" tabIndex={0} onClick={() => openCard("/knowledge/institutions")} onKeyDown={(event) => cardKeyDown(event, "/knowledge/institutions")} className="rounded-2xl bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-primary xl:col-span-6">
+          <CardHeader icon={Building2} title="研究机构" description="浏览高校、研究院与企业实验室的科研画像和优势方向" href="/knowledge/institutions" tone="blue" />
           <div className="mt-3 grid items-stretch gap-4 sm:grid-cols-[1fr_190px]">
             <div className="grid grid-cols-2 gap-2">
               {institutions.slice(0, 4).map((institution) => (
@@ -367,7 +328,7 @@ export function KnowledgeDashboard() {
           {[
             { icon: Clock3, title: "阅读了 Long-Context Reasoning", meta: "论文库 · 2 小时前" },
             { icon: Network, title: "探索了何恺明的合作网络", meta: "学者关系 · 昨天" },
-            { icon: TrendingUp, title: "收藏了科学文献知识图谱项目", meta: "项目基金库 · 3 天前" },
+            { icon: TrendingUp, title: "收藏了科学文献知识图谱项目", meta: "科研项目 · 3 天前" },
           ].map((activity) => (
             <div key={activity.title} className="flex items-center gap-3 rounded-xl bg-panel p-3.5">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-card text-primary shadow-card"><activity.icon className="size-4" /></span>

@@ -40,27 +40,23 @@ interface NavItem {
 
 const RESEARCH_NAV: NavItem[] = [
   { href: "/", label: "发现", icon: Compass, badge: "新" },
+  // AI 助手无子栏目,用前缀匹配让 /agents/deep-search 等子页保持高亮
+  { href: "/agents", label: "AI 助手", icon: Sparkles, matchPrefix: "/agents" },
 ];
 
-/** 「投稿」的子栏目:会议即原投稿页面,点击投稿默认打开 */
-const SUBMIT_SUB_NAV = [
-  { href: "/submit", label: "会议" },
-  { href: "/submit/journals", label: "期刊" },
-];
+/** 「投稿」为单页(会议 / 期刊 / 投递历史 在页内切换),用前缀匹配保持高亮 */
+const SUBMIT_NAV: NavItem = {
+  href: "/submit",
+  label: "投稿",
+  icon: Send,
+  matchPrefix: "/submit",
+};
 
 /** 「知识库」的子栏目 */
 const KNOWLEDGE_SUB_NAV = [
   { href: "/knowledge/papers", label: "论文库" },
-  { href: "/knowledge/patents", label: "专利库" },
-  { href: "/knowledge/funding", label: "项目基金库" },
   { href: "/knowledge/scholars", label: "学者关系" },
   { href: "/knowledge/institutions", label: "研究机构" },
-];
-
-/** 「AI 助手」的子栏目;AI 助手本身有独立对话页(/agents),不与子栏目共享 */
-const AGENT_SUB_NAV = [
-  { href: "/agents/deep-research", label: "Deep Research" },
-  { href: "/agents/auto-research", label: "Auto Research" },
 ];
 
 /** 「科研项目」的子栏目即用户创建的项目列表(副标题 = 项目名称) */
@@ -72,14 +68,7 @@ const PROJECT_SUB_NAV = projects.map((p) => ({
 const HISTORY_NAV: NavItem[] = [
   { href: "/history", label: "搜索", icon: History, disabled: true },
   { href: "/my-projects", label: "项目", icon: Folder, disabled: true },
-  { href: "/deliveries", label: "投递", icon: Send, disabled: true },
 ];
-
-/** 路径所属主标题栏目(取首段):/knowledge/papers → /knowledge,/ → / */
-function sectionOf(path: string): string {
-  const seg = path.split("/")[1];
-  return seg ? `/${seg}` : "/";
-}
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const pathname = usePathname();
@@ -88,10 +77,8 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     ? pathname.startsWith(item.matchPrefix)
     : pathname === item.href;
   const Icon = item.icon;
-  /** 展开态:点击当前所在主标题时折叠侧边栏;点击其他主标题仅跳转 */
-  const collapseIfSameSection = () => {
-    if (sectionOf(item.href) === sectionOf(pathname)) setCollapsed(true);
-  };
+  /** 折叠规则:普通栏目(发现 / AI 助手 / 投稿 / 历史)点击后一律折叠侧边栏 */
+  const collapseAlways = () => setCollapsed(true);
 
   const inner = (
     <>
@@ -100,7 +87,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
         <span className="flex-1 text-[15px] font-medium">{item.label}</span>
       )}
       {!collapsed && item.badge && (
-        <span className="rounded-full bg-brand-gold px-1.5 py-0.5 text-[10px] font-semibold leading-none text-ink">
+        <span className="rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
           {item.badge}
         </span>
       )}
@@ -121,7 +108,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     );
   }
 
-  // 折叠(图标栏)态:点击图标先跳转;再次点击当前栏目图标则展开侧边栏
+  // 折叠(图标栏)态:普通栏目点击仅跳转,不展开侧边栏
   if (collapsed) {
     return (
       <Link
@@ -129,9 +116,6 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
         title={item.label}
         aria-label={item.label}
         aria-current={active ? "page" : undefined}
-        onClick={() => {
-          if (active) setCollapsed(false);
-        }}
         className={cn(
           "flex h-10 shrink-0 items-center justify-center rounded-xl transition-colors",
           active
@@ -149,7 +133,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       href={item.href}
       title={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
-      onClick={collapseIfSameSection}
+      onClick={collapseAlways}
       className={cn(
         "flex h-10 shrink-0 items-center rounded-xl transition-colors",
         "gap-3 px-3",
@@ -164,14 +148,11 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
 }
 
 /**
- * 可展开导航项 —— 展开状态存于全局 store,切换到其他条目后仍保持展开。
+ * 可展开导航项(知识库 / 科研项目)—— 展开状态存于全局 store。
  * 折叠/展开规则(与 NavLink / 设置菜单一致):
- * - 侧边栏展开时,点击主标题:副标题折叠则展开并跳转(有主标题页跳主标题页,
- *   没有则跳第一个副标题页);副标题已展开且当前处于同一主标题下,则折叠侧边栏;
- *   副标题已展开但处于其他栏目,仅按跳转逻辑跳转;
- * - 侧边栏折叠(图标栏)时,点击图标先跳转;再次点击当前栏目的图标,
- *   则展开侧边栏并展开副标题。
- * 右侧箭头只收起/展开副标题,不跳转。
+ * - 不论侧边栏当前展开与否,点击主标题或副标题都会展开侧边栏并展开副标题;
+ * - 其他普通栏目点击后一律折叠(见 NavLink);
+ * - 右侧箭头只收起/展开副标题,不跳转。
  */
 function ExpandableNav({
   href,
@@ -201,18 +182,11 @@ function ExpandableNav({
   /** 跳转目标:有主标题页跳主标题页,没有则跳第一个副标题页 */
   const dest = hasOwnPage ? href : subNav[0].href;
 
+  /** 点击主标题:展开侧边栏与副标题,并按跳转规则跳转 */
   const handleMainClick = () => {
-    if (!open) {
-      // 副标题折叠:展开副标题并跳转
-      setExpanded(href, true);
-      if (pathname !== dest) router.push(dest);
-    } else if (routeActive) {
-      // 副标题展开且处于同一主标题下:折叠侧边栏
-      setCollapsed(true);
-    } else if (pathname !== dest) {
-      // 副标题展开但处于其他栏目:仅跳转
-      router.push(dest);
-    }
+    setCollapsed(false);
+    if (!open) setExpanded(href, true);
+    if (pathname !== dest) router.push(dest);
   };
 
   if (collapsed) {
@@ -221,14 +195,10 @@ function ExpandableNav({
         type="button"
         title={label}
         onClick={() => {
-          if (routeActive) {
-            // 再次点击当前栏目图标:展开侧边栏并展开副标题
-            setCollapsed(false);
-            setExpanded(href, true);
-          } else {
-            // 先跳转,保持图标栏
-            router.push(dest);
-          }
+          // 图标栏:点击可展开栏目 → 展开侧边栏并展开副标题
+          setCollapsed(false);
+          setExpanded(href, true);
+          if (pathname !== dest) router.push(dest);
         }}
         className={cn(
           "flex h-10 shrink-0 items-center justify-center rounded-xl transition-colors",
@@ -283,8 +253,8 @@ function ExpandableNav({
                 href={sub.href}
                 aria-current={active ? "page" : undefined}
                 onClick={() => {
-                  // 同一主标题下点击副标题:折叠侧边栏
-                  if (routeActive) setCollapsed(true);
+                  // 副标题:保持侧边栏展开(不折叠)
+                  setCollapsed(false);
                 }}
                 className={cn(
                   "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
@@ -391,13 +361,6 @@ export function AppSidebar() {
           <NavLink key={item.label} item={item} collapsed={collapsed} />
         ))}
         <ExpandableNav
-          href="/agents"
-          label="AI 助手"
-          icon={Sparkles}
-          subNav={AGENT_SUB_NAV}
-          collapsed={collapsed}
-        />
-        <ExpandableNav
           href="/knowledge"
           label="知识库"
           icon={Library}
@@ -421,13 +384,7 @@ export function AppSidebar() {
             </button>
           }
         />
-        <ExpandableNav
-          href="/submit"
-          label="投稿"
-          icon={Send}
-          subNav={SUBMIT_SUB_NAV}
-          collapsed={collapsed}
-        />
+        <NavLink item={SUBMIT_NAV} collapsed={collapsed} />
         {!collapsed && (
           <p className="shrink-0 px-3 pb-1.5 pt-4 text-[11px] font-medium tracking-wide text-faint">
             历史

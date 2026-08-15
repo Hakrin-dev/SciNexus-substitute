@@ -63,7 +63,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-ink">登录深知</h2>
+          <h2 className="text-base font-semibold text-ink">登录研枢</h2>
           <button
             type="button"
             aria-label="关闭"

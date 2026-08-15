@@ -2,39 +2,40 @@
 @import "tw-animate-css";
 
 /*
- * 设计令牌 —— 精确提取自 prototype_v1 SVG 设计稿
- * 主色深识蓝 #002FA7 / 页面背景 #F7F8FC / 侧边栏 #EEF1F8 / 主文字 #0F1419
- * 日间模式为原界面;夜间模式通过 html.dark 重定义令牌,主蓝调浅为 #5B84F1
+ * 设计令牌 —— 赤金主色 + 紫金搭配(温暖厚重的学院感)
+ * 主色赤金 #B45309 / 页面背景 #FDFCF9 / 侧边栏 #F7F4EE / 主文字 #1C1917
+ * 日间模式为暖纸白底;夜间模式纯黑底,主金提亮为 #F59E0B
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-background: #f7f8fc;
-  --color-sidebar: #eef1f8;
+  --color-background: #fdfcf9;
+  --color-sidebar: #f7f4ee;
   --color-card: #ffffff;
 
-  --color-primary: #002fa7;
+  --color-primary: #f07c00;
   --color-primary-foreground: #ffffff;
-  --color-primary-soft: #e9eefb;
+  --color-primary-soft: #fcf0da;
 
-  /* 品牌辅助色:灵犀紫(智能)/ 探索青(科研)/ 桂冠金(学术) */
-  --color-brand-violet: #5b21b6;
-  --color-brand-cyan: #155e75;
-  --color-brand-gold: #f3d029;
+  /* 品牌辅助色(原色):紫 / 蓝 / 绿 / 红 */
+  --color-brand-violet: #82318e;
+  --color-brand-violet-soft: #f4e8f6;
+  --color-brand-blue: #1d4ed8;
+  --color-brand-blue-soft: #dbeafe;
 
-  --color-ink: #0f1419;
-  --color-ink-2: #374151;
-  --color-muted: #6b7280;
-  --color-faint: #9ca3af;
+  --color-ink: #1c1917;
+  --color-ink-2: #44403c;
+  --color-muted: #78716c;
+  --color-faint: #a8a29e;
 
-  --color-chip: #f3f4f6;
-  --color-panel: #f9fafb;
-  --color-line: #e5e7eb;
+  --color-chip: #f5f1ea;
+  --color-panel: #faf8f3;
+  --color-line: #e8e3d9;
 
-  --color-danger: #ef4444;
+  --color-danger: #dc2626;
   --color-danger-soft: #fee2e2;
-  --color-success: #10b981;
-  --color-success-soft: #d1fae5;
+  --color-success: #16a34a;
+  --color-success-soft: #dcfce7;
 
   --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -44,35 +45,36 @@
 }
 
 /*
- * 夜间模式令牌 —— 深墨蓝底,主蓝调浅(#5B84F1)保证暗底对比度;
+ * 夜间模式令牌 —— 纯黑底,组件近黑色带暖金调,主金提亮(#F59E0B)如黑底鎏金;
  * 组件零改动,全部经 CSS 变量级联生效
  */
 .dark {
-  --color-background: #0b1020;
-  --color-sidebar: #101731;
-  --color-card: #161d36;
+  --color-background: #000000;
+  --color-sidebar: #0c0a08;
+  --color-card: #14100b;
 
-  --color-primary: #5b84f1;
+  --color-primary: #b45309;
   --color-primary-foreground: #ffffff;
-  --color-primary-soft: #1e2a52;
+  --color-primary-soft: #332307;
 
-  --color-brand-violet: #9f7aea;
-  --color-brand-cyan: #4fbdd9;
-  --color-brand-gold: #f3d029;
+  --color-brand-violet: #c77ddb;
+  --color-brand-violet-soft: #241430;
+  --color-brand-blue: #60a5fa;
+  --color-brand-blue-soft: #16264d;
 
-  --color-ink: #e9edf7;
-  --color-ink-2: #b7c1d9;
-  --color-muted: #8791ab;
-  --color-faint: #5f6b88;
+  --color-ink: #faf5ec;
+  --color-ink-2: #d6cdbe;
+  --color-muted: #a39a8a;
+  --color-faint: #6e6557;
 
-  --color-chip: #1d2542;
-  --color-panel: #111a33;
-  --color-line: #26304f;
+  --color-chip: #1f1810;
+  --color-panel: #100c08;
+  --color-line: #2a2115;
 
-  --color-danger: #f87171;
-  --color-danger-soft: #3d2129;
-  --color-success: #34d399;
-  --color-success-soft: #12332b;
+  --color-danger: #ef4444;
+  --color-danger-soft: #2e1216;
+  --color-success: #4ade80;
+  --color-success-soft: #0e241a;
 
   --shadow-card: 0 2px 6px 0 rgb(0 0 0 / 0.3);
   --shadow-pop: 0 8px 24px 0 rgb(0 0 0 / 0.4);
@@ -96,11 +98,11 @@
   }
 
   ::selection {
-    background: rgb(0 47 167 / 0.18);
+    background: rgb(180 83 9 / 0.18);
   }
 
   .dark ::selection {
-    background: rgb(91 132 241 / 0.35);
+    background: rgb(245 158 11 / 0.35);
   }
 }
 

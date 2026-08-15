@@ -1,8 +1,6 @@
-# 深知 ShenZhi · Research OS
+# 研枢 SciNexus
 
-> 深知是面向人工智能领域学术科研的**专业可信知识智能体服务平台**,提供论文检索、投稿筛选,以及用于 Deep Research 与 Auto Research 的知识智能体服务。
->
-> 本目录是其前端工程:`prototype_v1` SVG 原型的正式 React 实现,**9 个页面已全部完成转换**(7 张 SVG + 2 个知识图谱页),并落地了品牌体系与日/夜模式。
+> 研枢是面向人工智能领域学术科研的**个性化自主科研知识智能体平台**,提供论文检索、投稿筛选。
 
 ---
 
@@ -33,11 +31,11 @@ git push origin main
 GitHub Actions:docker build → 推 GHCR(私有)→ Trivy 安全扫描 → SSH 到 ECS 部署
    │
    ▼
-ECS:/opt/shenzhi, docker compose(80 → web:3000),约 1~3 分钟自动上线
+ECS:/opt/scinexus, docker compose(80 → web:3000),约 1~3 分钟自动上线
 ```
 
 - **日常迭代 = `git push`**,无需其他操作;Actions 页面可看每次部署状态
-- 镜像:`ghcr.io/hakrin-dev/shenzhi-frontend`(私有,ECS 凭 GHCR_PAT 拉取)
+- 镜像:`ghcr.io/hakrin-dev/scinexus-frontend`(私有,ECS 凭 GHCR_PAT 拉取)
 - Dockerfile 多阶段 + `output: 'standalone'`,镜像 ~150MB;构建在 CI 完成,ECS 只拉取运行
 - 完整运维文档(Secrets 配置、回滚、扩展后端/数据库):[deploy/README.md](deploy/README.md)
 
@@ -47,15 +45,15 @@ ECS:/opt/shenzhi, docker compose(80 → web:3000),约 1~3 分钟自动上线
 
 | 路由 | 页面 | 对应原型 | 实现位置 |
 |------|------|----------|----------|
-| `/` | 主发现页(搜索 + Feed 流) | 深知-主发现页.svg | [app/page.tsx](app/page.tsx) |
-| `/submit` | 投稿详情页(期刊/会议 + 倒计时) | 深知-投稿详情页.svg | [app/submit/page.tsx](app/submit/page.tsx) |
-| `/papers/[id]` | 论文详情页(沉浸式阅读器) | 深知-论文详情页.svg | [app/papers/[id]/page.tsx](app/papers/[id]/page.tsx) |
-| `/scholars` | 学者画像(检索/排序/关注) | 深知-学者画像页.svg | [app/scholars/page.tsx](app/scholars/page.tsx) |
-| `/scholars/[id]` | 学者详情(引用图表/发表列表) | 深知-学者详情页.svg | [app/scholars/[id]/page.tsx](app/scholars/[id]/page.tsx) |
-| `/knowledge` | 知识库(文献库 + 在读表格) | 深知-知识库页面.svg | [app/knowledge/page.tsx](app/knowledge/page.tsx) |
+| `/` | 主发现页(搜索 + Feed 流) | 研枢-主发现页.svg | [app/page.tsx](app/page.tsx) |
+| `/submit` | 投稿详情页(期刊/会议 + 倒计时) | 研枢-投稿详情页.svg | [app/submit/page.tsx](app/submit/page.tsx) |
+| `/papers/[id]` | 论文详情页(沉浸式阅读器) | 研枢-论文详情页.svg | [app/papers/[id]/page.tsx](app/papers/[id]/page.tsx) |
+| `/scholars` | 学者画像(检索/排序/关注) | 研枢-学者画像页.svg | [app/scholars/page.tsx](app/scholars/page.tsx) |
+| `/scholars/[id]` | 学者详情(引用图表/发表列表) | 研枢-学者详情页.svg | [app/scholars/[id]/page.tsx](app/scholars/[id]/page.tsx) |
+| `/knowledge` | 知识库(文献库 + 在读表格) | 研枢-知识库页面.svg | [app/knowledge/page.tsx](app/knowledge/page.tsx) |
 | `/papers/[id]/graph` | 公域知识图谱(引用关系三栏页) | 知识图谱样页.png | [app/papers/[id]/graph/page.tsx](app/papers/[id]/graph/page.tsx) |
 | `/knowledge/graph` | 私域知识图谱(发表×收藏分层双色) | 知识图谱样页.png | [app/knowledge/graph/page.tsx](app/knowledge/graph/page.tsx) |
-| `/agents` | AI 研究助手(深度研究对话) | 深知-AI研究助手.svg | [app/agents/page.tsx](app/agents/page.tsx) |
+| `/agents` | AI 研究助手(深度研究对话) | 研枢-AI研究助手.svg | [app/agents/page.tsx](app/agents/page.tsx) |
 
 导航联动与 `prototype_v1.html` 热区一致:搜索提交 → `/agents`;论文卡片 → `/papers/[id]`;作者/学者 → `/scholars/[id]`。
 
@@ -95,7 +93,7 @@ frontend_v1/
 ├── types/                    # 全局类型
 ├── brand/                    # 品牌资产:logo-day.png / logo-night.png(书法成品,直用勿改,由 logo.tsx 静态导入)+ 母版日间/夜间logo.png 与管线
 ├── Dockerfile                # 多阶段构建(node:22-alpine,standalone 产物;apk/pnpm 走国内镜像站,本地可构建)
-├── docker-compose.yml        # ECS 部署用(CI 每次自动同步到 /opt/shenzhi)
+├── docker-compose.yml        # ECS 部署用(CI 每次自动同步到 /opt/scinexus)
 ├── .github/workflows/        # deploy.yml:push → 构建 → 推 GHCR → Trivy 扫描 → SSH 部署
 ├── deploy/README.md          # 部署运维文档
 ├── .env.example              # 环境变量占位(接后端时填 NEXT_PUBLIC_API_URL 等)
@@ -107,9 +105,9 @@ frontend_v1/
 
 ## 品牌与设计令牌
 
-- **标识**:用户书法定稿「深知」日/夜双版(白字黑底 / 黑字白底),成品直用;随主题 CSS 切换,无 JS 闪烁。资产管线见 `brand/process_logo.py`。
+- **标识**:用户书法定稿「研枢」日/夜双版(白字黑底 / 黑字白底),成品直用;随主题 CSS 切换,无 JS 闪烁。资产管线见 `brand/process_logo.py`。
 - **配色「深识」体系**:主色深识蓝 `#002FA7`(夜间调浅 `#5B84F1`);辅助灵犀紫 / 探索青 / 桂冠金 `#f3d029`(金底一律配墨字)。
-- **日/夜模式**:`globals.css` 用 `.dark` 块重定义同名令牌,组件零改动;`layout.tsx` 内联脚本首屏定主题(`?theme=` > localStorage `shenzhi-theme` > 系统偏好);切换按钮在侧边栏 Logo 右侧与移动端顶栏。
+- **日/夜模式**:`globals.css` 用 `.dark` 块重定义同名令牌,组件零改动;`layout.tsx` 内联脚本首屏定主题(`?theme=` > localStorage `scinexus-theme` > 系统偏好);切换按钮在侧边栏 Logo 右侧与移动端顶栏。
 - 完整规范:见本地 `docs/superpowers/specs/`(仅本地工作文档,不入库)
 
 ---

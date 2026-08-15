@@ -10,13 +10,13 @@ export function Logo({ compact = false }: { compact?: boolean }) {
     <Link href="/" className="flex items-center gap-2.5 outline-none">
       <Image
         src={logoNight}
-        alt="深知"
+        alt="研枢"
         className="size-9 rounded-[10px] dark:hidden"
         priority
       />
       <Image
         src={logoDay}
-        alt="深知"
+        alt="研枢"
         className="hidden size-9 rounded-[10px] dark:block"
         priority
       />

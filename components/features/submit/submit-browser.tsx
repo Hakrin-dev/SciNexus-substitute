@@ -4,9 +4,6 @@ import { useState } from "react";
 import { FilterPanel } from "./filter-panel";
 import { VenueCard } from "./venue-card";
 import { venues } from "@/lib/data/venues";
-import { cn } from "@/lib/utils";
-
-const TABS = ["截止日期", "Rebuttal", "录用通知", "最终定稿", "会议时间"];
 
 /** 等级 chip → 徽章名映射(用于过滤) */
 const LEVEL_TO_BADGE: Record<string, string> = {
@@ -20,9 +17,8 @@ const LEVEL_TO_BADGE: Record<string, string> = {
   中科院1区: "中科院1区",
 };
 
-/** 投稿浏览区 —— 标签切换 + 等级过滤(原型热区 → React 状态驱动),按会议/期刊分类展示 */
+/** 投稿浏览区 —— 等级过滤 + 卡片列表;顶部的两组切换 tab 在 submit-page.tsx */
 export function SubmitBrowser({ kind }: { kind: "conference" | "journal" }) {
-  const [tab, setTab] = useState(TABS[0]);
   const [levels, setLevels] = useState<string[]>([]);
 
   const toggleLevel = (chip: string) =>
@@ -43,30 +39,11 @@ export function SubmitBrowser({ kind }: { kind: "conference" | "journal" }) {
 
   return (
     <>
-      <div className="flex items-center justify-between">
-        <div className="flex rounded-full bg-sidebar p-1">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={cn(
-                "h-8 cursor-pointer rounded-full px-4 text-[13px] transition-colors",
-                tab === t
-                  ? "bg-primary font-medium text-white"
-                  : "text-muted hover:text-ink-2",
-              )}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <span className="text-sm text-faint">
-          {levels.length === 0 ? base.length : filtered.length} 条结果
-        </span>
+      <div className="text-right text-sm text-faint">
+        {levels.length === 0 ? base.length : filtered.length} 条结果
       </div>
 
-      <div className="mt-5 grid items-start gap-6 xl:grid-cols-[300px_1fr]">
+      <div className="mt-3 grid items-start gap-6 xl:grid-cols-[300px_1fr]">
         <FilterPanel activeLevels={levels} onToggleLevel={toggleLevel} />
         <div className="space-y-6">
           {filtered.map((venue, i) => (

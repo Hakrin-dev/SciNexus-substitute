@@ -1,9 +1,9 @@
-# 放在 ECS 的 /opt/shenzhi/ 下使用(与线上一致,本文件为唯一事实来源)
+# 放在 ECS 的 /opt/scinexus/ 下使用(与线上一致,本文件为唯一事实来源)
 # 镜像来自 GitHub Container Registry(ghcr.io),由 GitHub Actions 构建推送
 # 部署为拉取式:Watchtower 每 60s 轮询 GHCR latest,发现新 digest 自动 pull + 重建 web
 services:
   web:
-    image: ghcr.io/hakrin-dev/shenzhi-frontend:latest
+    image: ghcr.io/hakrin-dev/scinexus-frontend:latest
     ports:
       - "80:3000"
     restart: unless-stopped

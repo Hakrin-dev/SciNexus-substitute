@@ -19,7 +19,6 @@ import {
   Moon,
   Newspaper,
   Smile,
-  Sparkles,
   Sun,
   Trophy,
   User,
@@ -58,7 +57,6 @@ export function McpIcon({ className }: { className?: string }) {
 /** 设置页 Tab(顺序与侧边栏浮动标签栏一致) */
 export const SETTINGS_TABS = [
   { value: "profile", label: "个人", icon: UserRound },
-  { value: "subscription", label: "订阅", icon: Sparkles },
   { value: "usage", label: "用量统计", icon: BarChart3 },
   { value: "agent", label: "Agent设置", icon: Bot },
   { value: "mcp", label: "MCP", icon: null },
@@ -304,12 +302,6 @@ const NOTIFICATION_ITEMS: {
     detail: "演示:何恺明 发表了新论文《…》;清华大学 AI Lab 发布了新动态。",
   },
   {
-    title: "订阅消息",
-    subtitle: "你的订阅和用量统计消息",
-    icon: Sparkles,
-    detail: "演示:本月用量已统计完成;订阅将于 30 天后到期。",
-  },
-  {
     title: "互动消息",
     subtitle: "与你互动的消息",
     icon: Users,
@@ -318,7 +310,7 @@ const NOTIFICATION_ITEMS: {
   {
     title: "系统通知",
     icon: Bell,
-    detail: "演示:深知将于本周六 02:00-04:00 进行系统维护。",
+    detail: "演示:研枢将于本周六 02:00-04:00 进行系统维护。",
   },
 ];
 
@@ -449,9 +441,6 @@ export function SettingsTabs() {
 
       <TabsContent value="profile" className="mt-6">
         <ProfilePanel />
-      </TabsContent>
-      <TabsContent value="subscription" className="mt-6">
-        <Placeholder text="订阅方案管理(演示占位)" />
       </TabsContent>
       <TabsContent value="usage" className="mt-6">
         <Placeholder text="用量统计(演示占位)" />

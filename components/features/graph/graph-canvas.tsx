@@ -43,7 +43,7 @@ export function GraphCanvas({
 
   const nodeFill = (node: GraphNode) =>
     variant === "strata" && node.layer === "folder"
-      ? "var(--color-brand-cyan)"
+      ? "var(--color-brand-blue)"
       : "var(--color-primary)";
 
   return (
@@ -174,7 +174,7 @@ export function GraphCanvas({
               我的发表
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full bg-brand-cyan" />
+              <span className="size-2.5 rounded-full bg-brand-blue" />
               收藏论文
             </span>
             <span>虚线 = 跨层关联</span>

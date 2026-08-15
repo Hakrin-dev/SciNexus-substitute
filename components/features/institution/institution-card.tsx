@@ -8,8 +8,8 @@ import type { Institution } from "@/types";
 
 const TYPE_TONES: Record<Institution["type"], string> = {
   高校: "bg-primary-soft text-primary",
-  研究院: "bg-success-soft text-[#059669] dark:text-success",
-  企业实验室: "bg-[#FEF3C7] text-[#B45309] dark:bg-[#3a2f10] dark:text-[#f0c94e]",
+  研究院: "bg-success-soft text-success",
+  企业实验室: "bg-brand-blue-soft text-brand-blue",
 };
 
 /** 机构卡片 —— 学者卡片的放大版:单列、4 项统计、完整简介,卡片即详情 */

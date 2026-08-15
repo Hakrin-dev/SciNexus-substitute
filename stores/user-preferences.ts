@@ -56,6 +56,6 @@ export const useUserPreferences = create<UserPreferencesState>()(
           },
         })),
     }),
-    { name: "shenzhi-user-preferences" },
+    { name: "scinexus-user-preferences" },
   ),
 );

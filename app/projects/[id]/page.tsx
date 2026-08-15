@@ -13,23 +13,24 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
+import { ProposalGenerator } from "@/components/features/projects/proposal-generator";
 import { getProject, type MilestoneStatus } from "@/lib/data/projects";
 
 const STATUS_STYLE: Record<MilestoneStatus, { label: string; className: string }> = {
   done: { label: "已完成", className: "bg-primary-soft text-primary" },
-  doing: { label: "进行中", className: "bg-brand-gold/25 text-ink" },
+  doing: { label: "进行中", className: "bg-brand-blue-soft text-brand-blue" },
   todo: { label: "未开始", className: "bg-chip text-muted" },
 };
 
 function MilestoneIcon({ status }: { status: MilestoneStatus }) {
   if (status === "done") return <CheckCircle2 className="size-4.5 text-primary" />;
-  if (status === "doing") return <Loader className="size-4.5 text-brand-gold" />;
+  if (status === "doing") return <Loader className="size-4.5 text-brand-blue" />;
   return <Circle className="size-4.5 text-faint" />;
 }
 
 /**
  * 科研项目详情页 `/projects/[id]` —— 演示态项目管理页
- * 项目由用户建立;样例「深知」数据取自仓库 README(lib/data/projects.ts)
+ * 项目由用户建立;样例「研枢」数据取自仓库 README(lib/data/projects.ts)
  */
 export default async function ProjectPage({
   params,
@@ -61,6 +62,7 @@ export default async function ProjectPage({
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
+              <ProposalGenerator projectName={project.name} />
               <Button variant="outline" size="sm">
                 <Pencil className="size-3.5" />
                 编辑

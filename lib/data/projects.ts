@@ -1,4 +1,4 @@
-/** 科研项目 mock 数据 —— 项目由用户自己建立;样例「深知」取自仓库 README */
+/** 科研项目 mock 数据 —— 项目由用户自己建立;样例「研枢」取自仓库 README */
 
 export type MilestoneStatus = "done" | "doing" | "todo";
 
@@ -25,16 +25,16 @@ export interface Project {
 
 export const projects: Project[] = [
   {
-    id: "shenzhi",
-    name: "深知",
-    tagline: "ShenZhi · Research OS —— 面向 AI 领域学术科研的专业可信知识智能体服务平台",
+    id: "scinexus",
+    name: "研枢",
+    tagline: "SciNexus —— 面向 AI 领域的个性化自主科研知识智能体平台",
     status: "进行中",
     progress: 68,
     createdAt: "2025-11-02",
     owner: "Hakrin-dev",
     overview: [
-      "深知提供论文检索、投稿筛选,以及用于 Deep Research 与 Auto Research 的知识智能体服务。前端为 prototype_v1 SVG 原型的正式 React 实现,9 个页面已全部完成转换,并落地了品牌体系与日/夜模式。",
-      "已部署至阿里云香港 ECS(http://47.238.241.77),日常迭代只需 git push:GitHub Actions 完成 docker 构建、推 GHCR、Trivy 安全扫描并 SSH 到 ECS 自动上线。",
+      "研枢提供论文检索、投稿筛选与 AI 深度搜索服务。前端为 prototype_v1 SVG 原型的正式 React 实现,并落地了品牌体系与日/夜模式。",
+      "基于 Next.js 16 + React 19 构建,支持 Docker 容器化部署与 GitHub Actions CI/CD。",
     ],
     techStack: [
       "Next.js 16",
@@ -84,9 +84,8 @@ export const projects: Project[] = [
       { name: "李识", role: "算法" },
     ],
     links: [
-      { label: "线上地址", href: "http://47.238.241.77" },
-      { label: "GitHub 仓库", href: "https://github.com/Hakrin-dev/shenzhi" },
-      { label: "GHCR 镜像", href: "https://ghcr.io/hakrin-dev/shenzhi-frontend" },
+      { label: "GitHub 仓库", href: "https://github.com/Hakrin-dev/scinexus" },
+      { label: "GHCR 镜像", href: "https://ghcr.io/hakrin-dev/scinexus" },
     ],
   },
 ];

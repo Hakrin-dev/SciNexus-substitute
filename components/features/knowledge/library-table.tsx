@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { libraryItems } from "@/lib/data/library";
@@ -8,8 +9,8 @@ import { cn } from "@/lib/utils";
 
 const PDF_TONES = {
   violet: "bg-primary-soft text-primary",
-  amber: "bg-[#FEF3C7] text-[#B45309] dark:bg-[#3a2f10] dark:text-[#f0c94e]",
-  green: "bg-success-soft text-[#059669] dark:text-success",
+  amber: "bg-brand-blue-soft text-brand-blue",
+  green: "bg-success-soft text-success",
 } as const;
 
 /** 在读文献表格 —— 标题 / 作者 / 添加时间 */
@@ -17,6 +18,8 @@ export function LibraryTable() {
   const [query, setQuery] = useState("");
   const [venue, setVenue] = useState("全部会议");
   const [year, setYear] = useState("全部年份");
+  const router = useRouter();
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const venues = ["全部会议", ...new Set(libraryItems.map((item) => item.venue.split(" ")[0]))];
   const years = ["全部年份", ...new Set(libraryItems.map((item) => item.venue.match(/\d{4}/)?.[0] ?? "其他"))];
@@ -40,10 +43,20 @@ export function LibraryTable() {
             12 篇文献 · 上次更新 7 月 25 日
           </p>
         </div>
-        <Button className="rounded-xl">
+        <Button className="rounded-xl" onClick={() => fileInput.current?.click()}>
           <Upload className="size-4" />
           上传私有论文
         </Button>
+        {/* 演示:选中 PDF 即进入 AI 解析精读页 */}
+        <input
+          ref={fileInput}
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) router.push("/knowledge/reader");
+          }}
+        />
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2.5">

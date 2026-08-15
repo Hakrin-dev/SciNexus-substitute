@@ -26,7 +26,7 @@ export default function DeepSearchPage() {
             <span className="text-xs text-faint">{agentSession.mode}</span>
             <div className="ml-auto flex gap-2">
               <Button variant="dark" size="sm" className="rounded-lg">
-                <Star className="size-3.5 fill-brand-gold text-brand-gold" />
+                <Star className="size-3.5 fill-brand-violet text-brand-violet" />
                 Pro 模式
               </Button>
               <Button variant="outline" size="sm" className="rounded-lg">

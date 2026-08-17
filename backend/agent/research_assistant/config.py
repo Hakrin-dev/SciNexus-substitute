@@ -19,6 +19,13 @@ def _default_llm_provider() -> str:
     return "openai" if os.getenv("OPENAI_API_KEY") else "mock"
 
 
+def _env_bool(key: str, default: bool = False) -> bool:
+    raw = os.getenv(key)
+    if raw is None or raw == "":
+        return default
+    return raw.strip().lower() not in ("0", "false", "no", "off")
+
+
 @dataclass
 class Settings:
     # llm_provider: mock | openai | ollama
@@ -58,6 +65,20 @@ class Settings:
 
     # 检索相关参数
     top_k: int = int(os.getenv("TOP_K", "10"))
+
+    # ---- 文献综述（综述写作，移植自 SZDR paperreport）----
+    review_claim_max_chars: int = int(os.getenv("REVIEW_CLAIM_MAX_CHARS", "120"))
+    review_dimensions_min: int = int(os.getenv("REVIEW_DIMENSIONS_MIN", "3"))
+    review_dimensions_max: int = int(os.getenv("REVIEW_DIMENSIONS_MAX", "6"))
+    review_max_refs: int = int(os.getenv("REVIEW_MAX_REFS", "20"))  # 单篇综述最多引用论文数
+    # 质量签名小节开关（镜像 SZDR passes 门控）
+    review_pass_findings: bool = field(default_factory=lambda: _env_bool("REVIEW_PASS_FINDINGS", True))
+    review_pass_table: bool = field(default_factory=lambda: _env_bool("REVIEW_PASS_TABLE", True))
+    review_pass_timeline: bool = field(default_factory=lambda: _env_bool("REVIEW_PASS_TIMELINE", True))
+    review_findings_k: int = int(os.getenv("REVIEW_FINDINGS_K", "5"))
+    review_table_min_refs: int = int(os.getenv("REVIEW_TABLE_MIN_REFS", "3"))
+    review_table_max_refs: int = int(os.getenv("REVIEW_TABLE_MAX_REFS", "12"))
+    review_timeline_max_phases: int = int(os.getenv("REVIEW_TIMELINE_MAX_PHASES", "4"))
 
     # ---- 数据层（后端知识库）----
     # 数据源：server_mock（server/data/mock_data.py，默认）/ json（server/data/papers.json）/ sqlite（server/data/research.sqlite，真实入库）

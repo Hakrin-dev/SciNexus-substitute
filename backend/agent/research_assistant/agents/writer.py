@@ -1,13 +1,18 @@
-"""Writer（论文写作）：基于研究设想与学术证据链撰写、修改高可信度论文草稿。"""
+"""Writer（论文写作）：基于研究设想与学术证据链撰写、修改高可信度论文草稿。
+
+文献综述分支（literature_review）走 `review.build_literature_review` 管线
+（移植自 SZDR paperreport：三阶段综合 + 引用解析 + 质量签名小节），
+mock 与真实模式共用同一代码路径，产出 docs/*.md + paper/*.tex 两个文件。
+"""
 from __future__ import annotations
 
 import re
 
 from research_assistant.agents.base import BaseAgent
 from research_assistant.llm import LLMProvider
-from research_assistant.schemas import ClaimEvidence, GeneratedFile, ReviewMarkdown, WrittenContent, WriterOutput, WriterPlan
+from research_assistant.review import build_literature_review, revise_literature_review
+from research_assistant.schemas import ClaimEvidence, GeneratedFile, WrittenContent, WriterOutput, WriterPlan
 from research_assistant.tools import tools
-from research_assistant.tools.data_source import backend
 
 SYSTEM_PROMPT = (
     "你是一位学术写作专家，精通顶级期刊会议的写作规范：\n"
@@ -27,29 +32,6 @@ SYSTEM_PROMPT = (
     "【禁止事项】\n"
     "严禁虚构任何参考文献、作者或 DOI 编号；不得抄袭他人作品而不正确引用；禁止使用歧视性、偏见性或"
     "不当语言；不允许夸大研究成果的实际意义；不得违反目标会议的匿名投稿规则。"
-)
-
-REVIEW_SYSTEM_PROMPT = (
-    "你是一位学术写作专家，负责撰写一篇完整的「文献综述」Markdown 文档。\n"
-    "用户会提供综述主题与一批论文（标题/作者/年份/会议/摘要），每篇以 [pid] 标注。\n"
-    "\n"
-    "要求：\n"
-    "1. 严格依据提供的论文摘要与题名撰写，严禁虚构摘要之外的结论、数据或引用；\n"
-    "2. 综述必须包含以下章节（Markdown 二级标题）：\n"
-    "   ## 摘要\n"
-    "   ## 1. 研究背景\n"
-    "   ## 2. 代表性工作\n"
-    "   ## 3. 方法脉络\n"
-    "   ## 4. 对比分析\n"
-    "   ## 5. 未来方向\n"
-    "3. 【引用要求·必须严格遵守】\n"
-    "   - 正文中每句涉及具体方法、结论、实验数据或工作对比时，都必须在题名后紧跟 [pid] 标记引用"
-    "     （例：Attention Is All You Need [p1] 提出了完全基于注意力的 Transformer 架构）；\n"
-    "   - 不得出现没有引用支撑的事实断言；不得引用候选列表中不存在的 pid；\n"
-    "   - 提供的每篇候选论文应至少被引用一次；\n"
-    "4. 采用 IEEE 风格，行文客观、严谨、专业，使用中文撰写；\n"
-    "5. 只输出 Markdown 正文本身（不要写「参考文献」章节，参考文献由系统自动生成编号），"
-    "   不要 Markdown 代码块围栏，不要多余说明文字。"
 )
 
 
@@ -73,114 +55,87 @@ class WriterAgent(BaseAgent):
         cleaned = re.sub(r"[^\w\u4e00-\u9fff-]+", "_", cls._topic_title(query)).strip("_")
         return (cleaned[:36] or "literature_review").lower()
 
-    @staticmethod
-    def _paper_line(pid: str) -> str:
-        paper = backend.get_paper(pid) or {}
-        title = paper.get("title") or pid
-        author = paper.get("author") or "Unknown authors"
-        year = paper.get("year") or ""
-        venue = paper.get("venue") or "Unknown venue"
-        return f"- [{pid}] {author}. {title}. {venue}, {year}."
-
-    @staticmethod
-    def _paper_summary(pid: str) -> str:
-        paper = backend.get_paper(pid) or {}
-        title = paper.get("title") or pid
-        abstract = (paper.get("abstract") or "暂无摘要。").strip().replace("\n", " ")
-        if len(abstract) > 220:
-            abstract = abstract[:220].rstrip() + "..."
-        return f"- **{title}** [{pid}]：{abstract}"
-
-    @staticmethod
-    def _llm_paper_blob(pid: str) -> str:
-        """供 LLM 综述生成的论文信息块：题名/作者/会议/年份 + 完整摘要，附 [pid] 标记。"""
-        paper = backend.get_paper(pid) or {}
-        title = paper.get("title") or pid
-        author = paper.get("author") or "Unknown authors"
-        year = paper.get("year") or ""
-        venue = paper.get("venue") or "Unknown venue"
-        abstract = (paper.get("abstract") or "暂无摘要。").strip().replace("\n", " ")
-        return (
-            f"- [{pid}] {author}. {title}. {venue}, {year}.\n"
-            f"  摘要: {abstract}"
-        )
-
-    @staticmethod
-    def _numbered_reference(pid: str, n: str) -> str:
-        """生成编号参考文献条目：[n] 作者. 标题. 会议, 年份."""
-        paper = backend.get_paper(pid) or {}
-        title = paper.get("title") or pid
-        author = paper.get("author") or "Unknown authors"
-        year = paper.get("year") or ""
-        venue = paper.get("venue") or "Unknown venue"
-        return f"[{n}] {author}. {title}. {venue}, {year}."
-
-    @classmethod
-    def _number_citations(cls, review_md: str, cited: list[str]) -> str:
-        """把正文 [pid] 标记替换为按首次出现顺序编号的 [1][2]...，并追加编号参考文献章节。
-
-        LLM 生成的正文用 [pid] 占位，此处统一转成规范的数字引用，保证引用与
-        参考文献一一对应，且不存在幽灵引用。
-        """
-        appeared: list[tuple[int, str]] = []
-        for pid in cited:
-            pos = review_md.find(f"[{pid}]")
-            if pos >= 0:
-                appeared.append((pos, pid))
-        appeared.sort(key=lambda x: x[0])
-        ordered = [pid for _, pid in appeared] or list(cited)
-        num = {pid: str(i + 1) for i, pid in enumerate(ordered)}
-        body = review_md
-        for pid in ordered:
-            body = body.replace(f"[{pid}]", f"[{num[pid]}]")
-        refs = "\n".join(cls._numbered_reference(pid, num[pid]) for pid in ordered)
-        return body.rstrip() + "\n\n## 参考文献\n\n" + refs + "\n"
-
-    def _build_literature_review_files(self, query: str, cited: list[str], latex: str,
-                                       review_md: str | None = None) -> list[GeneratedFile]:
+    def _build_literature_review_files(self, query: str, latex: str, review_md: str) -> list[GeneratedFile]:
         """组装最终 GeneratedFile 列表（docs/*.md + paper/*.tex）。
 
-        review_md 由真实模式 LLM 生成；为 None 时（mock 模式）使用确定性模板。
+        review_md 由 `review.build_literature_review` 生成（mock 与真实模式同路径），
+        已包含完整的「## 参考文献」节。
         """
         topic = self._topic_title(query)
         slug = self._topic_slug(query)
-        cited = cited[:20]
-        references = "\n".join(self._paper_line(pid) for pid in cited) or "- 暂无可用引用，请先完成论文检索。"
-        summaries = "\n".join(self._paper_summary(pid) for pid in cited[:10]) or "- 暂无可用论文摘要。"
         if not review_md:
-            review_md = f"""# {topic}：文献综述
-
-## 摘要
-本文围绕“{topic}”梳理已有研究脉络，重点关注代表性方法、技术演进、实验范式与未来问题。综述基于当前论文库检索结果生成，引用条目均来自已加载数据库。
-
-## 1. 研究背景
-该方向的发展通常由基础模型、任务需求和工程约束共同推动。早期工作侧重核心机制验证，后续研究逐渐转向效率、可扩展性、泛化能力和真实场景部署。
-
-## 2. 代表性工作
-{summaries}
-
-## 3. 方法脉络
-从已检索论文看，相关研究大体可分为三条路线：一是通过架构设计提升表达能力；二是通过训练策略与数据构造改善泛化；三是通过系统优化降低部署成本。
-
-## 4. 对比分析
-| 维度 | 主要关注点 | 写作建议 |
-| --- | --- | --- |
-| 方法创新 | 架构、目标函数、训练范式 | 对比核心假设和适用边界 |
-| 实验设置 | 数据集、指标、baseline | 优先引用公开可复现实验 |
-| 工程价值 | 复杂度、显存、延迟 | 区分研究原型和生产部署 |
-
-## 5. 未来方向
-未来研究可进一步关注长上下文处理、低资源适配、可信评测、跨领域迁移和可解释性。若用于正式论文，建议继续补充近两年顶会论文并扩展实验对比表。
-
-## 参考文献
-{references}
-"""
+            review_md = f"# {topic}：文献综述\n\n> 当前论文库未检索到可用文献，请先完成论文检索后再生成综述。\n"
         return [
             GeneratedFile(path=f"docs/{slug}_文献综述.md", language="markdown", content=review_md),
             GeneratedFile(path=f"paper/{slug}_review.tex", language="latex", content=latex),
         ]
 
+    @staticmethod
+    def _critic_feedback_text(review_report: dict) -> str:
+        """把 critic 的 ReviewReport 转成可执行的审稿意见文本。"""
+        report = review_report or {}
+        decision = report.get("decision") or "ACCEPT"
+        lines = [f"审稿决策：{decision}"]
+        issues = report.get("issues_found") or []
+        for issue in issues:
+            detail = issue.get("detail") or ""
+            location = issue.get("location") or ""
+            action = issue.get("action_required") or ""
+            lines.append(f"- [{issue.get('type') or 'Issue'}] {location}：{detail}"
+                         + (f"（建议：{action}）" if action else ""))
+        if not issues:
+            lines.append("- 未发现必须修改的问题，可仅做语言与结构润色。")
+        return "\n".join(lines)
+
+    def _run_revision(self, state: dict) -> dict:
+        """修订模式：critic 审查后回写。定向改写正文（不重新聚类/提取论断），
+        引用与质量 passes 由 `review.revise_literature_review` 重跑保证一致。
+
+        不调用 self.generate（避免额外 LLM 规划往返）；以修订后的生成文件为准。
+        """
+        query = state["user_query"]
+        wm = dict(state.get("working_memory") or {})
+        outputs = dict(wm.get("agent_outputs") or {})
+        prev_writer = outputs.get("writer") or {}
+        files = list(prev_writer.get("generated_files") or [])
+
+        md_index = next((i for i, f in enumerate(files) if f.get("language") == "markdown"), None)
+        prev_md = files[md_index].get("content", "") if md_index is not None else ""
+        prev_latex = next((f.get("content", "") for f in files if f.get("language") == "latex"), "")
+        cited = list(prev_writer.get("written_content", {}).get("cited_paper_ids") or [])
+
+        critic_out = state.get("last_output") or {}
+        feedback = self._critic_feedback_text(critic_out.get("review_report") or {})
+        topic = self._topic_title(query)
+
+        revised_md = prev_md
+        if prev_md:
+            revised_md = revise_literature_review(self.llm, self.mock, topic, prev_md, feedback, cited)
+        if md_index is not None:
+            files[md_index] = {**files[md_index], "content": revised_md}
+
+        content = WrittenContent(
+            section_name="Revision",
+            latex_payload=prev_latex or "",
+            cited_paper_ids=cited,
+            claim_evidence_map=[],
+        )
+        output = WriterOutput(
+            status="SUCCESS",
+            written_content=content,
+            generated_files=[GeneratedFile(**f) for f in files],
+        )
+        wm = self.remember(state, "revise literature review after feedback", output.model_dump(), paper_ids=cited)
+        return {"last_output": output.model_dump(), "working_memory": wm}
+
     def run(self, state: dict) -> dict:
+        # 修订模式：当前计划步骤的 action 含 "revise"（writer→critic→writer 回环第二步）
+        plan = state.get("task_plan") or []
+        idx = state.get("plan_index") or 0
+        step_action = plan[idx].get("action", "") if idx < len(plan) else ""
+        if "revise" in step_action:
+            return self._run_revision(state)
+
         query = state["user_query"]
         wm = state.get("working_memory") or {}
         ev = wm.get("evidence_chain_index") or {}
@@ -213,23 +168,15 @@ class WriterAgent(BaseAgent):
         ]
 
         # 4. 风格对齐：mock 模式通过 dpo_align 工具打标（保持 supervisor 工具白名单一致）；
-        #    真实模式不调用该 mock 工具，IEEE/客观风格要求已折叠进 REVIEW_SYSTEM_PROMPT。
+        #    真实模式不调用该 mock 工具，客观写作风格已折叠进各步提示词。
         if self.mock:
             latex = tools.call("dpo_align", text=latex, style=plan.style_preference)
 
-        # 5. 文献综述正文：真实模式由 LLM 依据论文摘要/[pid] 引用撰写，mock 模式用确定性模板。
-        if self.mock:
-            generated_files = self._build_literature_review_files(query, cited, latex)
-        else:
-            papers = "\n\n".join(self._llm_paper_blob(pid) for pid in cited) or "（无可用论文，请先完成检索）"
-            review_md = self.llm.complete(
-                REVIEW_SYSTEM_PROMPT,
-                {"topic": self._topic_title(query), "papers": papers},
-                ReviewMarkdown,
-            ).markdown
-            # 把正文 [pid] 占位转成规范数字引用 [1][2]...，并追加编号参考文献
-            review_md = self._number_citations(review_md, cited)
-            generated_files = self._build_literature_review_files(query, cited, latex, review_md)
+        # 5. 文献综述正文：三阶段综合管线（论断 → 维度 → 成文）+ 引用解析 + 质量 passes，
+        #    mock 与真实模式走同一代码路径。
+        topic = self._topic_title(query)
+        review_md, _ = build_literature_review(self.llm, self.mock, topic, cited)
+        generated_files = self._build_literature_review_files(query, latex, review_md)
 
         content = WrittenContent(
             section_name=plan.section_type,

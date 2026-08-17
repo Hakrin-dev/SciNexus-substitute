@@ -335,6 +335,80 @@ class CriticOutput(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# 文献综述（综述写作，移植自 SZDR paperreport 三阶段综合 + 质量 passes）
+# --------------------------------------------------------------------------- #
+class ReviewClaimEntry(BaseModel):
+    """单篇论文的论断提取结果。"""
+    index: int = Field(description="论文在证据列表中的全局编号（1 基）")
+    claims: list[str] = Field(default_factory=list)
+
+
+class ReviewClaims(BaseModel):
+    """阶段一输出：逐篇提取的忠实论断。"""
+    papers: list[ReviewClaimEntry] = Field(default_factory=list)
+
+
+class ReviewDimension(BaseModel):
+    """一个研究维度（综述的一节）。"""
+    name: str
+    format: str = Field(default="", description="一句话说明该维度的讨论角度")
+    paper_indices: list[int] = Field(default_factory=list, description="归入该维度的论文全局编号")
+
+
+class ReviewCluster(BaseModel):
+    """阶段二输出：论断聚类得到的研究维度。"""
+    dimensions: list[ReviewDimension] = Field(default_factory=list)
+
+
+class ReviewAssignment(BaseModel):
+    """补聚类输出：把首次聚类漏归的论文定向归入现有维度或新建维度。"""
+    index: int
+    dimension: int | str = Field(description="现有维度序号（0 基）或新维度名")
+
+
+class ReviewAssignments(BaseModel):
+    assignments: list[ReviewAssignment] = Field(default_factory=list)
+
+
+class ReviewFindingsItem(BaseModel):
+    claim: str
+    sources: list[int] = Field(default_factory=list)
+    conflict: bool = False
+
+
+class ReviewFindings(BaseModel):
+    """核心发现面板输出。"""
+    findings: list[ReviewFindingsItem] = Field(default_factory=list)
+
+
+class ReviewAttributes(BaseModel):
+    """对比表属性提取输出。"""
+    attributes: list[str] = Field(default_factory=list)
+
+
+class ReviewTableRow(BaseModel):
+    index: int = Field(description="论文全局编号")
+    values: dict[str, str] = Field(default_factory=dict)
+
+
+class ReviewTable(BaseModel):
+    """对比表填值输出（一致性 pass 后最终采用）。"""
+    rows: list[ReviewTableRow] = Field(default_factory=list)
+
+
+class ReviewTimelinePhase(BaseModel):
+    name: str = ""
+    start: int
+    end: int
+    papers: list[int] = Field(default_factory=list)
+
+
+class ReviewTimeline(BaseModel):
+    """研究脉络时间线输出。"""
+    phases: list[ReviewTimelinePhase] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
 # 全局意图 / 任务规划
 # --------------------------------------------------------------------------- #
 class Intent(BaseModel):

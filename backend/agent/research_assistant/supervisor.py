@@ -75,6 +75,7 @@ INTENT_TABLE: dict[str, dict] = {
             {"agent": "scout", "action": "retrieve review evidence"},
             {"agent": "writer", "action": "write literature review file"},
             {"agent": "critic", "action": "review citations and structure"},
+            {"agent": "writer", "action": "revise literature review after feedback"},
         ],
     },
     "submission": {
@@ -158,8 +159,9 @@ vector_rag、graph_rag、pdf_parser、graph_expand、venue_db、evidence_check�
 用户："帮我写一篇关于联邦学习的综述"
 避免（缺少上游证据）：
   writer, critic                                      # ❌ 综述必须先生成证据
-倾向（按依赖串联）：
-  scout(retrieve evidence), writer(write literature review), critic(review citations)  # ✅
+倾向（按依赖串联，critic 审查后回写 writer 修订一轮）：
+  scout(retrieve evidence), writer(write literature review),
+  critic(review citations and structure), writer(revise literature review)  # ✅
 
 【自主科研模式（重要）】
 task_type=autonomous_research 表示「自主科研模式」，但**绝不等于必须跑满全部 agent**。

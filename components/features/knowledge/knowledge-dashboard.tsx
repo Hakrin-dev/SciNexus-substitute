@@ -16,9 +16,8 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { libraryFolders, libraryItems, libraryTags } from "@/lib/data/library";
-import { scholars } from "@/lib/data/scholars";
-import { institutions } from "@/lib/data/institutions";
+import { libraryFolders, libraryTags } from "@/lib/data/library";
+import { useInstitutions, useLibraryItems, useScholars } from "@/lib/api/services";
 import { cn } from "@/lib/utils";
 
 type SearchType = "全部" | "论文" | "学者" | "机构";
@@ -125,6 +124,9 @@ export function KnowledgeDashboard() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState<SearchType>("全部");
+  const { data: libraryItems = [] } = useLibraryItems();
+  const { data: scholars = [] } = useScholars();
+  const { data: institutions = [] } = useInstitutions();
 
   const entries = useMemo<SearchEntry[]>(() => [
     ...libraryItems.map((item) => ({
@@ -145,7 +147,7 @@ export function KnowledgeDashboard() {
       meta: `${item.type} · ${item.location}`,
       href: "/knowledge/institutions",
     })),
-  ], []);
+  ], [libraryItems, scholars, institutions]);
 
   const results = useMemo(() => {
     const keyword = query.trim().toLowerCase();

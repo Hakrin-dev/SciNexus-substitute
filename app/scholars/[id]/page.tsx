@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   Github,
@@ -12,23 +15,23 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/features/scholar/follow-button";
 import { CitationChart } from "@/components/features/scholar/citation-chart";
 import { PublicationList } from "@/components/features/scholar/publication-list";
-import { scholarDetail, scholars } from "@/lib/data/scholars";
+import { findScholar, useScholarDetail, useScholars } from "@/lib/api/services";
 import { cn } from "@/lib/utils";
 
 const LINK_ICONS = [Globe, Globe, Github, Mail];
 
 /**
  * 学者详情页 `/scholars/[id]` —— 对应「深知-学者详情页.svg」
- * (原型阶段均以何恺明主页为示例数据)
+ * 数据来自后端 /api/scholars/{id}；无真实详情时回退原型演示数据。
  */
-export default async function ScholarDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const scholar = scholars.find((s) => s.id === id) ?? scholars[0];
-  const detail = scholarDetail;
+export default function ScholarDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id ?? "";
+  const { data: scholars = [] } = useScholars();
+  const { data: detail } = useScholarDetail(id);
+  const scholar = findScholar(scholars, id);
+
+  if (!detail || !scholar) return null;
 
   return (
     <AppShell>
@@ -119,7 +122,7 @@ export default async function ScholarDetailPage({
               </div>
             </section>
 
-            <PublicationList />
+            <PublicationList publications={detail.publications} />
           </div>
 
           {/* 右列:指标 / 方向 / 年度引用 / 外链 */}

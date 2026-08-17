@@ -4,12 +4,12 @@ import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { scholarDetail } from "@/lib/data/scholars";
+import type { Publication } from "@/types";
 
 const TABS = ["Top 引用", "近期热门", "最新"];
 
-/** 研究成果 —— 论文列表 + 排序标签 + 分页 */
-export function PublicationList() {
+/** 研究成果 —— 论文列表 + 排序标签 + 分页（数据由学者详情页传入） */
+export function PublicationList({ publications }: { publications: Publication[] }) {
   const [tab, setTab] = useState(TABS[0]);
 
   return (
@@ -17,7 +17,7 @@ export function PublicationList() {
       <div className="flex items-center justify-between">
         <h2 className="text-[17px] font-bold text-ink">
           研究成果
-          <span className="ml-2 text-sm font-normal text-faint">84</span>
+          <span className="ml-2 text-sm font-normal text-faint">{publications.length}</span>
         </h2>
         <div className="flex gap-1">
           {TABS.map((t) => (
@@ -39,7 +39,7 @@ export function PublicationList() {
       </div>
 
       <div className="mt-5 space-y-6">
-        {scholarDetail.publications.map((pub) => (
+        {publications.map((pub) => (
           <article key={pub.id} className="flex gap-5">
             <div className="flex h-[140px] w-[110px] shrink-0 items-center justify-center rounded-lg bg-chip text-xs text-faint">
               论文缩略图
@@ -71,7 +71,7 @@ export function PublicationList() {
       </div>
 
       <div className="mt-6 flex items-center justify-center gap-3">
-        <span className="text-xs text-faint">第 1 / 9 页</span>
+        <span className="text-xs text-faint">第 1 / {Math.max(1, Math.ceil(publications.length / 3))} 页</span>
         <Button variant="outline" size="sm" disabled>
           上一页
         </Button>

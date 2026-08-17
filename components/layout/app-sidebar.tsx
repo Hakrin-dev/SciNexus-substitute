@@ -21,7 +21,7 @@ import {
 import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
-import { projects } from "@/lib/data/projects";
+import { useProjects } from "@/lib/api/services";
 import { useSidebarStore } from "@/stores/sidebar";
 import { useAuthStore } from "@/stores/auth";
 import { Logo } from "./logo";
@@ -60,11 +60,6 @@ const KNOWLEDGE_SUB_NAV = [
 ];
 
 /** 「科研项目」的子栏目即用户创建的项目列表(副标题 = 项目名称) */
-const PROJECT_SUB_NAV = projects.map((p) => ({
-  href: `/projects/${p.id}`,
-  label: p.name,
-}));
-
 const HISTORY_NAV: NavItem[] = [
   { href: "/history", label: "搜索", icon: History, disabled: true },
   { href: "/my-projects", label: "项目", icon: FolderOpen, disabled: true },
@@ -321,6 +316,11 @@ export function AppSidebar() {
   const userName = useAuthStore((s) => s.userName);
   const [loginOpen, setLoginOpen] = React.useState(false);
   const [logoutOpen, setLogoutOpen] = React.useState(false);
+  const { data: projects = [] } = useProjects();
+  const projectSubNav = projects.map((p) => ({
+    href: `/projects/${p.id}`,
+    label: p.name,
+  }));
 
   const toggleBtn = (
     <button
@@ -383,7 +383,7 @@ export function AppSidebar() {
           href="/projects"
           label="科研项目"
           icon={Folder}
-          subNav={PROJECT_SUB_NAV}
+          subNav={projectSubNav}
           collapsed={collapsed}
           footer={
             <button

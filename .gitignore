@@ -47,3 +47,16 @@ __pycache__/
 *.tar
 .superpowers/
 docs/superpowers/
+
+# ===== 后端（backend/，从 SciNexus-proto 复制）=====
+# 语料数据体积大、运行时生成，不入库
+backend/server/data/pdfs/
+backend/server/data/papers/
+backend/server/data/*.sqlite
+backend/server/data/*.db
+backend/server/data/*.sqlite3
+backend/server/data/embeddings.json
+backend/server/data/*.pyc
+backend/agent/.env
+backend/agent/多智能体设计文档.pdf
+backend/__pycache__/

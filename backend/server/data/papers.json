@@ -1,0 +1,78 @@
+{
+  "papers": [
+    { "title": "Attention Is All You Need", "authors": "Vaswani et al.", "venue": "NeurIPS 2017", "ccf": "A", "match": "perfect", "matchLabel": "Perfect", "abstract": "提出Transformer架构，完全基于注意力机制替代循环和卷积。该模型在WMT 2014英德翻译上达到28.4 BLEU，训练速度是现有模型的数倍。", "citations": "98,700+", "heat": "Hot", "id": "p1" },
+    { "title": "BERT: Pre-training of Deep Bidirectional Transformers", "authors": "Devlin et al.", "venue": "NAACL 2019", "ccf": "A", "match": "perfect", "matchLabel": "Perfect", "abstract": "提出BERT模型，通过掩码语言模型和下一句预测进行深度双向预训练。在11项NLP任务上取得最先进结果，GLUE基准提升7.7%。", "citations": "65,200+", "heat": "Hot", "id": "p2" },
+    { "title": "Language Models are Few-Shot Learners", "authors": "Brown et al.", "venue": "NeurIPS 2020", "ccf": "A", "match": "perfect", "matchLabel": "Perfect", "abstract": "GPT-3展示了大规模语言模型在少样本学习上的惊人能力，1750亿参数，在多种NLP任务上无需微调即可达到竞争力结果。", "citations": "42,500+", "heat": "Hot", "id": "p3" },
+    { "title": "Efficient Transformers: A Survey", "authors": "Tay et al.", "venue": "ACM Computing Surveys 2022", "ccf": "B", "match": "partial", "matchLabel": "Partial", "abstract": "综述高效Transformer变体，分类梳理了47种改进方法，包括稀疏注意力、低秩近似、记忆压缩等方向，为模型效率优化提供系统参考。", "citations": "2,300+", "heat": "Warm", "id": "p4" },
+    { "title": "Graph Neural Networks for Drug Discovery", "authors": "Gilmer et al.", "venue": "ICML 2017", "ccf": "A", "match": "perfect", "matchLabel": "Perfect", "abstract": "提出消息传递神经网络框架用于分子性质预测，将图神经网络应用于量子化学计算，在QM9数据集上显著优于传统方法。", "citations": "8,900+", "heat": "Warm", "id": "p5" },
+    { "title": "Contrastive Learning in Vision: A Comprehensive Review", "authors": "Chen et al.", "venue": "IJCV 2021", "ccf": "A", "match": "partial", "matchLabel": "Partial", "abstract": "综述对比学习在计算机视觉中的应用，涵盖SimCLR、MoCo、BYOL等代表性方法，分析不同对比学习框架的理论联系和实验性能。", "citations": "5,600+", "heat": "Warm", "id": "p6" },
+    { "title": "RLHF: From Core Technical to Alignment", "authors": "Ouyang et al.", "venue": "NeurIPS 2022", "ccf": "A", "match": "perfect", "matchLabel": "Perfect", "abstract": "基于人类反馈的强化学习技术在InstructGPT中的应用，展示了RLHF如何使语言模型更好地遵循用户指令并减少有害输出。", "citations": "3,200+", "heat": "Warm", "id": "p7" },
+    { "title": "Multi-modal Medical Image Fusion", "authors": "Zhang et al.", "venue": "Medical Image Analysis 2023", "ccf": "B", "match": "partial", "matchLabel": "Partial", "abstract": "提出新的多模态医学图像融合框架，结合Transformer和CNN提取互补特征，在CT-MRI和PET-MRI融合任务上取得最优结果。", "citations": "890+", "heat": "Warm", "id": "p8" },
+    { "title": "Federated Learning at the Edge: A Survey", "authors": "Lim et al.", "venue": "IEEE COMST 2020", "ccf": "C", "match": "weak", "matchLabel": "Weak", "abstract": "全面综述边缘计算中的联邦学习方法，涵盖通信效率、隐私保护、异构性和激励机制等核心挑战。", "citations": "1,800+", "heat": "Warm", "id": "p9" },
+    { "title": "Deep Learning for Protein Structure Prediction", "authors": "Jumper et al.", "venue": "Nature 2021", "ccf": "A", "match": "perfect", "matchLabel": "Perfect", "abstract": "AlphaFold2利用深度学习突破蛋白质结构预测难题，在CASP14上达到原子级精度，被视为计算生物学里程碑。", "citations": "21,000+", "heat": "Hot", "id": "p10" },
+    { "title": "Swin Transformer: Hierarchical Vision Transformer", "authors": "Liu et al.", "venue": "ICCV 2021", "ccf": "A", "match": "perfect", "matchLabel": "Perfect", "abstract": "Swin Transformer通过移位窗口机制构建层次化Transformer，在图像分类、目标检测和语义分割上全面超越CNN基线。", "citations": "18,500+", "heat": "Hot", "id": "p11" }
+  ],
+  "journals": [
+    { "name": "CVPR", "ccf": "A", "deadline": "2024年11月15日", "urgent": false, "rate": 25.2, "matchPct": 92, "matchClass": "high", "submissions": "3,420" },
+    { "name": "ACL", "ccf": "A", "deadline": "2025年2月15日", "urgent": false, "rate": 23.8, "matchPct": 88, "matchClass": "high", "submissions": "2,860" },
+    { "name": "EMNLP", "ccf": "B", "deadline": "2024年12月5日", "urgent": true, "rate": 22.1, "matchPct": 76, "matchClass": "mid", "submissions": "2,150" },
+    { "name": "ICCV", "ccf": "A", "deadline": "2025年3月10日", "urgent": false, "rate": 30.5, "matchPct": 65, "matchClass": "low", "submissions": "3,850" }
+  ],
+  "conversations": [
+    {
+      "title": "Transformer综述撰写",
+      "preview": "帮我写一篇关于Transformer的文献综述...",
+      "messages": [
+        { "type": "user", "text": "帮我写一篇关于Transformer的文献综述" },
+        { "type": "ai", "text": "好的！我将为您撰写一篇关于Transformer架构的文献综述。以下是内容大纲：\n\n**综述大纲**\n1. 引言 - Transformer的背景与动机\n2. 核心机制 - 多头注意力、位置编码、FFN\n3. 代表性模型 - BERT、GPT系列、T5、ViT\n4. 2023年后改进工作 - FlashAttention、Mamba、Hyena等\n5. 方法对比表格 - 各模型在典型任务上的表现\n6. 未来展望与挑战\n\n我现在开始在右侧编辑区生成完整综述，请查看。" },
+        { "type": "user", "text": "重点分析2023年之后的改进工作" },
+        { "type": "ai", "text": "已补充2023年之后的改进工作内容。近年来Transformer的改进主要集中在以下几个方面：\n\n**1. 高效注意力机制**\n- FlashAttention (Dao et al., 2022)：通过IO感知的精确注意力算法，显著减少显存占用，训练速度提升2-4倍。\n- Ring Attention (Liu et al., 2023)：支持超长序列的分布式注意力计算，可处理百万级token上下文。\n\n**2. 替代架构探索**\n- Mamba (Gu & Dao, 2023)：基于状态空间模型的线性复杂度架构，在长序列任务上匹敌Transformer。\n- Hyena Hierarchy (Poli et al., 2023)：使用隐式卷积替代注意力，实现次二次复杂度。\n\n**3. 量化与压缩**\n- SmoothQuant (Xiao et al., 2023)：通过平滑激活值实现8-bit量化，几乎无损。\n- AWQ (Lin et al., 2024)：激活感知的权重量化方法，推理速度提升显著。\n\n这些改进已在右侧编辑区更新，请查看。" },
+        { "type": "user", "text": "帮我补充对比表格" },
+        { "type": "ai", "text": "好的，已为您生成方法对比表格：\n\n| 模型/方法 | 参数量 | 复杂度 | 长序列能力 | 推理速度 | 代表任务 |\n|-----------|--------|--------|-----------|---------|--------|\n| Transformer | O(N²d) | 二次 | 弱(512) | 中等 | 翻译/分类 |\n| FlashAttention | O(N²d) | 二次(IO优化) | 强(16K) | 快 | 通用 |\n| Mamba | O(Nd²) | 线性 | 强(1M+) | 快 | 长序列 |\n| Hyena | O(N log N) | 次二次 | 强(64K) | 快 | 分类/生成 |\n| Ring Attention | O(N²d/G) | 可扩展 | 极强(1M+) | 中等 | 超长文档 |\n\n该对比表格已同步更新到右侧编辑区。" },
+        { "type": "user", "text": "导出为Word文档" },
+        { "type": "ai", "text": "已为您生成完整的综述文档。正在准备Word文档导出...\n\n文档包含：\n- 摘要与引言\n- Transformer核心技术原理\n- 2023年后关键改进详细分析\n- 模型方法对比表格\n- 参考文献（15篇）\n\n文档格式已完成，导出路径：./output/Transformer综述_2024.docx\n您可以在编辑区预览完整内容后点击\"保存\"按钮下载。" }
+      ]
+    },
+    {
+      "title": "论文润色修改",
+      "preview": "请帮我润色这段Introduction...",
+      "messages": [
+        { "type": "ai", "text": "请将您需要润色的论文段落粘贴到输入框，我会从语法、流畅度和学术风格三个方面进行优化。" },
+        { "type": "user", "text": "In recent years, deep learning has been widely used in many areas. It achieved good results." },
+        { "type": "ai", "text": "已为您优化为更学术的表达：In recent years, deep learning has witnessed widespread adoption across diverse domains, demonstrating remarkable performance in a variety of challenging tasks. 修改说明：改进了句式结构，使用更精准的学术词汇，增强了句式复杂度。" }
+      ]
+    },
+    {
+      "title": "实验对比分析",
+      "preview": "对比分析BERT和GPT在NLU任务上的表现...",
+      "messages": [
+        { "type": "ai", "text": "BERT和GPT代表了两种不同的预训练范式：BERT使用编码器架构+双向注意力，擅长理解类任务；GPT使用解码器架构+自回归生成，擅长文本生成。" },
+        { "type": "user", "text": "在GLUE基准上，BERT和GPT的表现如何？我需要具体数据。" },
+        { "type": "ai", "text": "在GLUE基准测试中，BERT Base平均得分82.3，BERT Large平均得分86.6。相比之下，GPT-1平均得分仅为72.8，GPT-2通过扩大模型规模提升至约78.5。BERT的优势主要来源于双向上下文建模，在MRPC、QQP等句子对任务上优势尤为明显。" }
+      ]
+    },
+    {
+      "title": "文献推荐讨论",
+      "preview": "推荐几篇关于对比学习的最新论文...",
+      "messages": [
+        { "type": "ai", "text": "好的！对比学习是当前自监督学习的核心范式。以下是我为您推荐的最新文献：" },
+        { "type": "user", "text": "请推荐2023-2024年对比学习在CV领域的前沿工作。" },
+        { "type": "ai", "text": "推荐以下近期高水平论文：1. \"DINOv2: Learning Robust Visual Features without Supervision\" (Meta AI, 2023) - 自监督视觉特征学习新标杆；2. \"ImageBind\" (Meta AI, 2023) - 六模态对比对齐；3. \"PeCo: Perceptual Codec for Contrastive Learning\" (ICLR 2024) - 感知编码增强对比学习。需要我展开介绍其中某篇吗？" }
+      ]
+    }
+  ],
+  "libraryPapers": [
+    { "title": "Attention Is All You Need", "authors": "Vaswani et al.", "venue": "NeurIPS 2017", "ccf": "A", "status": "read", "progress": 100, "tags": ["精读","方法论参考"], "collected": "2024-09-15" },
+    { "title": "BERT: Pre-training of Deep Bidirectional Transformers", "authors": "Devlin et al.", "venue": "NAACL 2019", "ccf": "A", "status": "read", "progress": 100, "tags": ["精读"], "collected": "2024-09-20" },
+    { "title": "Language Models are Few-Shot Learners", "authors": "Brown et al.", "venue": "NeurIPS 2020", "ccf": "A", "status": "reading", "progress": 72, "tags": ["方法论参考"], "collected": "2024-10-01" },
+    { "title": "Deep Learning for Protein Structure Prediction", "authors": "Jumper et al.", "venue": "Nature 2021", "ccf": "A", "status": "reading", "progress": 45, "tags": ["待讨论"], "collected": "2024-10-05" },
+    { "title": "Swin Transformer: Hierarchical Vision Transformer", "authors": "Liu et al.", "venue": "ICCV 2021", "ccf": "A", "status": "read", "progress": 100, "tags": ["精读","实验对比"], "collected": "2024-10-12" },
+    { "title": "Efficient Transformers: A Survey", "authors": "Tay et al.", "venue": "ACM Computing Surveys 2022", "ccf": "B", "status": "reading", "progress": 78, "tags": ["方法论参考"], "collected": "2024-10-18" },
+    { "title": "Contrastive Learning in Vision: A Comprehensive Review", "authors": "Chen et al.", "venue": "IJCV 2021", "ccf": "A", "status": "unread", "progress": 0, "tags": ["待讨论"], "collected": "2024-11-01" },
+    { "title": "Graph Neural Networks for Drug Discovery", "authors": "Gilmer et al.", "venue": "ICML 2017", "ccf": "A", "status": "read", "progress": 100, "tags": ["实验对比"], "collected": "2024-11-05" },
+    { "title": "RLHF: From Core Technical to Alignment", "authors": "Ouyang et al.", "venue": "NeurIPS 2022", "ccf": "A", "status": "unread", "progress": 0, "tags": ["待读列表"], "collected": "2024-11-10" },
+    { "title": "Federated Learning at the Edge", "authors": "Lim et al.", "venue": "IEEE COMST 2020", "ccf": "C", "status": "unread", "progress": 0, "tags": [], "collected": "2024-11-15" },
+    { "title": "LoRA: Low-Rank Adaptation of Large Language Models", "authors": "Hu et al.", "venue": "ICLR 2022", "ccf": "B", "status": "reading", "progress": 45, "tags": ["方法论","精读"], "collected": "2024-11-20" },
+    { "title": "Chain-of-Thought Prompting Elicits Reasoning in LLMs", "authors": "Wei et al.", "venue": "NeurIPS 2022", "ccf": "A", "status": "unread", "progress": 0, "tags": ["待讨论"], "collected": "2024-11-25" }
+  ]
+}

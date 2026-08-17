@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { FilterPanel } from "./filter-panel";
 import { VenueCard } from "./venue-card";
-import { venues } from "@/lib/data/venues";
+import { useVenues } from "@/lib/api/services";
 
 /** 等级 chip → 徽章名映射(用于过滤) */
 const LEVEL_TO_BADGE: Record<string, string> = {
@@ -20,6 +20,7 @@ const LEVEL_TO_BADGE: Record<string, string> = {
 /** 投稿浏览区 —— 等级过滤 + 卡片列表;顶部的两组切换 tab 在 submit-page.tsx */
 export function SubmitBrowser({ kind }: { kind: "conference" | "journal" }) {
   const [levels, setLevels] = useState<string[]>([]);
+  const { data: venues = [] } = useVenues();
 
   const toggleLevel = (chip: string) =>
     setLevels((prev) =>

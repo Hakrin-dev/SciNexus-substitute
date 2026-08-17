@@ -1,3 +1,6 @@
+"use client";
+
+import { useParams } from "next/navigation";
 import {
   CalendarDays,
   CheckCircle2,
@@ -14,7 +17,8 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { ProposalGenerator } from "@/components/features/projects/proposal-generator";
-import { getProject, type MilestoneStatus } from "@/lib/data/projects";
+import { useProject } from "@/lib/api/services";
+import type { MilestoneStatus } from "@/lib/data/projects";
 
 const STATUS_STYLE: Record<MilestoneStatus, { label: string; className: string }> = {
   done: { label: "已完成", className: "bg-primary-soft text-primary" },
@@ -29,16 +33,16 @@ function MilestoneIcon({ status }: { status: MilestoneStatus }) {
 }
 
 /**
- * 科研项目详情页 `/projects/[id]` —— 演示态项目管理页
- * 项目由用户建立;样例「研枢」数据取自仓库 README(lib/data/projects.ts)
+ * 科研项目详情页 `/projects/[id]` —— 项目管理页
+ * 数据来自后端 /api/projects/{id}，失败回退 mock（样例「研枢」）。
  */
-export default async function ProjectPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const project = getProject(id);
+export default function ProjectPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id ?? "";
+  const { data: project } = useProject(id);
+
+  if (!project) return null;
+
   const doneCount = project.milestones.filter((m) => m.status === "done").length;
 
   return (

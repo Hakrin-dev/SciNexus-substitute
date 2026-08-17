@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MessageSquarePlus } from "lucide-react";
 import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
+import { sendChat } from "@/lib/api/services";
 import { ComposerShell } from "./composer";
 
 interface Message {
@@ -27,40 +28,68 @@ const HISTORY = [
   "操作泛化性研究计划",
 ];
 
-/** 原型阶段的模拟回复 */
+/** 后端不可用时的兜底回复（诚实说明，不伪造学术内容） */
 const MOCK_REPLY =
-  "这是原型阶段的模拟回复。接入模型后,我将结合你的知识库与最新文献,为你生成带来源引用的回答。";
+  "后端服务暂时不可用，已回退本地演示模式。启动后端后（backend 目录运行 uvicorn），我将通过 /api/chat/stream 生成带来源引用的回答。";
 
 /** AI 助手对话页 —— 类似网页版 ChatGPT:空状态居中提问,对话后消息流 + 底部输入框 */
 export function AgentChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [value, setValue] = useState("");
   const [activeConv, setActiveConv] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const replyTimer = useRef<number | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(
-    () => () => {
-      if (replyTimer.current !== null) window.clearTimeout(replyTimer.current);
-    },
-    [],
-  );
-
-  const send = (text?: string) => {
+  const send = async (text?: string) => {
     const q = (text ?? value).trim();
-    if (!q) return;
+    if (!q || streaming) return;
     setValue("");
-    setMessages((prev) => [...prev, { role: "user", content: q }]);
-    replyTimer.current = window.setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: MOCK_REPLY },
-      ]);
-    }, 400);
+    setActiveConv("new");
+    const history = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: q },
+      { role: "assistant", content: "" },
+    ]);
+    setStreaming(true);
+    try {
+      let acc = "";
+      for await (const event of sendChat(q, history)) {
+        if (event.type === "delta") {
+          acc += event.text;
+          setMessages((prev) => {
+            const next = [...prev];
+            next[next.length - 1] = { role: "assistant", content: acc };
+            return next;
+          });
+        }
+      }
+      if (!acc) {
+        setMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = {
+            role: "assistant",
+            content: "（agent 未产生回复，请检查后端 LLM 配置）",
+          };
+          return next;
+        });
+      }
+    } catch {
+      setMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = { role: "assistant", content: MOCK_REPLY };
+        return next;
+      });
+    } finally {
+      setStreaming(false);
+    }
   };
 
   const composer = (

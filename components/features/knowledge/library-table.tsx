@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { libraryItems } from "@/lib/data/library";
+import { useLibraryItems } from "@/lib/api/services";
 import { cn } from "@/lib/utils";
 
 const PDF_TONES = {
@@ -20,6 +20,7 @@ export function LibraryTable() {
   const [year, setYear] = useState("全部年份");
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
+  const { data: libraryItems = [] } = useLibraryItems();
 
   const venues = ["全部会议", ...new Set(libraryItems.map((item) => item.venue.split(" ")[0]))];
   const years = ["全部年份", ...new Set(libraryItems.map((item) => item.venue.match(/\d{4}/)?.[0] ?? "其他"))];
@@ -32,7 +33,7 @@ export function LibraryTable() {
       if (year !== "全部年份" && itemYear !== year) return false;
       return !keyword || `${item.title} ${item.authors} ${item.venue} ${item.arxiv}`.toLowerCase().includes(keyword);
     });
-  }, [query, venue, year]);
+  }, [query, venue, year, libraryItems]);
 
   return (
     <div className="min-w-0 flex-1 p-8">
@@ -40,7 +41,7 @@ export function LibraryTable() {
         <div>
           <h1 className="text-xl font-bold text-ink">在读</h1>
           <p className="mt-1 text-xs text-faint">
-            12 篇文献 · 上次更新 7 月 25 日
+            {libraryItems.length} 篇文献 · 已接后端 /api/library
           </p>
         </div>
         <Button className="rounded-xl" onClick={() => fileInput.current?.click()}>

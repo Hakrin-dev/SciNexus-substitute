@@ -1,21 +1,22 @@
+"use client";
+
+import { useParams } from "next/navigation";
 import { PaperTopbar } from "@/components/features/paper/paper-topbar";
 import { PaperLeftSidebar } from "@/components/features/paper/paper-left-sidebar";
 import { PaperRightPanel } from "@/components/features/paper/right-panel";
 import { PaperZoom } from "@/components/features/paper/paper-zoom";
-import { paperDetail } from "@/lib/data/paper-detail";
+import { usePaperDetail } from "@/lib/api/services";
 
 /**
  * 论文详情页 `/papers/[id]` —— 对应「深知-论文详情页.svg」
- * 沉浸式阅读器布局(不使用全局侧边栏)
+ * 沉浸式阅读器布局(不使用全局侧边栏)；数据来自后端 /api/papers/{id}，失败回退 mock。
  */
-export default async function PaperDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  // 原型阶段:任意 id 均展示 RDT-1B 详情(与 prototype_v1.html 行为一致)
-  const paper = { ...paperDetail, id: id || paperDetail.id };
+export default function PaperDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id ?? "";
+  const { data: paper } = usePaperDetail(id);
+
+  if (!paper) return null;
 
   return (
     <div className="flex h-screen flex-col bg-background">

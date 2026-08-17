@@ -6,7 +6,7 @@ import { Network, Search } from "lucide-react";
 import { ScholarCard } from "./scholar-card";
 import { DirectionFilter } from "./direction-filter";
 import { useDebounce } from "@/hooks/use-debounce";
-import { scholars } from "@/lib/data/scholars";
+import { useScholars } from "@/lib/api/services";
 import { cn } from "@/lib/utils";
 
 const SORTS = [
@@ -21,6 +21,7 @@ export function ScholarsBrowser() {
   const [sort, setSort] = useState("top");
   const [direction, setDirection] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 300);
+  const { data: scholars = [] } = useScholars();
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
@@ -36,7 +37,7 @@ export function ScholarsBrowser() {
       );
     }
     return list;
-  }, [debouncedQuery, direction, sort]);
+  }, [debouncedQuery, direction, sort, scholars]);
 
   return (
     <>

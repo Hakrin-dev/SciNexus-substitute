@@ -1,23 +1,26 @@
+"use client";
+
+import { useParams } from "next/navigation";
 import { GraphPageLayout } from "@/components/features/graph/graph-page-layout";
-import { publicGraph } from "@/lib/data/knowledge-graph";
+import { usePublicGraph } from "@/lib/api/services";
 import { cn } from "@/lib/utils";
 
-/** 公域知识图谱 `/papers/[id]/graph` —— 沉浸式(不使用全局侧边栏) */
-export default async function PaperGraphPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+/** 公域知识图谱 `/papers/[id]/graph` —— 沉浸式(不使用全局侧边栏)；数据来自 /api/papers/{id}/graph */
+export default function PaperGraphPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id ?? "";
+  const { data: graph } = usePublicGraph();
+
+  if (!graph) return null;
 
   return (
     <div className="flex h-screen flex-col bg-background">
       <GraphPageLayout
-        graph={publicGraph}
+        graph={graph}
         mode="concentric"
         backHref={`/papers/${id}`}
         backLabel="返回阅读器"
-        title={publicGraph.origin.title}
+        title={graph.origin.title}
         headerExtra={
           <div className="flex rounded-lg border border-line text-[13px]">
             {["Prior works", "Derivative works"].map((label, i) => (

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { InstitutionCard } from "./institution-card";
 import { useDebounce } from "@/hooks/use-debounce";
-import { institutions } from "@/lib/data/institutions";
+import { useInstitutions } from "@/lib/api/services";
 import { useUserPreferences } from "@/stores/user-preferences";
 import { cn } from "@/lib/utils";
 import type { Institution } from "@/types";
@@ -22,6 +22,7 @@ export function InstitutionsBrowser() {
   const [type, setType] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 300);
   const { bookmarkedInstitutions } = useUserPreferences();
+  const { data: institutions = [] } = useInstitutions();
 
   const isBookmarked = useCallback(
     (i: Institution) => bookmarkedInstitutions[i.id] ?? i.bookmarked ?? false,
@@ -44,7 +45,7 @@ export function InstitutionsBrowser() {
     return [...list].sort((a, b) =>
       sort === "papers" ? b.papersPerYear - a.papersPerYear : a.rank - b.rank,
     );
-  }, [debouncedQuery, sort, isBookmarked, type]);
+  }, [debouncedQuery, sort, isBookmarked, type, institutions]);
 
   return (
     <div className="space-y-5">

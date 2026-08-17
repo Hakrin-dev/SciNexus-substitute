@@ -16,3 +16,15 @@ brand/theme-*.png
 brand/graph-*.png
 brand/日间logo.png
 brand/夜间logo.png
+
+# ===== 后端：数据产物不入镜像（volume 挂载 + scp 上传），避免镜像臃肿/泄露 =====
+backend/server/data/*.sqlite
+backend/server/data/*.db
+backend/server/data/*.sqlite3
+backend/server/data/pdfs/
+backend/server/data/papers/
+backend/server/data/embeddings.json
+
+# 密钥文件（本地 backend/agent/.env 含真实 API Key，本地构建时绝不能打进镜像）
+backend/agent/.env
+**/.env

@@ -1,6 +1,10 @@
 # ---- 构建 ----
 FROM node:22-alpine AS builder
 WORKDIR /app
+# 线上后端地址：CI 构建时注入 --build-arg NEXT_PUBLIC_API_URL=http://47.76.187.249:8000
+# Next.js 会在 pnpm build 时把 NEXT_PUBLIC_* 内联进 JS，运行期改不了
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # sharp 无预编译包时的源码编译兜底（pnpm-workspace.yaml 已 allowBuilds: sharp）
 # dl-cdn.alpinelinux.org 在本网络下连接会静默冻结，改用阿里云镜像
 RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.aliyun.com#g' /etc/apk/repositories \

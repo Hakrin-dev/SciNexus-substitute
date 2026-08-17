@@ -1,0 +1,18 @@
+node_modules
+.next
+.git
+.github
+docs/
+*.md
+.env.local
+Dockerfile
+docker-compose.yml
+
+# brand/ 下运行时不需要的源文件（保留 logo-day.png / logo-night.png，构建时被代码引用）
+brand/*.py
+brand/*.html
+brand/applied-*.png
+brand/theme-*.png
+brand/graph-*.png
+brand/日间logo.png
+brand/夜间logo.png

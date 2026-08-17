@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>深知 ShenZhi · Research OS — Demo(复现 frontend_v1)</title>
+<script>
+/* 首屏前定主题:?theme= > localStorage > 系统偏好(与 frontend_v1 一致) */
+(function(){try{var p=new URLSearchParams(location.search).get("theme");var t=p==="dark"||p==="light"?p:localStorage.getItem("shenzhi-theme");var d=t?t==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}catch(e){}})();
+</script>
+<style>
+/* ===== 设计令牌 —— 与 frontend_v1/app/globals.css 完全一致 ===== */
+:root{
+  --background:#f7f8fc; --sidebar:#eef1f8; --card:#ffffff;
+  --primary:#002fa7; --primary-soft:#e9eefb;
+  --violet:#5b21b6; --cyan:#155e75; --gold:#f3d029;
+  --ink:#0f1419; --ink2:#374151; --muted:#6b7280; --faint:#9ca3af;
+  --chip:#f3f4f6; --panel:#f9fafb; --line:#e5e7eb;
+  --danger:#ef4444; --danger-soft:#fee2e2; --success:#10b981; --success-soft:#d1fae5;
+  --shadow-card:0 2px 6px 0 rgb(31 41 55 / .05); --shadow-pop:0 8px 24px 0 rgb(31 41 55 / .08);
+}
+html.dark{
+  --background:#0b1020; --sidebar:#101731; --card:#161d36;
+  --primary:#5b84f1; --primary-soft:#1e2a52;
+  --violet:#9f7aea; --cyan:#4fbdd9; --gold:#f3d029;
+  --ink:#e9edf7; --ink2:#b7c1d9; --muted:#8791ab; --faint:#5f6b88;
+  --chip:#1d2542; --panel:#111a33; --line:#26304f;
+  --danger:#f87171; --danger-soft:#3d2129; --success:#34d399; --success-soft:#12332b;
+  --shadow-card:0 2px 6px 0 rgb(0 0 0 / .3); --shadow-pop:0 8px 24px 0 rgb(0 0 0 / .4);
+}
+*{box-sizing:border-box; margin:0; padding:0; border-color:var(--line)}
+html{-webkit-font-smoothing:antialiased}
+body{
+  background:var(--background); color:var(--ink);
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:14px; transition:background-color .2s ease,color .2s ease;
+}
+a{color:inherit; text-decoration:none}
+button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit}
+input,select{font-family:inherit; color:var(--ink)}
+::selection{background:rgb(0 47 167 / .18)}
+html.dark ::selection{background:rgb(91 132 241 / .35)}
+
+/* ===== 侧边栏 ===== */
+#sidebar{
+  position:fixed; inset:0 auto 0 0; width:240px; z-index:30;
+  display:flex; flex-direction:column; background:var(--sidebar); padding:20px 16px;
+}
+body.immersive #sidebar{display:none}
+.brand-row{display:flex; align-items:center; justify-content:space-between; gap:8px}
+.brand{display:flex; align-items:center; gap:10px}
+.brand img{width:36px; height:36px; border-radius:10px}
+.brand .logo-night{display:none}
+html.dark .brand .logo-day{display:none}
+html.dark .brand .logo-night{display:block}
+.brand-name{font-size:17px; font-weight:700; color:var(--ink); line-height:1.2}
+.brand-sub{font-size:10px; color:var(--faint)}
+.theme-btn{width:32px; height:32px; border-radius:8px; color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:15px}
+.theme-btn:hover{background:var(--chip); color:var(--ink)}
+.search-entry{
+  margin-top:20px; height:40px; width:100%; display:flex; align-items:center; gap:10px;
+  border:1px solid var(--line); border-radius:12px; background:var(--card);
+  padding:0 12px; font-size:13px; color:var(--faint); text-align:left;
+}
+.search-entry:hover{border-color:var(--primary)}
+.search-entry kbd{margin-left:auto; border:1px solid var(--line); border-radius:4px; padding:2px 6px; font-size:10px}
+.nav{flex:1; margin-top:16px; overflow-y:auto}
+.nav-group{font-size:11px; color:var(--faint); padding:8px 12px 6px; letter-spacing:.5px}
+.nav-item{
+  display:flex; align-items:center; gap:12px; height:40px; padding:0 12px;
+  border-radius:12px; font-size:15px; font-weight:500; color:var(--ink2); margin-bottom:2px;
+}
+.nav-item:hover{background:var(--card)}
+.nav-item.active{background:var(--primary); color:#fff; box-shadow:0 1px 2px rgb(0 0 0/.1)}
+.nav-item.disabled{opacity:.45; cursor:not-allowed}
+.nav-item .ico{width:18px; text-align:center; font-size:15px}
+.badge-new{background:var(--gold); color:var(--ink); border-radius:999px; padding:2px 6px; font-size:10px; font-weight:600; margin-left:auto; line-height:1}
+.user-card{
+  margin-top:16px; display:flex; align-items:center; gap:10px;
+  background:var(--card); border-radius:12px; padding:10px; box-shadow:var(--shadow-card);
+}
+.user-ava{width:36px; height:36px; border-radius:999px; background:var(--primary-soft); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:15px}
+.user-name{font-size:13px; font-weight:600; color:var(--ink)}
+.user-title{font-size:11px; color:var(--muted)}
+
+/* ===== 主区 ===== */
+#main{margin-left:240px; min-height:100vh}
+body.immersive #main{margin-left:0}
+.page{max-width:1180px; margin:0 auto; padding:24px 32px}
+.card{background:var(--card); border-radius:16px; box-shadow:var(--shadow-card)}
+.btn{
+  display:inline-flex; align-items:center; gap:6px; height:38px; padding:0 16px;
+  border-radius:10px; background:var(--primary); color:#fff; font-size:14px; font-weight:500;
+}
+.btn:hover{opacity:.9}
+.btn-outline{background:transparent; border:1px solid var(--line); color:var(--ink2)}
+.btn-outline:hover{border-color:var(--primary); color:var(--primary); opacity:1}
+.btn-dark{background:var(--ink); color:var(--background)}
+.chip{display:inline-block; background:var(--chip); color:var(--ink2); border-radius:999px; padding:3px 10px; font-size:12px}
+.badge{display:inline-flex; align-items:center; border-radius:6px; padding:2px 8px; font-size:12px; font-weight:500}
+.badge-violet{background:var(--primary-soft); color:var(--primary)}
+.badge-amber{background:#FEF3C7; color:#B45309}
+.badge-green{background:var(--success-soft); color:#059669}
+html.dark .badge-amber{background:#3a2f10; color:#f0c94e}
+html.dark .badge-green{color:var(--success)}
+.badge-gold{background:var(--gold); color:var(--ink); font-weight:700}
+.section-title{font-size:13px; font-weight:600; color:var(--ink); border-bottom:1px solid var(--chip); padding-bottom:8px}
+.muted{color:var(--muted)} .faint{color:var(--faint)} .primary{color:var(--primary)}
+
+/* ===== 发现页 ===== */
+.search-hero{padding:20px 24px}
+.search-hero .row{display:flex; gap:12px}
+.search-hero input{
+  flex:1; height:44px; border:none; outline:none; background:transparent; font-size:15px; color:var(--ink);
+}
+.search-modes{display:flex; gap:8px; margin-top:14px; align-items:center}
+.search-modes .mode{border-radius:999px; padding:5px 14px; font-size:13px; color:var(--muted)}
+.search-modes .mode.active{background:var(--primary-soft); color:var(--primary); font-weight:500}
+.feed-tabs{display:flex; gap:20px; align-items:center; margin:20px 4px 14px}
+.feed-tab{font-size:14px; color:var(--muted); padding-bottom:4px}
+.feed-tab.active{color:var(--primary); font-weight:600; border-bottom:2px solid var(--primary)}
+.paper-card{display:flex; gap:20px; padding:20px 24px; margin-bottom:14px}
+.paper-card .meta{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--faint)}
+.paper-card h3{font-size:16px; font-weight:700; color:var(--ink); margin-top:6px; line-height:1.4}
+.paper-card .abs{font-size:13.5px; color:var(--ink2); line-height:1.7; margin-top:8px}
+.paper-card .ai-link{font-size:13px; color:var(--primary); font-weight:500; margin-top:8px; display:inline-block}
+.paper-card .foot{display:flex; align-items:center; gap:16px; margin-top:12px; font-size:13px; color:var(--muted)}
+.icon-btn{display:inline-flex; align-items:center; gap:5px; color:var(--muted); font-size:13px}
+.icon-btn:hover{color:var(--primary)}
+.icon-btn.liked{color:var(--danger)}
+.thumb{width:190px; flex-shrink:0; display:flex; flex-direction:column; gap:8px}
+.thumb .cite{font-size:11px; color:var(--faint); text-align:right}
+.thumb .box{flex:1; min-height:110px; background:var(--panel); border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--faint); font-size:12px}
+
+/* ===== 投稿页 ===== */
+.submit-tabs{display:flex; gap:6px; align-items:center; margin-bottom:18px}
+.submit-tab{padding:7px 18px; border-radius:999px; font-size:13.5px; color:var(--muted)}
+.submit-tab.active{background:var(--primary); color:#fff; font-weight:500}
+.result-count{margin-left:auto; font-size:13px; color:var(--faint)}
+.submit-body{display:flex; gap:20px; align-items:flex-start}
+.filter-panel{width:300px; flex-shrink:0; padding:20px}
+.filter-panel h2{font-size:15px; font-weight:600; display:flex; gap:8px; align-items:center}
+.level-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px}
+.level-chip{height:36px; border:1px solid var(--line); border-radius:999px; background:var(--panel); font-size:13px; color:var(--ink2)}
+.level-chip:hover{border-color:var(--primary)}
+.level-chip.active{border-color:var(--primary); background:var(--primary-soft); color:var(--primary); font-weight:500}
+.dir-row{display:flex; align-items:flex-start; gap:12px; padding:9px 0; font-size:13px; color:var(--ink2); cursor:pointer}
+.dir-row .box{width:16px; height:16px; border:1px solid var(--line); border-radius:4px; background:var(--card); margin-top:2px; flex-shrink:0}
+.dir-row:hover .box{border-color:var(--primary)}
+.dir-row .cnt{margin-left:auto; font-size:12px; color:var(--faint)}
+.venue-list{flex:1; display:flex; flex-direction:column; gap:14px; min-width:0}
+.venue-card{padding:20px 24px; border-left:3px solid var(--success)}
+.venue-card.danger{border-left-color:var(--danger)}
+.venue-head{display:flex; align-items:flex-start; gap:14px}
+.venue-abbr{font-size:19px; font-weight:800; color:var(--ink)}
+.venue-full{font-size:12.5px; color:var(--muted); margin-top:2px}
+.venue-badges{margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; max-width:50%}
+.venue-meta{display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; color:var(--muted)}
+.venue-chips{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap}
+.venue-deadline{display:flex; align-items:flex-end; gap:20px; margin-top:14px}
+.deadline-label{font-size:12px; color:var(--primary); background:var(--primary-soft); border-radius:6px; padding:3px 8px}
+.deadline-date{font-size:12px; color:var(--faint); margin-top:4px}
+.countdown{margin-left:auto; text-align:right}
+.countdown .nums{font-size:24px; font-weight:700; color:var(--danger); font-variant-numeric:tabular-nums; letter-spacing:1px}
+.countdown .units{font-size:10px; color:var(--faint); display:flex; gap:18px; justify-content:flex-end}
+.venue-status{font-size:11px; border-radius:999px; padding:3px 10px; font-weight:600}
+.status-danger{background:var(--danger-soft); color:var(--danger)}
+.status-success{background:var(--success-soft); color:var(--success)}
+
+/* ===== 论文详情(沉浸式) ===== */
+.topbar{height:56px; display:flex; align-items:center; gap:14px; padding:0 20px; background:var(--card); border-bottom:1px solid var(--line)}
+.topbar .back{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted)}
+.topbar .back:hover{color:var(--primary)}
+.topbar .title{flex:1; text-align:center; font-size:14px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.reader-body{display:flex; height:calc(100vh - 56px)}
+.toc{width:190px; flex-shrink:0; padding:20px 14px; border-right:1px solid var(--line); background:var(--card); overflow-y:auto}
+.toc-item{display:block; padding:8px 10px; border-radius:8px; font-size:13px; color:var(--muted); margin-bottom:2px}
+.toc-item.active{color:var(--primary); background:var(--primary-soft); font-weight:500}
+.thumbs{width:120px; flex-shrink:0; padding:16px 12px; border-right:1px solid var(--line); overflow-y:auto; display:flex; flex-direction:column; gap:10px}
+.thumb-page{height:74px; background:var(--card); border:1px solid var(--line); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--faint)}
+.thumb-page.current{border-color:var(--primary); box-shadow:0 0 0 1px var(--primary)}
+.reader-main{flex:1; overflow-y:auto; padding:32px}
+.article{max-width:720px; margin:0 auto; background:var(--card); border-radius:16px; box-shadow:var(--shadow-card); padding:40px}
+.article h1{font-size:22px; font-weight:700; text-align:center; line-height:1.4}
+.article .authors{margin-top:14px; text-align:center; font-size:14px; color:var(--muted); line-height:1.6}
+.article .affil{margin-top:6px; text-align:center; font-size:12px; color:var(--faint)}
+.article hr{width:64px; margin:24px auto 0; border:none; border-top:1px solid var(--line)}
+.article h2{font-size:17px; font-weight:700; margin-top:28px}
+.article p.body{margin-top:12px; font-size:15px; line-height:1.9; color:var(--ink2); text-align:justify}
+.figure-ph{margin-top:24px}
+.figure-ph .cap{text-align:center; font-size:12px; color:var(--faint); padding:8px 0}
+.figure-ph .box{height:280px; border-radius:12px; background:var(--panel)}
+.right-panel{width:320px; flex-shrink:0; border-left:1px solid var(--line); background:var(--card); display:flex; flex-direction:column}
+.rp-tabs{display:flex; gap:8px; padding:12px 16px; border-bottom:1px solid var(--line)}
+.rp-tab{padding:6px 12px; border-radius:8px; font-size:13px; color:var(--muted); border:1px solid transparent}
+.rp-tab.active{color:var(--primary); border-color:var(--primary)}
+.rp-body{flex:1; overflow-y:auto; padding:16px}
+.rp-card{border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px}
+.rp-card .head{display:flex; gap:10px; align-items:center}
+.rp-ico{width:32px; height:32px; border-radius:8px; background:var(--primary-soft); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0}
+.similar-item{display:block; background:var(--panel); border-radius:10px; padding:12px; margin-top:8px}
+.similar-item:hover{background:var(--primary-soft)}
+.author-chip{display:inline-block; background:var(--chip); border-radius:999px; padding:4px 12px; font-size:12px; color:var(--ink2); margin:4px 4px 0 0}
+a.author-chip:hover{background:var(--primary-soft); color:var(--primary)}
+.graph-entry{display:flex; gap:12px; align-items:center; background:var(--panel); border-radius:10px; padding:12px; margin-top:10px}
+.graph-entry:hover{background:var(--primary-soft)}
+
+/* ===== 图谱页 ===== */
+.graph-wrap{display:flex; height:calc(100vh - 56px)}
+.graph-left{width:288px; flex-shrink:0; border-right:1px solid var(--line); background:var(--card); overflow-y:auto; padding:16px}
+.origin-card{border-left:2px solid var(--primary); background:var(--panel); border-radius:12px; padding:12px; width:100%; text-align:left}
+.origin-card.sel{background:var(--primary-soft)}
+.origin-tag{font-size:11px; font-weight:600; letter-spacing:.5px; color:var(--primary); text-transform:uppercase}
+.rel-item{display:block; width:100%; text-align:left; border-radius:10px; padding:10px 12px; margin-top:4px}
+.rel-item:hover{background:var(--panel)}
+.rel-item.sel{background:var(--primary-soft)}
+.rel-item.sel .rel-title{color:var(--primary)}
+.graph-center{flex:1; overflow-y:auto; padding:24px; min-width:0}
+.graph-right{width:320px; flex-shrink:0; border-left:1px solid var(--line); background:var(--card); overflow-y:auto; padding:20px}
+.view-switch{display:flex; border:1px solid var(--line); border-radius:10px; font-size:13px}
+.view-switch span{padding:6px 14px}
+.view-switch .on{background:var(--primary-soft); color:var(--primary); font-weight:500; border-radius:9px 0 0 9px}
+.view-switch .off{color:var(--faint)}
+.svg-node{cursor:pointer}
+.svg-node circle{transition:opacity .15s}
+.svg-label{fill:var(--ink2); font-weight:600}
+.svg-year{fill:var(--faint)}
+.svg-edge{stroke:var(--line)}
+.svg-edge.active{stroke:var(--primary)}
+.svg-band{fill:var(--faint); letter-spacing:2px}
+.graph-legend{display:flex; justify-content:center; gap:20px; margin-top:8px; font-size:12px; color:var(--faint)}
+.legend-dot{width:10px; height:10px; border-radius:999px; display:inline-block; margin-right:6px; vertical-align:-1px}
+.abstract-card h2{font-size:15px; font-weight:700; line-height:1.45}
+.abstract-card .abs{margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; line-height:1.7; color:var(--ink2)}
+.detail-link{display:inline-flex; align-items:center; gap:4px; margin-top:12px; font-size:13px; font-weight:500; color:var(--primary)}
+.detail-link:hover{text-decoration:underline}
+
+/* ===== 学者页 ===== */
+.scholars-body{display:flex; gap:28px; align-items:flex-start}
+.dir-filter{width:190px; flex-shrink:0}
+.dir-item{display:flex; align-items:center; gap:10px; padding:8px; border-radius:10px; font-size:14px; color:var(--ink2); cursor:pointer; width:100%; text-align:left}
+.dir-item:hover{background:var(--card)}
+.dir-item .dot{width:8px; height:8px; border-radius:999px}
+.dir-item .cnt{margin-left:auto; font-size:12px; color:var(--faint)}
+.scholar-toolbar{display:flex; gap:12px; margin-bottom:16px}
+.scholar-toolbar input{flex:1; height:40px; border:1px solid var(--line); border-radius:12px; background:var(--card); padding:0 14px; font-size:14px; outline:none}
+.scholar-toolbar input:focus{border-color:var(--primary)}
+.scholar-toolbar select{height:40px; border:1px solid var(--line); border-radius:12px; background:var(--card); padding:0 12px; font-size:13px; color:var(--ink2)}
+.scholar-grid{flex:1; display:grid; grid-template-columns:1fr 1fr; gap:14px; min-width:0}
+.scholar-card{padding:18px 20px; display:flex; flex-direction:column; gap:10px}
+.scholar-head{display:flex; gap:12px; align-items:center}
+.avatar{width:44px; height:44px; border-radius:12px; color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0}
+.scholar-name{font-size:15px; font-weight:700; color:var(--ink)}
+.scholar-en{font-size:12px; color:var(--faint)}
+.scholar-aff{font-size:12px; color:var(--muted)}
+.scholar-bio{font-size:12.5px; color:var(--ink2); line-height:1.6}
+.scholar-foot{display:flex; align-items:center; gap:14px; font-size:12px; color:var(--muted); margin-top:auto}
+.follow-btn{margin-left:auto; height:30px; padding:0 14px; border-radius:999px; border:1px solid var(--primary); color:var(--primary); font-size:12.5px; font-weight:500}
+.follow-btn.on{background:var(--primary); color:#fff}
+
+/* ===== 学者详情 ===== */
+.scholar-hero{padding:24px 28px}
+.metric-row{display:flex; gap:36px; margin-top:16px}
+.metric .num{font-size:22px; font-weight:800; color:var(--ink)}
+.metric .lbl{font-size:12px; color:var(--faint)}
+.chart-card{padding:20px; margin-top:16px}
+.bars{display:flex; align-items:flex-end; gap:6px; height:96px; margin-top:14px}
+.bars .bar{flex:1; border-radius:3px 3px 0 0; background:#B91C1C}
+html.dark .bars .bar{background:#f87171}
+.pub-card{padding:18px 20px; margin-top:12px}
+.pub-card h4{font-size:14.5px; font-weight:600; color:var(--ink); line-height:1.45}
+.pub-card .abs{font-size:12.5px; color:var(--muted); line-height:1.6; margin-top:6px}
+
+/* ===== 知识库 ===== */
+.knowledge-body{display:flex; min-height:100vh}
+.lib-panel{width:240px; flex-shrink:0; border-right:1px solid var(--line); background:var(--card); padding:20px}
+.lib-panel h2{font-size:15px; font-weight:700}
+.lib-new{width:100%; height:40px; margin-top:16px; border-radius:12px; background:var(--primary-soft); color:var(--primary); font-size:14px; font-weight:500}
+.lib-new:hover{opacity:.8}
+.lib-label{margin-top:20px; padding:0 4px; font-size:12px; color:var(--faint)}
+.folder-item{display:flex; align-items:center; gap:10px; padding:8px; border-radius:10px; font-size:14px; color:var(--ink2); cursor:pointer; width:100%; text-align:left}
+.folder-item:hover{background:var(--chip)}
+.folder-item.active{background:var(--primary-soft); color:var(--primary); font-weight:500}
+.folder-item .sq{width:14px; height:14px; border-radius:4px; background:var(--ink2); opacity:.7; flex-shrink:0}
+.folder-item.active .sq{background:var(--primary); opacity:1}
+.folder-item .cnt{margin-left:auto; font-size:12px; color:var(--faint)}
+.folder-item.active .cnt{background:var(--primary); color:#fff; border-radius:999px; padding:1px 7px}
+.tag-chip{display:inline-block; border-radius:6px; padding:4px 8px; font-size:12px; margin:4px 4px 0 0}
+.lib-table{flex:1; padding:32px; min-width:0}
+.lib-row{display:grid; grid-template-columns:minmax(0,1fr) 220px 90px; gap:16px; align-items:center; padding:12px 20px; border-radius:12px; cursor:pointer}
+.lib-row:hover{background:var(--card)}
+.lib-head{font-size:12px; color:var(--faint); background:var(--card); box-shadow:var(--shadow-card)}
+.pdf-thumb{width:36px; height:44px; border-radius:6px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px; font-size:10px; font-weight:700; flex-shrink:0}
+
+/* ===== AI 助手 ===== */
+.agents-body{display:flex; gap:32px; align-items:flex-start}
+.research-nav{width:220px; flex-shrink:0}
+.research-item{display:block; width:100%; text-align:left; border-radius:12px; padding:12px 14px; margin-top:6px}
+.research-item:hover{background:var(--card)}
+.research-item.active{background:var(--card); box-shadow:var(--shadow-card)}
+.research-item .t{font-size:13.5px; font-weight:600; color:var(--ink)}
+.research-item .m{font-size:11px; color:var(--faint); margin-top:3px}
+.agent-main{flex:1; min-width:0}
+.answer-card{padding:24px}
+.answer-head{display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); padding-bottom:16px}
+.answer-body{font-size:15px; line-height:1.85; color:var(--ink2)}
+.answer-body h3{font-size:15px; font-weight:700; color:var(--ink); margin:16px 0 8px}
+.answer-body sup{color:var(--primary); font-weight:500; margin:0 2px}
+.cmp-table{width:100%; font-size:14px; margin-top:8px; background:var(--panel); border-radius:12px; padding:8px 20px}
+.cmp-table th{text-align:left; font-weight:400; font-size:12px; color:var(--faint); padding:10px 0; border-bottom:1px solid var(--line)}
+.cmp-table td{padding:10px 0}
+.cmp-table tr.hl td{font-weight:600; color:var(--primary)}
+.trend-num{width:20px; height:20px; border-radius:999px; background:var(--primary-soft); color:var(--primary); font-size:11px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; margin-right:12px; flex-shrink:0}
+.ref-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:14px}
+.ref-card{border:1px solid var(--line); border-radius:12px; padding:14px; cursor:pointer}
+.ref-card:hover{border-color:var(--primary)}
+.ref-card.rec{border-color:#FDE68A; background:#FFFBEB}
+html.dark .ref-card.rec{border-color:#5a4a1a; background:#26200f}
+.ref-num{width:24px; height:24px; border-radius:999px; color:#fff; font-size:12px; font-weight:600; display:inline-flex; align-items:center; justify-content:center}
+.followup{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:8px 16px; font-size:13px; color:var(--ink2); margin:0 8px 8px 0; background:var(--card)}
+.followup:hover{border-color:var(--primary); color:var(--primary)}
+.chat-input{display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 18px; margin-top:16px}
+.chat-input input{flex:1; border:none; outline:none; background:transparent; font-size:14px}
+.chat-send{width:32px; height:32px; border-radius:10px; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center}
+</style>
+</head>
+<body>
+
+<!-- ===== 全局侧边栏 ===== -->
+<aside id="sidebar">
+  <div class="brand-row">
+    <a class="brand" href="#/">
+      <img class="logo-day" src="./brand/logo-day.png" alt="深知" />
+      <img class="logo-night" src="./brand/logo-night.png" alt="深知" />
+      <span>
+        <span class="brand-name">深知</span><br />
+        <span class="brand-sub">ShenZhi · Research OS</span>
+      </span>
+    </a>
+    <button class="theme-btn" id="themeToggle" title="切换日/夜模式">🌙</button>
+  </div>
+
+  <button class="search-entry" type="button">🔍 <span style="flex:1;text-align:left">搜索论文 · 提问 AI</span><kbd>⌘K</kbd></button>
+
+  <nav class="nav">
+    <p class="nav-group">研究</p>
+    <a class="nav-item" data-route="/" href="#/"><span class="ico">🧭</span>发现<span class="badge-new">新</span></a>
+    <a class="nav-item" data-route="/submit" href="#/submit"><span class="ico">✈️</span>投稿</a>
+    <a class="nav-item" data-route="/knowledge" href="#/knowledge"><span class="ico">📚</span>知识库</a>
+    <a class="nav-item" data-route="/agents" href="#/agents"><span class="ico">✨</span>AI 助手</a>
+    <span class="nav-item disabled"><span class="ico">🗂️</span>科研项目</span>
+    <p class="nav-group">探索</p>
+    <a class="nav-item" data-route="/scholars" href="#/scholars"><span class="ico">👥</span>研究构想</a>
+    <span class="nav-item disabled"><span class="ico">💬</span>问答</span>
+    <span class="nav-item disabled"><span class="ico">🕘</span>搜索历史</span>
+  </nav>
+
+  <div class="user-card">
+    <span class="user-ava">👤</span>
+    <span style="flex:1;min-width:0">
+      <span class="user-name">陈知行</span><br />
+      <span class="user-title">研究员 · 清华 AI Lab</span>
+    </span>
+    <span class="faint">···</span>
+  </div>
+</aside>
+
+<main id="main"></main>
+
+<script>
+/* =====================================================================
+ * 数据 —— 与 frontend_v1/lib/data/*.ts 一致
+ * ===================================================================== */
+const FEED_PAPERS = [
+  { id:"ultralong-1m", date:"2026-07-25", venue:"ICML 2026 · Oral", tone:"violet",
+    authors:"Wei-Lin Chiang · Zhuohan Li · et al. (UC Berkeley)",
+    title:"UltraLong-1M: 一个面向百万级 Token 推理的自回归 Transformer 长程记忆机制",
+    abstract:"UltraLong-1M 提出了一个分层的键值压缩与稀疏注意力机制,使 8B 参数的 Transformer 能在单张 H100 上稳定训练 1M Token 上下文。在 LongBench v2 与 RULER 上分别取得 78.3 与 91.4 分,相对 Llama-3-8B-1M 提升 12.7 分,训练成本下降 41%。",
+    aiLink:"AI 深度解读", tags:["长上下文","Transformer","稀疏注意力"], likes:428, citations:354, thumb:"论文摘要图" },
+  { id:"sana-video-2", date:"2026-07-24", venue:"arXiv · cs.CV", tone:"amber",
+    authors:"Junsong Chen · Jincheng Yu · Yitong Li (NVIDIA)",
+    title:"SANA-Video 2.0: 基于混合线性注意力与残差机制的高效视频扩散 Transformer",
+    abstract:"NVIDIA 的 SANA-Video 2.0 引入混合线性注意力与周期性 softmax 锚点机制,5B 参数模型在单张 H100 GPU 上 13.2 秒生成 81 帧视频,VBench 总分 84.30,相对全 softmax 基线实现 3.2 倍 DiT 前向加速。",
+    aiLink:"查看解读", tags:["视频生成","扩散模型","线性注意力"], likes:196, citations:293, thumb:"视频生成架构图" },
+  { id:"arex", date:"2026-07-23", venue:"ICLR 2026", tone:"green",
+    authors:"Yifei Ming · Sumanth Dathathri · et al. (Stanford)",
+    title:"AREX: 面向深度研究的递归自我进化智能体",
+    abstract:"AREX 提出了一种递归自进化机制:智能体在每次研究循环后自动重写自身的工具策略与检索流程,连续 4 轮迭代后在 DeepResearch Bench 上达到 73.8 分,相对静态智能体基线提升 19.2 分。",
+    aiLink:"智能体实验记录", tags:["智能体","递归学习"], likes:112, citations:218, thumb:"智能体流程图" },
+];
+
+const BADGE_PALETTE = {
+  "CCF A":["#D1FAE5","#059669"], "CCF C":["#FEF3C7","#D97706"], "CORE A*":["#EDE9FE","#7C3AED"],
+  "TH-CPL A":["#FCE7F3","#DB2777"], "TH-CPL B":["#FCE7F3","#DB2777"], "CSRanking":["#CCFBF1","#0D9488"],
+  "CAAI A":["#E0E7FF","#4F46E5"], "CAAI C":["#E0E7FF","#4F46E5"], "中科院1区":["#FFEDD5","#EA580C"],
+  "JCR Q1":["#D1FAE5","#059669"], "高质量期刊 T1":["#F3E8FF","#9333EA"],
+};
+const LEVEL_CHIPS = ["CCF-A","CCF-B","CCF-C","CAAI-A","CAAI-B","CAAI-C","中科院1区","中科院2区","中科院3区","中科院4区","CORE-A*","CORE-A","CORE-B","CORE-C","TH-CPL A","TH-CPL B"];
+const DIRECTION_ROWS = [
+  { lines:["计算机体系结构/并行","与分布计算/存储系统"], count:"104" },
+  { lines:["计算机网络"], count:"75" }, { lines:["网络与信息安全"], count:"67" },
+  { lines:["软件工程/系统软件/程","序设计语言"], count:"95" },
+  { lines:["数据库/数据挖掘/内容","检索"], count:"90" },
+  { lines:["计算机科学理论"], count:"77" }, { lines:["计算机图形学与多媒体"], count:"81" },
+  { lines:["人工智能"], count:"147" }, { lines:["人机交互与普适计算"], count:"48" },
+  { lines:["交叉/综合/新兴"], count:"136" },
+];
+const VENUES = [
+  { id:"dai", abbr:"DAI", full:"International Conference on Distributed Artificial Intelligence",
+    badges:["CCF C"], meta:["🗂 人工智能","📍 Hong Kong, China","📅 November 29-December 2, 2026"],
+    chips:[], danger:true, deadline:{ label:"摘要截止", dateText:"2026年7月28日 19:59", offsetMs:28*60000+11000 } },
+  { id:"aaai", abbr:"AAAI", full:"AAAI人工智能会议",
+    badges:["CCF A","CORE A*","TH-CPL A","CSRanking","CAAI A"],
+    meta:["🗂 人工智能","📊 2026录用率: 17.6%","📍 Montréal, Québec, Canada","📅 February 16-23, 2027","❝ 平均引用: 8.09964"],
+    chips:["Artificial Intelligence","Machine Learning","Knowledge Representation","Planning"],
+    deadline:{ label:"全文截止", dateText:"2026年7月29日 19:59", offsetMs:24*3600000+28*60000+11000 } },
+  { id:"hpca", abbr:"HPCA", full:"IEEE International Symposium on High-Performance Computer Architecture",
+    badges:["CCF A","CORE A*","TH-CPL B","CAAI C"],
+    meta:["🗂 计算机体系结构/并行与分布计算/存储系统","📊 2026录用率: 19.8%","📍 Salt Lake City, Utah, USA","📅 March 20-24, 2027","❝ 平均引用: 18.5792"],
+    chips:["Computer Architecture","Parallel Computing","Storage Systems"],
+    deadline:{ label:"全文截止", dateText:"2026年8月1日 19:59", offsetMs:4*24*3600000+28*60000+11000 } },
+  { id:"tkde", abbr:"IEEE TKDE", full:"IEEE Transactions on Knowledge and Data Engineering",
+    badges:["CCF A","TH-CPL B","CAAI A","中科院1区","JCR Q1","高质量期刊 T1"],
+    meta:["🗂 数据库/数据挖掘/内容检索","❝ 平均引用: 15.8638"],
+    chips:["Data Mining","Knowledge Engineering","Database Systems","Big Data"] },
+  { id:"tpami", abbr:"IEEE TPAMI", full:"IEEE Transactions on Pattern Analysis and Machine Intelligence",
+    badges:["CCF A","TH-CPL B","CAAI A","中科院1区","JCR Q1","高质量期刊 T1"],
+    meta:["🗂 人工智能","❝ 平均引用: 16.2350"],
+    chips:["Computer Vision","Pattern Recognition","Machine Learning","Deep Learning"] },
+];
+
+const PAPER = {
+  id:"rdt-1b", title:"RDT-1B: A Diffusion Foundation Model for Robotic Manipulation",
+  authors:["Songming Liu","Lingxuan Wu","Bangguo Li","Hengkai Tan","Huayu Chen","Zhengyi Wang","Ke Xu","Hang Su","Jun Zhu"],
+  affiliation:"Tsinghua University · Shanghai AI Lab", likes:428,
+  abstract:"We introduce RDT (Robotics Diffusion Transformer), a diffusion foundation model for robotic manipulation. RDT is pre-trained on the largest multi-robot dataset to date (DROID, 1.0M+ trajectories) and then fine-tuned on a target robot. With 1.2B parameters, RDT significantly outperforms existing methods such as Diffusion Policy and OpenVLA across 5 benchmarks and 60+ tasks, achieving a 14× increase in success rate on dexterous tasks and demonstrating strong generalization to unseen objects, scenes, and instructions.",
+  introduction:"Recent advances in generative modeling have unlocked new capabilities in language and vision, yet robotics still relies heavily on task-specific imitation learning. We argue that the lack of large-scale, diverse robot data — not model architecture — is the primary bottleneck. RDT tackles this by training a 1.2B-parameter transformer-based diffusion model on the DROID corpus, then transferring to downstream robots via lightweight fine-tuning (≈ 2 GPU-hours).",
+};
+const SIMILAR_PAPERS = [
+  { title:"Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context", meta:"NeurIPS 2019 · Cited 2,341" },
+  { title:"RoBERTa: A Robustly Optimized BERT Pretraining Approach", meta:"arXiv 2019 · Cited 8,912" },
+  { title:"XLNet: Generalized Autoregressive Pretraining for Language Understanding", meta:"NeurIPS 2019 · Cited 5,678" },
+];
+const RELATED_AUTHORS = ["Jacob Devlin","Ashish Vaswani","Zhilin Yang","Yoshua Bengio","Geoffrey Hinton","Yann LeCun","Fei-Fei Li"];
+
+const SCHOLARS = [
+  { id:"kaiming-he", cn:"何恺明", en:"Kaiming He", ini:"KH", color:"#002FA7", role:"副教授",
+    aff:"MIT EECS · Google DeepMind Distinguished Scientist",
+    bio:"ResNet 作者之一,提出了残差连接使训练百层深度网络成为可能;Masked Autoencoders (MAE) 通过像素重建推动视觉自监督学习。",
+    citations:"849k", h:77, tags:["计算机视觉","深度学习","表征学习"] },
+  { id:"geoffrey-hinton", cn:"Geoffrey Hinton", en:"杰弗里 · 辛顿", ini:"GH", color:"#10B981", role:"荣誉教授",
+    aff:"多伦多大学 · 2024 诺贝尔物理学奖得主",
+    bio:"深度学习之父,ImageNet 分类竞赛中使用 CNN 与 GPU 加速实现大规模图像识别;反向传播算法的共同发明人之一。",
+    citations:"1.1M", h:192, tags:["机器学习","神经网络","认知心理学"] },
+  { id:"yoshua-bengio", cn:"Yoshua Bengio", en:"约书亚 · 本吉奥", ini:"YB", color:"#F59E0B", role:"全职教授",
+    aff:"蒙特利尔大学 · Mila 创始人",
+    bio:"GAN 生成式对抗网络的共同提出者,使生成模型通过两个神经网络的对抗训练得以发展;深度学习三巨头之一。",
+    citations:"1.1M", h:256, tags:["机器学习","深度学习","NLP"], followed:true },
+  { id:"fei-fei-li", cn:"李飞飞", en:"Fei-Fei Li", ini:"FL", color:"#EC4899", role:"教授",
+    aff:"斯坦福大学 · 斯坦福 AI Lab 前主任",
+    bio:"ImageNet 与 ImageNet Challenge 创始人,推动了大规模视觉数据集与深度学习结合;现从事空间智能与具身 AI 研究。",
+    citations:"395k", h:168, tags:["计算机视觉","具身智能","数据集构建"] },
+  { id:"pieter-abbeel", cn:"Pieter Abbeel", en:"阿比希尔", ini:"PA", color:"#8B5CF6", role:"教授",
+    aff:"UC Berkeley · Covariant 创始人",
+    bio:"强化学习与机器人学先驱,提出 TRPO/GAE 等算法奠定策略梯度基础;近年专注于工业机器人的通用基础模型。",
+    citations:"186k", h:94, tags:["强化学习","机器人学","策略学习"], followed:true },
+  { id:"ilya-sutskever", cn:"Ilya Sutskever", en:"伊利亚", ini:"IS", color:"#06B6D4", role:"联合创始人",
+    aff:"Safe Superintelligence Inc.",
+    bio:"OpenAI 前首席科学家,ImageNet 分类核心贡献者;与 Sutskever 一起推动 AlexNet 引入 GPU 训练,开启深度学习革命。",
+    citations:"830k", h:102, tags:["机器学习","神经网络","AI 安全"] },
+];
+const SCHOLAR_DIRS = [
+  { name:"机器学习", count:"2.1k", color:"#5046E5" }, { name:"计算机视觉", count:"1.5k", color:"#10B981" },
+  { name:"自然语言处理", count:"1.2k", color:"#F59E0B" }, { name:"强化学习", count:"624", color:"#EF4444" },
+  { name:"机器人学", count:"412", color:"#8B5CF6" },
+];
+const SCHOLAR_DETAIL = {
+  metrics:[["849,099","总引用"],["77","h 指数"],["91","i10 指数"]],
+  years:["2015","2016","2017","2018","2019","2020","2021","2022","2023","2024","2025","2026"],
+  values:[3200,5100,8400,12600,18900,24500,31200,38900,44100,52300,58800,63481],
+  highlight:"63,481 · 2026",
+  pubs:[
+    { title:"Deep Residual Learning for Image Recognition", venue:"CVPR 2016", cite:"引用 218k",
+      abs:"Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously. …" },
+    { title:"Masked Autoencoders Are Scalable Vision Learners", venue:"CVPR 2022", cite:"引用 14.5k",
+      abs:"This paper shows that masked autoencoders (MAE) are scalable self-supervised learners for computer vision. …" },
+    { title:"Improved Mean Flows: On the Challenges of Fastforward Generative Models", venue:"2026", cite:"引用 158",
+      abs:"MeanFlow (MF) has recently been established as a framework for one-step generative modeling. However, its fastforward nature introduces key challenges. …" },
+  ],
+};
+
+const LIB_FOLDERS = [
+  { name:"我的发表", count:3 }, { name:"想读", count:8 }, { name:"在读", count:12, active:true },
+  { name:"已读", count:47 }, { name:"归档", count:23 },
+];
+const LIB_TAGS = ["扩散模型","Transformer","智能体","视频生成","长上下文"];
+const LIB_ITEMS = [
+  { title:"Diffusion Models for Iterative Video Frame Interpolation", venue:"CVPR 2025", arxiv:"arXiv:2406.12345", authors:"Zhang Wei, Chen Li, Wang Ming", added:"7月25日", tone:"violet" },
+  { title:"LLM Agents for Autonomous Scientific Discovery", venue:"NeurIPS 2024", arxiv:"arXiv:2411.08901", authors:"Li Ming, Chen Hao, Liu Yu", added:"7月22日", tone:"amber" },
+  { title:"Long-Context Reasoning in Foundation Models", venue:"ICLR 2025", arxiv:"arXiv:2501.04567", authors:"Wang Hao, Liu Yang, Zhou Tong", added:"7月18日", tone:"green" },
+];
+
+const AGENT = {
+  topic:"扩散模型在机器人策略学习中的最新进展", mode:"深度研究 · 自动更新中",
+  question:"扩散模型在机器人策略学习中最近 6 个月有哪些突破性进展?请对比主流方法,并分析对实际工业部署的影响。",
+  meta:"已阅读 28 篇论文 · 耗时 4.2s",
+  recent:[
+    { t:"扩散模型综述", m:"刚刚 · 18 篇引用", on:true }, { t:"具身智能中的世界模型", m:"昨天 · 24 篇引用" },
+    { t:"Mamba 与状态空间模型", m:"2 天前 · 31 篇引用" }, { t:"稀疏注意力机制对比", m:"上周 · 9 篇引用" },
+  ],
+  intro:"过去 6 个月,扩散策略 (Diffusion Policy) [1] 在机器人操控领域已经从学术原型走向工业验证。核心进展可以归纳为三条主线:动作分块 (Action Chunking) 与时序一致性优化、跨本体数据融合,以及面向真实硬件的延迟压缩。",
+  methodBody:"Chi 等人的 Diffusion Policy [1] 首次将 DDPM 引入动作空间预测,奠定了 chunk-based 扩散策略的范式;之后的 3D Diffusion Policy (DP3) [2] 通过稀疏体素特征将推理扩展到 6 自由度操作;最近的 RDT-1B [3] 与 NVIDIA 的 DexMamba [4] 则把模型规模推到十亿参数,并在跨本体迁移上取得显著增益。",
+  industryBody:"工业部署方面,BMW 与 Figure 的产线实测 [5] 表明:扩散策略在多 SKU 装配任务上比传统 Behavior Cloning 高 28% 成功率,但对硬件算力要求较高(≥ RTX 4090 级别 GPU 才能满足 60Hz 控制频率 [6])。",
+  trends:[
+    "模型规模从百 M 走向十亿级,与大语言模型的融合成为新方向 (PaLM-E [7]、RT-2)。",
+    "动作分块从 8 步扩展到 64 步,时序一致性约束 (TCP [8]) 显著降低了抖动。",
+    "与 VLA 模型 (Vision-Language-Action) 深度结合,出现通用机器人基础模型 (Octo [9]、OpenVLA)。",
+  ],
+  conclusion:"综上,扩散策略已从研究阶段进入工业可用阶段,建议关注 RDT-1B 系列工作与跨本体数据集 (如 DROID [10]) 的进展。",
+  refs:[
+    { id:1, venue:"CoRL 2024 · Stanford", title:"Diffusion Policy: Visuomotor Policy Learning via Action Diffusion", author:"Chi et al.", cite:"引用 1.8k", color:"var(--primary)" },
+    { id:2, venue:"RSS 2025 · MIT", title:"3D Diffusion Policy: Generalizable Visuomotor Policy Learning via Spars…", author:"Ze et al.", cite:"引用 642", color:"var(--success)" },
+    { id:3, venue:"ICML 2026 · 推荐", title:"RDT-1B: A Diffusion Foundation Model for Robotic Manipulation", author:"Liu et al.", cite:"引用 312", color:"#B45309", rec:true },
+    { id:4, venue:"arXiv 2026 · NVIDIA", title:"DexMamba: 面向灵巧手控制的视觉状态空间扩散模型", author:"Wen et al.", cite:"引用 89", color:"var(--muted)" },
+  ],
+  followUps:["RDT-1B 与 Octo 的性能差异?","动作分块的最佳长度是多少?","DROID 数据集如何申请?","工业部署的延迟瓶颈在哪?","扩散策略与 VLA 模型融合趋势"],
+};
+
+/* ===== 知识图谱数据 —— 与 lib/data/knowledge-graph.ts 一致 ===== */
+const PUBLIC_GRAPH = {
+  origin:{ id:"liu-2024", ll:["Liu","2024"], w:1, year:2024, title:PAPER.title,
+    authors:"Songming Liu, Lingxuan Wu, Bangguo Li, et al.", venue:"arXiv", cite:"引用 312", abs:PAPER.abstract, paperId:"rdt-1b" },
+  nodes:[
+    { id:"chi-2023", ll:["Chi","2023"], w:.95, year:2023, title:"Diffusion Policy: Visuomotor Policy Learning via Action Diffusion", authors:"Cheng Chi, Siyuan Feng, Yilun Du, et al.", venue:"CoRL 2023", cite:"引用 1.8k", abs:"We introduce Diffusion Policy, a new way of generating robot behavior by representing a robot's visuomotor policy as a conditional denoising diffusion process. Across 12 tasks from 4 benchmarks, Diffusion Policy outperforms existing state-of-the-art robot learning methods with an average improvement of 46.9%." },
+    { id:"kim-2024", ll:["Kim","2024"], w:.8, year:2024, title:"OpenVLA: An Open-Source Vision-Language-Action Model", authors:"Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, et al.", venue:"CoRL 2024", cite:"引用 890", abs:"OpenVLA is a 7B-parameter open-source vision-language-action model trained on 970k robot demonstrations from the Open X-Embodiment dataset, achieving strong zero-shot generalization across embodiments." },
+    { id:"ze-2024", ll:["Ze","2024"], w:.72, year:2024, title:"3D Diffusion Policy: Generalizable Visuomotor Policy Learning via Simple 3D Representations", authors:"Yanjie Ze, Gu Zhang, Kangning Zhang, et al.", venue:"RSS 2024", cite:"引用 642", abs:"DP3 incorporates 3D visual representations into diffusion policies, achieving strong performance with as few as 10 demonstrations." },
+    { id:"black-2024", ll:["Black","2024"], w:.7, year:2024, title:"π0: A Vision-Language-Action Flow Model for General Robot Control", authors:"Kevin Black, Noah Brown, Danny Driess, et al.", venue:"arXiv 2024", cite:"引用 460", abs:"We introduce π0, a flow-matching vision-language-action model that transfers internet-scale pretraining to dexterous robot control." },
+    { id:"ghosh-2024", ll:["Ghosh","2024"], w:.68, year:2024, title:"Octo: An Open-Source Generalist Robot Policy", authors:"Dibya Ghosh, Homer Walke, Karl Pertsch, et al.", venue:"RSS 2024", cite:"引用 520", abs:"Octo is an open-source transformer-based generalist robot policy trained on 800k trajectories from Open X-Embodiment." },
+    { id:"khazatsky-2024", ll:["Khazatsky","2024"], w:.65, year:2024, title:"DROID: A Large-Scale In-the-Wild Robot Manipulation Dataset", authors:"Alexander Khazatsky, Karl Pertsch, Suraj Nair, et al.", venue:"ICRA 2024", cite:"引用 380", abs:"DROID is a diverse robot manipulation dataset with 76k demonstration trajectories collected across 564 scenes and 86 tasks." },
+    { id:"brohan-2023", ll:["Brohan","2023"], w:.6, year:2023, title:"RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control", authors:"Anthony Brohan, Noah Brown, Justice Carbajal, et al.", venue:"CoRL 2023", cite:"引用 1.5k", abs:"RT-2 co-fine-tunes vision-language models on web data and robot trajectories, producing policies with emergent semantic generalization." },
+    { id:"wen-2026", ll:["Wen","2026"], w:.55, year:2026, title:"DexMamba: 面向灵巧手控制的视觉状态空间扩散模型", authors:"Yuxuan Wen, Zhaohui Li, Manping Sun, et al.", venue:"arXiv 2026", cite:"引用 89", abs:"DexMamba combines selective state-space backbones with diffusion action heads for dexterous hand control, achieving real-time 60Hz inference." },
+    { id:"ho-2020", ll:["Ho","2020"], w:.5, year:2020, title:"Denoising Diffusion Probabilistic Models", authors:"Jonathan Ho, Ajay Jain, Pieter Abbeel", venue:"NeurIPS 2020", cite:"引用 12k", abs:"We present high-quality image synthesis results using diffusion probabilistic models, a class of latent variable models inspired by non-equilibrium thermodynamics." },
+    { id:"vaswani-2017", ll:["Vaswani","2017"], w:.45, year:2017, title:"Attention Is All You Need", authors:"Ashish Vaswani, Noam Shazeer, Niki Parmar, et al.", venue:"NeurIPS 2017", cite:"引用 128k", abs:"We propose the Transformer, a network architecture based solely on attention mechanisms, dispensing with recurrence and convolutions entirely." },
+    { id:"fu-2024", ll:["Fu","2024"], w:.42, year:2024, title:"Mobile ALOHA: Learning Bimanual Mobile Manipulation with Low-Cost Whole-Body Teleoperation", authors:"Zipeng Fu, Tony Z. Zhao, Chelsea Finn", venue:"RSS 2024", cite:"引用 410", abs:"Mobile ALOHA extends bimanual teleoperation to mobile manipulation with a low-cost whole-body interface." },
+    { id:"song-2021", ll:["Song","2021"], w:.38, year:2021, title:"Score-Based Generative Modeling through Stochastic Differential Equations", authors:"Yang Song, Jascha Sohl-Dickstein, et al.", venue:"ICLR 2021", cite:"引用 6.4k", abs:"We present a stochastic differential equation framework that unifies and generalizes score-based generative modeling and diffusion models." },
+    { id:"zhao-2023", ll:["Zhao","2023"], w:.35, year:2023, title:"Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware", authors:"Tony Z. Zhao, Vikash Kumar, Sergey Levine, Chelsea Finn", venue:"RSS 2023", cite:"引用 690", abs:"ALOHA is a low-cost bimanual teleoperation system; combined with Action Chunking with Transformers (ACT), it learns fine-grained tasks from 50 demonstrations." },
+    { id:"reed-2022", ll:["Reed","2022"], w:.3, year:2022, title:"A Generalist Agent", authors:"Scott Reed, Konrad Żołna, Emilio Parisotto, et al.", venue:"TMLR 2022", cite:"引用 2.1k", abs:"Gato is a single generalist transformer trained on a wide variety of tasks — from Atari and robotics to image captioning and chat." },
+  ],
+  edges:[["liu-2024","chi-2023",.95],["liu-2024","kim-2024",.8],["liu-2024","ze-2024",.72],["liu-2024","black-2024",.7],["liu-2024","ghosh-2024",.68],["liu-2024","khazatsky-2024",.65],["liu-2024","brohan-2023",.6],["liu-2024","wen-2026",.55],["liu-2024","ho-2020",.5],["liu-2024","vaswani-2017",.45],["liu-2024","fu-2024",.42],["liu-2024","song-2021",.38],["liu-2024","zhao-2023",.35],["liu-2024","reed-2022",.3],["chi-2023","ze-2024",.8],["ho-2020","song-2021",.7],["zhao-2023","fu-2024",.85],["vaswani-2017","brohan-2023",.5],["kim-2024","ghosh-2024",.6],["black-2024","chi-2023",.55]],
+  related:["chi-2023","kim-2024","ze-2024","black-2024","ghosh-2024","khazatsky-2024","brohan-2023","wen-2026","ho-2020","vaswani-2017","fu-2024","song-2021","zhao-2023","reed-2022"],
+};
+const PRIVATE_GRAPH = {
+  origin:{ id:"m1", ll:["扩散策略","2025"], w:.9, year:2025, layer:"mine", title:"Hierarchical Diffusion Policies for Contact-Rich Manipulation",
+    authors:"陈知行, 王璐, 李慕白", venue:"ICRA 2026(under review)", cite:"预印本",
+    abs:"We propose a hierarchical diffusion policy that decouples contact-rich manipulation into a contact-planning diffusion head and a motion-execution transformer, improving success rates by 23% on insertion and deformable-object tasks while keeping 30Hz closed-loop control." },
+  nodes:[
+    { id:"m2", ll:["机器人基础模型","2024"], w:.72, year:2024, layer:"mine", title:"Cross-Embodiment Pretraining for Robot Foundation Models", authors:"陈知行, 李慕白, 赵启明", venue:"arXiv 2024", cite:"引用 86", abs:"A masked action-modeling pretraining objective that shares a single policy backbone across 6 robot embodiments, reducing per-embodiment fine-tuning data requirements by 4×." },
+    { id:"m3", ll:["视觉伺服","2022"], w:.48, year:2022, layer:"mine", title:"Visual Servoing via Learned Keypoint Affordances", authors:"陈知行, 吴桐", venue:"IROS 2022", cite:"引用 41", abs:"We learn dense keypoint affordance fields from self-supervised interaction and use them as the visual feedback signal for closed-loop servoing." },
+    { id:"f7", ll:["机器人学习","2024"], w:.85, year:2024, layer:"folder", title:PAPER.title, authors:"Songming Liu, Lingxuan Wu, Bangguo Li, et al.", venue:"arXiv 2024", cite:"引用 312", abs:PAPER.abstract, paperId:"rdt-1b" },
+    { id:"f1", ll:["扩散模型","2025"], w:.8, year:2025, layer:"folder", title:"Diffusion Models for Iterative Video Frame Interpolation", authors:"Zhang Wei, Chen Li, Wang Ming", venue:"CVPR 2025", cite:"引用 96", abs:"We formulate video frame interpolation as an iterative denoising process over motion-compensated latent frames." },
+    { id:"f3", ll:["长上下文","2025"], w:.7, year:2025, layer:"folder", title:"Long-Context Reasoning in Foundation Models", authors:"Wang Hao, Liu Yang, Zhou Tong", venue:"ICLR 2025", cite:"引用 54", abs:"A hierarchical memory architecture enabling foundation models to reason over million-token contexts with linear compute growth." },
+    { id:"f2", ll:["智能体","2024"], w:.65, year:2024, layer:"folder", title:"LLM Agents for Autonomous Scientific Discovery", authors:"Li Ming, Chen Hao, Liu Yu", venue:"NeurIPS 2024", cite:"引用 73", abs:"We benchmark LLM agents on end-to-end scientific discovery loops across 40 chemistry and biology tasks." },
+    { id:"f8", ll:["世界模型","2025"], w:.6, year:2025, layer:"folder", title:"World Models for Embodied Planning: A Survey", authors:"Sun Qi, Deng Rui, Fan Yu", venue:"TMLR 2025", cite:"引用 12", abs:"A systematic survey of learned world models for embodied agents." },
+    { id:"f4", ll:["视频生成","2025"], w:.55, year:2025, layer:"folder", title:"SANA-Video 2.0: Efficient Video Diffusion with Hybrid Linear Attention", authors:"Junsong Chen, Jincheng Yu, Yitong Li", venue:"arXiv 2026", cite:"引用 31", abs:"Hybrid linear attention with periodic softmax anchoring cuts video diffusion training cost by 3.2×." },
+    { id:"f5", ll:["Transformer","2023"], w:.5, year:2023, layer:"folder", title:"Efficient Transformers for Long-Sequence Modeling: A Survey", authors:"Guo Liang, Shen Yao", venue:"ACM CSUR 2023", cite:"引用 210", abs:"We taxonomize efficient transformer variants and benchmark them on sequences from 4k to 1M tokens." },
+    { id:"f6", ll:["强化学习","2024"], w:.45, year:2024, layer:"folder", title:"Offline RL Fine-tuning for Real-Robot Policy Adaptation", authors:"Han Xu, Qian Zhao", venue:"ICML 2024", cite:"引用 38", abs:"A conservative offline RL recipe that adapts pretrained manipulation policies using only 2k logged transitions." },
+    { id:"f9", ll:["状态空间","2024"], w:.4, year:2024, layer:"folder", title:"Mamba: Linear-Time Sequence Modeling with Selective State Spaces", authors:"Albert Gu, Tri Dao", venue:"COLM 2024", cite:"引用 1.2k", abs:"Selective state-space models achieve linear-time sequence modeling with input-dependent dynamics." },
+  ],
+  edges:[["m1","m2",.7],["m2","m3",.45],["f1","f4",.65],["f2","f3",.5],["f5","f9",.6],["f8","f7",.55],["m1","f7",.9,1],["m1","f1",.6,1],["m2","f7",.7,1],["m2","f8",.5,1],["m3","f6",.4,1]],
+  related:["m2","m3","f7","f1","f3","f2","f8","f4","f5","f6","f9"],
+};
+
+/* =====================================================================
+ * 图谱布局 —— 与 frontend_v1/lib/graph-layout.ts 完全一致的移植
+ * ===================================================================== */
+const VIEW_W = 1080, VIEW_H = 820, CX = VIEW_W/2, CY = VIEW_H/2 - 40;
+function hash(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h/0xffffffff; }
+const nodeR = w => 16 + w*30;
+function concentricLayout(g){
+  const placed = { [g.origin.id]:{ x:CX, y:CY, r:46 } };
+  const rings = [ {min:.66,radius:145,members:[]}, {min:.4,radius:235,members:[]}, {min:0,radius:320,members:[]} ];
+  for(const n of g.nodes) (rings.find(r=>n.w>r.min)||rings[2]).members.push(n);
+  rings.forEach((ring,ri)=>{
+    const start = -Math.PI/2 + ri*0.53;
+    ring.members.forEach((n,i)=>{
+      const angle = (i/ring.members.length)*Math.PI*2 + start + (hash(n.id)-.5)*.42;
+      const radius = ring.radius + (hash(n.id+":r")-.5)*36;
+      placed[n.id] = { x:Math.round(CX+radius*Math.cos(angle)), y:Math.round(CY+radius*Math.sin(angle)), r:nodeR(n.w) };
+    });
+  });
+  return placed;
+}
+function strataLayout(g){
+  const placed = {};
+  const bands = [ {layer:"mine",y:190}, {layer:"folder",y:570} ];
+  for(const band of bands){
+    const members = [g.origin,...g.nodes].filter(n=>n.layer===band.layer).sort((a,b)=>b.w-a.w);
+    const spread = Math.min(160, 880/Math.max(members.length-1,1));
+    members.forEach((n,i)=>{
+      placed[n.id] = { x:Math.round(CX+(i-(members.length-1)/2)*spread), y:Math.round(band.y+(hash(n.id+":y")-.5)*64), r:nodeR(n.w) };
+    });
+  }
+  return placed;
+}
+
+/* =====================================================================
+ * 视图渲染
+ * ===================================================================== */
+const $main = document.getElementById("main");
+const esc = s => s;
+const cite = t => t.replace(/\[(\d+)\]/g, "<sup>[$1]</sup>");
+
+/* ---------- 发现 ---------- */
+function homeView(){
+  $main.innerHTML = `
+  <div class="page" style="max-width:980px">
+    <div class="card search-hero">
+      <div class="row">
+        <span class="faint" style="font-size:16px">🔍</span>
+        <input id="heroInput" placeholder="帮我找一下关于扩散模型在机器人控制中的最新综述…" />
+        <button class="btn" id="heroBtn">→ 深度搜索</button>
+      </div>
+      <div class="search-modes">
+        <span class="mode active">🔍 深度搜索</span><span class="mode">✨ AI 助手</span><span class="mode">💡 灵感发现</span>
+        <span class="faint" style="margin-left:auto;font-size:12px">⇥ 切换</span>
+      </div>
+    </div>
+
+    <div class="feed-tabs">
+      <span class="feed-tab active">📈 趋势</span><span class="feed-tab">最新</span>
+      <span class="feed-tab">✨ AI 订阅</span><span class="feed-tab">我的收藏</span>
+      <span class="chip" style="margin-left:auto">⚙ 个性化</span>
+    </div>
+
+    ${FEED_PAPERS.map(p=>`
+    <article class="card paper-card">
+      <div style="flex:1;min-width:0">
+        <div class="meta"><span>${p.date}</span><span class="badge badge-${p.tone}">${p.venue}</span><span>👤 ${p.authors}</span></div>
+        <h3>${p.title}</h3>
+        <p class="abs">${p.abstract}</p>
+        <a class="ai-link" href="#/agents">＋ ${p.aiLink} →</a>
+        <div class="foot">
+          ${p.tags.map(t=>`<span class="faint">#${t}</span>`).join("")}
+          <span style="flex:1"></span>
+          <button class="icon-btn like-btn" data-likes="${p.likes}">♡ <span>${p.likes}</span></button>
+          <button class="icon-btn">🔖 收藏</button>
+          <a class="btn" style="height:34px" href="#/papers/rdt-1b">立即阅读 →</a>
+        </div>
+      </div>
+      <div class="thumb">
+        <span class="cite">⇗ 引用 ${p.citations}</span>
+        <div class="box">${p.thumb}</div>
+      </div>
+    </article>`).join("")}
+  </div>`;
+  const go = ()=>{ if(document.getElementById("heroInput").value.trim()) location.hash="#/agents"; };
+  document.getElementById("heroBtn").onclick = go;
+  document.getElementById("heroInput").onkeydown = e=>{ if(e.key==="Enter") go(); };
+  document.querySelectorAll(".like-btn").forEach(b=>b.onclick=()=>{
+    const n=+b.dataset.likes, on=b.classList.toggle("liked");
+    b.innerHTML = `${on?"♥":"♡"} <span>${n+(on?1:0)}</span>`;
+  });
+}
+
+/* ---------- 投稿 ---------- */
+function submitView(){
+  $main.innerHTML = `
+  <div class="page" style="max-width:1180px">
+    <div class="submit-tabs">
+      <span class="submit-tab active">截止日期</span><span class="submit-tab">Rebuttal</span>
+      <span class="submit-tab">录用通知</span><span class="submit-tab">最终定稿</span><span class="submit-tab">会议时间</span>
+      <span class="result-count">517 条结果</span>
+    </div>
+    <div class="submit-body">
+      <aside class="card filter-panel">
+        <h2>🏅 等级筛选</h2>
+        <div class="level-grid">${LEVEL_CHIPS.map(c=>`<button class="level-chip">${c}</button>`).join("")}</div>
+        <h2 style="margin-top:24px">🏷 研究方向</h2>
+        ${DIRECTION_ROWS.map(r=>`<div class="dir-row"><span class="box"></span><span>${r.lines.map(l=>`<span style="display:block">${l}</span>`).join("")}</span><span class="cnt">${r.count}</span><span class="faint">›</span></div>`).join("")}
+      </aside>
+      <div class="venue-list">
+        ${VENUES.map(v=>`
+        <article class="card venue-card ${v.danger?"danger":""}">
+          <div class="venue-head">
+            <div><div class="venue-abbr">${v.abbr}</div><div class="venue-full">${v.full}</div></div>
+            <div class="venue-badges">${v.badges.map(b=>{const p=BADGE_PALETTE[b];return `<span class="badge" style="background:${p[0]};color:${p[1]}">${b}</span>`}).join("")}</div>
+          </div>
+          <div class="venue-meta">${v.meta.map(m=>`<span>${m}</span>`).join("")}</div>
+          ${v.chips.length?`<div class="venue-chips">${v.chips.map(c=>`<span class="chip">${c}</span>`).join("")}</div>`:""}
+          ${v.deadline?`
+          <div class="venue-deadline">
+            <div><span class="deadline-label">${v.deadline.label}</span><div class="deadline-date">${v.deadline.dateText}</div></div>
+            <span class="venue-status ${v.danger?"status-danger":"status-success"}" style="margin-left:auto">${v.danger?"紧急":"进行中"}</span>
+            <div class="countdown" data-offset="${v.deadline.offsetMs}">
+              <div class="nums">-- : -- : -- : --</div>
+              <div class="units"><span>天</span><span>小时</span><span>分钟</span><span>秒</span></div>
+            </div>
+          </div>`:""}
+        </article>`).join("")}
+      </div>
+    </div>
+  </div>`;
+  document.querySelectorAll(".level-chip").forEach(c=>c.onclick=()=>c.classList.toggle("active"));
+  const t0 = Date.now();
+  const tick = ()=>{
+    document.querySelectorAll(".countdown").forEach(el=>{
+      let ms = +el.dataset.offset - (Date.now()-t0); if(ms<0) ms=0;
+      const d=Math.floor(ms/86400000), h=Math.floor(ms/3600000)%24, m=Math.floor(ms/60000)%60, s=Math.floor(ms/1000)%60;
+      el.querySelector(".nums").textContent = [d,h,m,s].map(n=>String(n).padStart(2,"0")).join(" : ");
+    });
+  };
+  tick(); countdownTimer = setInterval(tick, 1000);
+}
+
+/* ---------- 论文详情 ---------- */
+function paperView(){
+  $main.innerHTML = `
+  <div class="topbar">
+    <a class="back" href="#/">← 返回</a>
+    <span class="title">${PAPER.title}</span>
+    <button class="icon-btn" id="paperLike">♡ <span>${PAPER.likes}</span></button>
+  </div>
+  <div class="reader-body">
+    <div class="toc">
+      ${["摘要 Abstract","1. 引言","2. 相关工作","3. 方法","4. 实验","5. 结论"].map((t,i)=>`<span class="toc-item ${i===0?"active":""}">${t}</span>`).join("")}
+    </div>
+    <div class="thumbs">
+      ${Array.from({length:8},(_,i)=>`<span class="thumb-page ${i===0?"current":""}">${i+1} / 18</span>`).join("")}
+    </div>
+    <div class="reader-main">
+      <article class="article">
+        <h1>${PAPER.title}</h1>
+        <p class="authors">${PAPER.authors.join(", ")}</p>
+        <p class="affil">${PAPER.affiliation}</p>
+        <hr />
+        <h2>Abstract</h2>
+        <p class="body">${PAPER.abstract}</p>
+        <h2>1. Introduction</h2>
+        <p class="body">${PAPER.introduction}</p>
+        <figure class="figure-ph"><figcaption class="cap">Figure 1</figcaption><div class="box"></div></figure>
+      </article>
+    </div>
+    <aside class="right-panel">
+      <div class="rp-tabs">
+        <button class="rp-tab active" data-tab="assistant">Assistant</button>
+        <button class="rp-tab" data-tab="notes">笔记</button>
+        <button class="rp-tab" data-tab="similar">相关</button>
+      </div>
+      <div class="rp-body" id="rpBody"></div>
+    </aside>
+  </div>`;
+  const RP = {
+    assistant:`
+      <div class="rp-card"><div class="head"><span class="rp-ico">🖊</span><div><p style="font-size:13px;font-weight:600">Highlight & Ask</p><p class="faint" style="font-size:12px">选中任何段落以提问具体问题</p></div></div></div>
+      <div class="rp-card"><div class="head"><span class="rp-ico">＠</span><div><p style="font-size:13px;font-weight:600">Add Context</p><p class="faint" style="font-size:12px">使用 @ 引用其他论文以扩展讨论</p></div></div></div>
+      <p class="faint" style="font-size:12px;padding:0 4px">尝试提问:3.2 节的核心直觉是什么?</p>
+      <div style="border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px 14px;margin-top:12px">
+        <input placeholder="询问关于此论文的任意问题…" style="width:100%;border:none;outline:none;background:transparent;font-size:13px" />
+      </div>`,
+    notes:`<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center">
+      <span style="width:48px;height:48px;border-radius:999px;background:var(--chip);display:flex;align-items:center;justify-content:center">📝</span>
+      <p style="font-size:13px;color:var(--muted)">暂无笔记</p>
+      <p class="faint" style="font-size:12px;max-width:200px">选中正文段落即可添加高亮与标注,标注会同步到这里</p></div>`,
+    similar:`
+      <h3 class="section-title">相似论文</h3>
+      ${SIMILAR_PAPERS.map(p=>`<a class="similar-item" href="#/papers/rdt-1b"><p style="font-size:12px;font-weight:500;line-height:1.6;color:var(--ink2)">${p.title}</p><p class="faint" style="font-size:11px;margin-top:4px">${p.meta}</p></a>`).join("")}
+      <h3 class="section-title" style="margin-top:20px">领域相关作者</h3>
+      <div style="margin-top:8px">${RELATED_AUTHORS.map(a=>`<a class="author-chip" href="#/scholars">${a}</a>`).join("")}</div>
+      <h3 class="section-title" style="margin-top:20px">知识图谱</h3>
+      <a class="graph-entry" href="#/papers/rdt-1b/graph">
+        <span class="rp-ico" style="width:36px;height:36px">🕸</span>
+        <span><span style="display:block;font-size:12px;font-weight:500;color:var(--ink2)">公域引用关系图谱</span>
+        <span class="faint" style="display:block;font-size:11px;margin-top:2px">14 篇关联论文 · 圆圈大小 = 关系强度 →</span></span>
+      </a>`,
+  };
+  const body = document.getElementById("rpBody");
+  const show = t => { body.innerHTML = RP[t]; };
+  show("assistant");
+  document.querySelectorAll(".rp-tab").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll(".rp-tab").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); show(b.dataset.tab);
+  });
+  document.getElementById("paperLike").onclick = e=>{
+    const b=e.currentTarget, on=b.classList.toggle("liked");
+    b.innerHTML = `${on?"♥":"♡"} <span>${PAPER.likes+(on?1:0)}</span>`;
+  };
+}
+
+/* ---------- 图谱页(公域/私域共用) ---------- */
+function graphPageView(g, mode, opt){
+  const layout = mode==="concentric" ? concentricLayout(g) : strataLayout(g);
+  const all = [g.origin, ...g.nodes];
+  const byId = Object.fromEntries(all.map(n=>[n.id,n]));
+  let selected = g.origin.id;
+
+  $main.innerHTML = `
+  <div class="topbar">
+    <a class="back" href="${opt.backHref}">← ${opt.backLabel}</a>
+    <span class="title">${opt.title}</span>
+    ${opt.switcher?`<div class="view-switch"><span class="on">Prior works</span><span class="off">Derivative works</span></div>`:`<span style="width:80px"></span>`}
+  </div>
+  <div class="graph-wrap">
+    <aside class="graph-left">
+      <button class="origin-card sel" data-id="${g.origin.id}">
+        <p class="origin-tag">Origin paper</p>
+        <p style="font-size:13px;font-weight:600;line-height:1.45;margin-top:4px">${g.origin.title}</p>
+        <p class="faint" style="font-size:12px;margin-top:4px">${g.origin.authors} · ${g.origin.year}</p>
+      </button>
+      <div style="margin-top:14px">
+        ${g.related.map(id=>{const n=byId[id];return `
+        <button class="rel-item" data-id="${id}">
+          <p class="rel-title" style="font-size:13px;font-weight:500;line-height:1.45;color:var(--ink2)">${n.title}</p>
+          <p class="faint" style="font-size:11px;margin-top:2px">${n.authors} · ${n.year}</p>
+        </button>`}).join("")}
+      </div>
+    </aside>
+    <div class="graph-center">
+      <svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" style="width:100%;height:auto;user-select:none" id="graphSvg">
+        ${g.edges.map(([s,t,st,cross])=>{
+          const a=layout[s], b=layout[t];
+          return `<line class="svg-edge" data-s="${s}" data-t="${t}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
+            stroke-width="${(1+st*1.5).toFixed(2)}" ${cross?'stroke-dasharray="5 4"':""} opacity="0.9" />`;
+        }).join("")}
+        ${mode==="strata"?`
+          <line x1="24" y1="${VIEW_H/2-40}" x2="${VIEW_W-24}" y2="${VIEW_H/2-40}" stroke="var(--line)" stroke-dasharray="3 6" />
+          <text class="svg-band" x="24" y="96" font-size="13">我的发表 · ${all.filter(n=>n.layer==="mine").length}</text>
+          <text class="svg-band" x="24" y="476" font-size="13">收藏论文 · ${all.filter(n=>n.layer==="folder").length}</text>`:""}
+        ${all.map(n=>{
+          const p=layout[n.id];
+          const fill = mode==="strata" && n.layer==="folder" ? "var(--cyan)" : "var(--primary)";
+          return `<g class="svg-node" data-id="${n.id}">
+            <circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="${fill}" fill-opacity="${(0.55+n.w*0.45).toFixed(2)}"
+              stroke="var(--card)" stroke-width="2" />
+            <text class="svg-label" x="${p.x}" y="${p.y+p.r+17}" text-anchor="middle" font-size="12">${n.ll[0]}</text>
+            <text class="svg-year" x="${p.x}" y="${p.y+p.r+33}" text-anchor="middle" font-size="11">${n.ll[1]}</text>
+          </g>`;
+        }).join("")}
+      </svg>
+      <div class="graph-legend">
+        ${mode==="strata"
+          ?`<span><span class="legend-dot" style="background:var(--primary)"></span>我的发表</span>
+            <span><span class="legend-dot" style="background:var(--cyan)"></span>收藏论文</span><span>虚线 = 跨层关联</span>`
+          :`<span>圆圈大小 = 与原文关系强度</span>`}
+      </div>
+    </div>
+    <aside class="graph-right"><div class="abstract-card" id="absCard"></div></aside>
+  </div>`;
+
+  const absCard = document.getElementById("absCard");
+  const renderAbs = ()=>{
+    const n = byId[selected];
+    absCard.innerHTML = `
+      <h2>${n.title}</h2>
+      <p class="muted" style="font-size:12px;margin-top:8px">${n.authors}</p>
+      <p class="faint" style="font-size:12px;margin-top:6px">${n.venue} · ${n.year}　❝ ${n.cite}</p>
+      <p class="abs">${n.abs}</p>
+      ${n.paperId?`<a class="detail-link" href="#/papers/${n.paperId}">查看论文详情 →</a>`:""}`;
+  };
+  const applySel = ()=>{
+    document.querySelectorAll(".svg-node").forEach(el=>{
+      const c = el.querySelector("circle");
+      const on = el.dataset.id===selected;
+      c.setAttribute("stroke", on?"var(--violet)":"var(--card)");
+      c.setAttribute("stroke-width", on?"3":"2");
+      if(on) c.setAttribute("fill-opacity","1");
+      else c.setAttribute("fill-opacity",(0.55+byId[el.dataset.id].w*0.45).toFixed(2));
+    });
+    document.querySelectorAll(".origin-card,.rel-item").forEach(el=>el.classList.toggle("sel", el.dataset.id===selected));
+    document.querySelectorAll(".svg-edge").forEach(el=>{
+      el.classList.toggle("active", el.dataset.s===selected || el.dataset.t===selected);
+    });
+    renderAbs();
+  };
+  document.querySelectorAll(".svg-node,.origin-card,.rel-item").forEach(el=>{
+    el.addEventListener("click", e=>{ e.stopPropagation(); selected = el.dataset.id; applySel(); });
+  });
+  document.getElementById("graphSvg").addEventListener("click", ()=>{ selected = g.origin.id; applySel(); });
+  applySel();
+}
+
+/* ---------- 学者 ---------- */
+function scholarsView(){
+  $main.innerHTML = `
+  <div class="page" style="max-width:1180px">
+    <div class="scholars-body">
+      <aside class="dir-filter">
+        <p class="faint" style="font-size:13px;padding:0 8px">研究方向</p>
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:4px">
+          ${SCHOLAR_DIRS.map(d=>`<button class="dir-item"><span class="dot" style="background:${d.color}"></span>${d.name}<span class="cnt">${d.count}</span></button>`).join("")}
+        </div>
+      </aside>
+      <div style="flex:1;min-width:0">
+        <div class="scholar-toolbar">
+          <input id="scholarQ" placeholder="搜索学者姓名 / 方向…" />
+          <select id="scholarSort"><option value="cite">按引用排序</option><option value="h">按 H 指数排序</option></select>
+        </div>
+        <div class="scholar-grid" id="scholarGrid"></div>
+      </div>
+    </div>
+  </div>`;
+  const grid = document.getElementById("scholarGrid");
+  const parseCite = c => c.endsWith("M") ? parseFloat(c)*1e6 : parseFloat(c)*1e3;
+  const followed = new Set(SCHOLARS.filter(s=>s.followed).map(s=>s.id));
+  const render = ()=>{
+    const q = document.getElementById("scholarQ").value.trim().toLowerCase();
+    const sort = document.getElementById("scholarSort").value;
+    const list = SCHOLARS
+      .filter(s=>!q || (s.cn+s.en+s.tags.join("")).toLowerCase().includes(q))
+      .sort((a,b)=> sort==="h" ? b.h-a.h : parseCite(b.citations)-parseCite(a.citations));
+    grid.innerHTML = list.map(s=>`
+      <article class="card scholar-card">
+        <div class="scholar-head">
+          <span class="avatar" style="background:${s.color}">${s.ini}</span>
+          <div style="flex:1;min-width:0">
+            <a class="scholar-name" href="#/scholars/kaiming-he">${s.cn}</a>
+            <span class="scholar-en"> ${s.en}</span>
+            <div class="scholar-aff">${s.role} · ${s.aff}</div>
+          </div>
+        </div>
+        <p class="scholar-bio">${s.bio}</p>
+        <div>${s.tags.map(t=>`<span class="chip" style="margin:0 6px 4px 0">${t}</span>`).join("")}</div>
+        <div class="scholar-foot">
+          <span>引用 ${s.citations}</span><span>h 指数 ${s.h}</span>
+          <button class="follow-btn ${followed.has(s.id)?"on":""}" data-id="${s.id}">${followed.has(s.id)?"已关注":"+ 关注"}</button>
+        </div>
+      </article>`).join("") || `<p class="faint" style="grid-column:1/-1;text-align:center;padding:40px">未找到匹配学者</p>`;
+    grid.querySelectorAll(".follow-btn").forEach(b=>b.onclick=()=>{
+      const id=b.dataset.id;
+      if(followed.has(id)){ followed.delete(id); b.classList.remove("on"); b.textContent="+ 关注"; }
+      else { followed.add(id); b.classList.add("on"); b.textContent="已关注"; }
+    });
+  };
+  document.getElementById("scholarQ").oninput = render;
+  document.getElementById("scholarSort").onchange = render;
+  render();
+}
+
+/* ---------- 学者详情 ---------- */
+function scholarDetailView(){
+  const max = Math.max(...SCHOLAR_DETAIL.values);
+  $main.innerHTML = `
+  <div class="page" style="max-width:980px">
+    <a class="back" href="#/scholars" style="font-size:13px;color:var(--muted)">← 返回学者列表</a>
+    <div class="card scholar-hero" style="margin-top:14px">
+      <div class="scholar-head">
+        <span class="avatar" style="background:#002FA7;width:64px;height:64px;font-size:20px;border-radius:16px">KH</span>
+        <div>
+          <div class="scholar-name" style="font-size:19px">何恺明 <span class="scholar-en">Kaiming He</span></div>
+          <div class="scholar-aff">副教授 · MIT EECS · Google DeepMind Distinguished Scientist</div>
+        </div>
+      </div>
+      <p class="scholar-bio" style="margin-top:14px">何恺明的 ResNet 提出了残差连接,使训练百层深度的神经网络成为可能;他同时是 Faster R-CNN 的共同作者,近年提出的 Masked Autoencoders (MAE) 通过像素重建扩展了视觉自监督学习的边界。</p>
+      <div style="margin-top:10px">${["计算机视觉","深度学习","自监督学习","目标检测"].map(t=>`<span class="chip" style="margin-right:6px">${t}</span>`).join("")}</div>
+      <div class="metric-row">
+        ${SCHOLAR_DETAIL.metrics.map(([n,l])=>`<div class="metric"><div class="num">${n}</div><div class="lbl">${l}</div></div>`).join("")}
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:flex-end">
+          ${["Google Scholar","个人主页","GitHub","发送邮件"].map(l=>`<button class="btn btn-outline" style="height:32px;font-size:12.5px">${l}</button>`).join("")}
+        </div>
+      </div>
+    </div>
+    <div class="card chart-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="font-size:15px;font-weight:600">年度引用</h3>
+        <span style="font-size:12px;font-weight:500;color:#B91C1C">${SCHOLAR_DETAIL.highlight}</span>
+      </div>
+      <div class="bars">
+        ${SCHOLAR_DETAIL.values.map((v,i)=>`<div class="bar" title="${SCHOLAR_DETAIL.years[i]}: ${v.toLocaleString()}" style="height:${Math.max(8,v/max*100)}%;opacity:${i<2?.4:i<5?.6:1}"></div>`).join("")}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faint);margin-top:6px"><span>2015</span><span>2026</span></div>
+    </div>
+    <h3 style="font-size:15px;font-weight:700;margin-top:24px">研究成果 · 84</h3>
+    ${SCHOLAR_DETAIL.pubs.map(p=>`
+      <article class="card pub-card">
+        <h4>${p.title}</h4>
+        <p class="abs">${p.abs}</p>
+        <p class="faint" style="font-size:12px;margin-top:8px">${p.venue} · ${p.cite}</p>
+      </article>`).join("")}
+  </div>`;
+}
+
+/* ---------- 知识库 ---------- */
+const TAG_STYLES = [
+  "background:var(--primary-soft);color:var(--primary)",
+  "background:#FEF3C7;color:#B45309",
+  "background:var(--success-soft);color:#059669",
+  "background:var(--danger-soft);color:var(--danger)",
+  "background:#EDE9FE;color:#7C3AED",
+];
+const PDF_TONES = { violet:"background:var(--primary-soft);color:var(--primary)", amber:"background:#FEF3C7;color:#B45309", green:"background:var(--success-soft);color:#059669" };
+function knowledgeView(){
+  $main.innerHTML = `
+  <div class="knowledge-body">
+    <aside class="lib-panel">
+      <h2>我的文献库</h2>
+      <button class="lib-new">▪ 新建文件夹</button>
+      <p class="lib-label">我的作品</p>
+      <p class="lib-label">文件夹</p>
+      ${LIB_FOLDERS.map(f=>`<button class="folder-item ${f.active?"active":""}"><span class="sq"></span>${f.name}<span class="cnt">${f.count}</span></button>`).join("")}
+      <p class="lib-label">标签</p>
+      <div>${LIB_TAGS.map((t,i)=>`<span class="tag-chip" style="${TAG_STYLES[i%TAG_STYLES.length]}"># ${t}</span>`).join("")}</div>
+      <p class="lib-label">知识图谱</p>
+      <a class="graph-entry" style="margin-top:6px" href="#/knowledge/graph">
+        <span class="rp-ico">🕸</span>
+        <span><span style="display:block;font-size:13px;font-weight:500;color:var(--ink2)">私域知识图谱</span>
+        <span class="faint" style="font-size:11px">我的发表 × 收藏论文 · 分层视图 →</span></span>
+      </a>
+    </aside>
+    <div class="lib-table">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div><h1 style="font-size:20px;font-weight:700">在读</h1><p class="faint" style="font-size:12px;margin-top:4px">12 篇文献 · 上次更新 7 月 25 日</p></div>
+        <button class="btn">⬆ 上传私有论文</button>
+      </div>
+      <div class="lib-row lib-head" style="margin-top:24px">
+        <span style="display:flex;align-items:center;gap:12px"><span style="width:16px;height:16px;border:1px solid var(--line);border-radius:4px"></span>标题</span><span>作者</span><span>添加时间</span>
+      </div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+        ${LIB_ITEMS.map(it=>`
+        <div class="lib-row">
+          <div style="display:flex;align-items:center;gap:12px;min-width:0">
+            <span style="width:16px;height:16px;border:1px solid var(--line);border-radius:4px;background:var(--card);flex-shrink:0"></span>
+            <span class="pdf-thumb" style="${PDF_TONES[it.tone]}">PDF</span>
+            <div style="min-width:0">
+              <p style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.title}</p>
+              <p class="faint" style="font-size:12px;margin-top:2px">${it.venue} · ${it.arxiv}</p>
+            </div>
+          </div>
+          <p class="muted" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.authors}</p>
+          <p class="muted" style="font-size:13px">${it.added}</p>
+        </div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- AI 助手 ---------- */
+function agentsView(){
+  const TONE = ["var(--primary)","var(--success)","#B45309","var(--muted)"];
+  $main.innerHTML = `
+  <div class="page" style="max-width:1180px">
+    <div class="agents-body">
+      <aside class="research-nav">
+        <button class="btn" style="width:100%">＋ 开启新研究</button>
+        <p class="faint" style="font-size:12px;margin:18px 4px 6px">近期研究</p>
+        ${AGENT.recent.map(r=>`<button class="research-item ${r.on?"active":""}"><p class="t">${r.t}</p><p class="m">${r.m}</p></button>`).join("")}
+      </aside>
+      <div class="agent-main">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:8px;height:8px;border-radius:999px;background:var(--success)"></span>
+          <span style="font-size:14px;font-weight:500">${AGENT.topic}</span>
+          <span class="faint" style="font-size:12px">${AGENT.mode}</span>
+          <span style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn btn-dark" style="height:32px;font-size:12.5px"><span style="color:var(--gold)">★</span> Pro 模式</button>
+            <button class="btn btn-outline" style="height:32px;font-size:12.5px">↗ 分享</button>
+          </span>
+        </div>
+        <p class="faint" style="font-size:12px;margin-top:20px">你的提问</p>
+        <p style="font-size:18px;font-weight:600;line-height:1.7;margin-top:6px">${AGENT.question}</p>
+
+        <article class="card answer-card" style="margin-top:18px">
+          <div class="answer-head">
+            <span class="avatar" style="background:var(--primary);width:32px;height:32px;border-radius:999px;font-size:14px">✨</span>
+            <span style="font-size:14px;font-weight:600">深知 AI · 深度研究</span>
+            <span class="badge badge-gold">Pro</span>
+            <span class="faint" style="font-size:12px">${AGENT.meta}</span>
+          </div>
+          <div class="answer-body" style="margin-top:16px">
+            <p>${cite(AGENT.intro)}</p>
+            <h3>1. 代表性方法与对比</h3>
+            <p>${cite(AGENT.methodBody)}</p>
+            <p style="font-size:13px;font-weight:500;color:var(--ink);margin-top:12px">性能对比(在 5 个公开基准上)</p>
+            <table class="cmp-table">
+              <thead><tr><th>方法</th><th>平均成功率</th><th>参数量</th><th>推理延迟</th></tr></thead>
+              <tbody>
+                <tr><td>Diffusion Policy <sup>[1]</sup></td><td>62.4%</td><td>73M</td><td>48ms / chunk</td></tr>
+                <tr><td>DP3 <sup>[2]</sup></td><td>71.8%</td><td>180M</td><td>62ms / chunk</td></tr>
+                <tr class="hl"><td>RDT-1B <sup>[3]</sup> · 推荐</td><td>84.6%</td><td>1.2B</td><td>94ms / chunk</td></tr>
+              </tbody>
+            </table>
+            <p style="margin-top:12px">${cite(AGENT.industryBody)}</p>
+            <h3>2. 关键趋势与下一步</h3>
+            ${AGENT.trends.map((t,i)=>`<p style="display:flex;margin-top:8px"><span class="trend-num">${i+1}</span><span>${cite(t)}</span></p>`).join("")}
+            <p style="margin-top:12px">${cite(AGENT.conclusion)}</p>
+          </div>
+        </article>
+
+        <article class="card" style="margin-top:18px;padding:24px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <h3 style="font-size:15px;font-weight:600">参考来源 · 10 篇</h3>
+            <a class="primary" style="font-size:12px;font-weight:500" href="#/papers/rdt-1b/graph">查看全部 →</a>
+          </div>
+          <div class="ref-grid">
+            ${AGENT.refs.map(r=>`
+            <div class="ref-card ${r.rec?"rec":""}">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="ref-num" style="background:${r.color}">${r.id}</span>
+                <span class="faint" style="font-size:11px">${r.venue}</span>
+              </div>
+              <p style="font-size:13px;font-weight:500;line-height:1.5;color:var(--ink2);margin-top:8px">${r.title}</p>
+              <p class="faint" style="font-size:11px;margin-top:8px">${r.author} · ${r.cite}</p>
+            </div>`).join("")}
+          </div>
+        </article>
+
+        <p class="faint" style="font-size:12px;margin-top:20px">继续深入研究</p>
+        <div style="margin-top:8px">${AGENT.followUps.map(f=>`<a class="followup" href="#/agents">${f} →</a>`).join("")}</div>
+
+        <div class="chat-input">
+          <span class="faint" style="font-size:16px">＋</span>
+          <input placeholder="继续提问,或上传 PDF / arXiv 链接以扩展上下文…" />
+          <kbd class="faint" style="font-size:10px;border:1px solid var(--line);border-radius:4px;padding:2px 6px">⌘↵</kbd>
+          <button class="chat-send">↑</button>
+        </div>
+        <p class="faint" style="font-size:11px;text-align:center;margin-top:8px">支持上传 PDF / arXiv 链接 · 对话可保存到知识库 · 引用 [N] 可点击跳转</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* =====================================================================
+ * 路由
+ * ===================================================================== */
+let countdownTimer = null;
+function route(){
+  if(countdownTimer){ clearInterval(countdownTimer); countdownTimer = null; }
+  const h = location.hash.slice(1) || "/";
+  document.body.classList.toggle("immersive", h.startsWith("/papers"));
+  if(h==="/") homeView();
+  else if(h==="/submit") submitView();
+  else if(h==="/papers/rdt-1b") paperView();
+  else if(h==="/papers/rdt-1b/graph") graphPageView(PUBLIC_GRAPH,"concentric",{ backHref:"#/papers/rdt-1b", backLabel:"返回阅读器", title:PUBLIC_GRAPH.origin.title, switcher:true });
+  else if(h==="/scholars") scholarsView();
+  else if(h==="/scholars/kaiming-he") scholarDetailView();
+  else if(h==="/knowledge") knowledgeView();
+  else if(h==="/knowledge/graph") graphPageView(PRIVATE_GRAPH,"strata",{ backHref:"#/knowledge", backLabel:"返回知识库", title:"私域知识图谱", switcher:false });
+  else if(h==="/agents") agentsView();
+  else homeView();
+  document.querySelectorAll(".nav-item[data-route]").forEach(a=>{
+    const r = a.dataset.route;
+    const on = r==="/" ? h==="/" : h.startsWith(r);
+    a.classList.toggle("active", on);
+  });
+  window.scrollTo(0,0);
+}
+window.addEventListener("hashchange", route);
+route();
+
+/* 主题切换 */
+const themeBtn = document.getElementById("themeToggle");
+const syncIcon = ()=>{ themeBtn.textContent = document.documentElement.classList.contains("dark") ? "☀️" : "🌙"; };
+themeBtn.onclick = ()=>{
+  const d = document.documentElement.classList.toggle("dark");
+  try{ localStorage.setItem("shenzhi-theme", d?"dark":"light"); }catch(e){}
+  syncIcon();
+};
+syncIcon();
+</script>
+</body>
+</html>

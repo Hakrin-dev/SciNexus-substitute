@@ -1,0 +1,137 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * 设计令牌 —— 赤金主色 + 紫金搭配(温暖厚重的学院感)
+ * 主色赤金 #B45309 / 页面背景 #FDFCF9 / 侧边栏 #F7F4EE / 主文字 #1C1917
+ * 日间模式为暖纸白底;夜间模式纯黑底,主金提亮为 #F59E0B
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: #fdfcf9;
+  --color-sidebar: #f7f4ee;
+  --color-card: #ffffff;
+
+  --color-primary: #f07c00;
+  --color-primary-foreground: #ffffff;
+  --color-primary-soft: #fcf0da;
+
+  /* 品牌辅助色(原色):紫 / 蓝 / 绿 / 红 */
+  --color-brand-violet: #82318e;
+  --color-brand-violet-soft: #f4e8f6;
+  --color-brand-blue: #1d4ed8;
+  --color-brand-blue-soft: #dbeafe;
+
+  --color-ink: #1c1917;
+  --color-ink-2: #44403c;
+  --color-muted: #78716c;
+  --color-faint: #a8a29e;
+
+  --color-chip: #f5f1ea;
+  --color-panel: #faf8f3;
+  --color-line: #e8e3d9;
+
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --color-success: #16a34a;
+  --color-success-soft: #dcfce7;
+
+  --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --shadow-card: 0 2px 6px 0 rgb(31 41 55 / 0.05);
+  --shadow-pop: 0 8px 24px 0 rgb(31 41 55 / 0.08);
+}
+
+/*
+ * 夜间模式令牌 —— 纯黑底,组件近黑色带暖金调,主金提亮(#F59E0B)如黑底鎏金;
+ * 组件零改动,全部经 CSS 变量级联生效
+ */
+.dark {
+  --color-background: #000000;
+  --color-sidebar: #0c0a08;
+  --color-card: #14100b;
+
+  --color-primary: #b45309;
+  --color-primary-foreground: #ffffff;
+  --color-primary-soft: #332307;
+
+  --color-brand-violet: #c77ddb;
+  --color-brand-violet-soft: #241430;
+  --color-brand-blue: #60a5fa;
+  --color-brand-blue-soft: #16264d;
+
+  --color-ink: #faf5ec;
+  --color-ink-2: #d6cdbe;
+  --color-muted: #a39a8a;
+  --color-faint: #6e6557;
+
+  --color-chip: #1f1810;
+  --color-panel: #100c08;
+  --color-line: #2a2115;
+
+  --color-danger: #ef4444;
+  --color-danger-soft: #2e1216;
+  --color-success: #4ade80;
+  --color-success-soft: #0e241a;
+
+  --shadow-card: 0 2px 6px 0 rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 8px 24px 0 rgb(0 0 0 / 0.4);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  ::selection {
+    background: rgb(180 83 9 / 0.18);
+  }
+
+  .dark ::selection {
+    background: rgb(245 158 11 / 0.35);
+  }
+}
+
+/* 细浅滚动条 —— 侧边栏导航等溢出区域:滑块短而细,平时隐藏,悬停时快速显现 */
+@utility scrollbar-subtle {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: transparent;
+    /* 上下透明边让滑块视觉更短 */
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.12s ease;
+  }
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  &:hover {
+    scrollbar-color: var(--color-line) transparent;
+  }
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: var(--color-line);
+  }
+}

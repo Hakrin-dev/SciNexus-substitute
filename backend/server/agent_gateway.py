@@ -134,13 +134,75 @@ def _direct_search(query: str, top_k: int) -> list[dict]:
     return fallback[:top_k]
 
 
+QUICK_ANSWER_PROMPT = (
+    "你是研枢（SciNexus）科研助手的快速检索总结器。用户提出一个科研问题，"
+    "下方是本地检索引擎召回的候选论文（标题/作者/年份/来源/摘要）。\n"
+    "请用 2~4 句话**直接简要回答用户的问题**：\n"
+    "1. 结论优先，必要时提及 1~2 篇最有代表性的论文（格式「标题（作者, 年份）」）作为支撑；\n"
+    "2. 若论文不足以回答该问题，如实说明「当前检索到的论文不足以直接回答」，并给出最接近的检索结论；\n"
+    "3. 只依据下方论文信息作答，严禁编造论文中不存在的结论；\n"
+    "4. 使用中文，段落式简短回答即可，不要列论文清单（清单由系统单独展示）。"
+)
+
+
+def _quick_summary(query: str, papers: list[dict]) -> str:
+    """快速模式的「简易回答」：基于检索结果用轻量 LLM 生成 2~4 句回答。
+
+    LLM 不可用/异常时回退规则模板（也用于 mock 模式），保证快速链路永不阻塞。
+    """
+    if not papers:
+        return f"关于「{query}」，当前论文库未检索到匹配结果，建议更换关键词或开启语义检索后重试。"
+
+    def fallback() -> str:
+        top = papers[0]
+        title = top.get("title") or top.get("paper_id") or ""
+        venue = (top.get("evidence_snippet") or top.get("venue") or "") or "arXiv"
+        venues = []
+        for p in papers[:5]:
+            v = (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv"
+            if v not in venues:
+                venues.append(v)
+        venue_text = "、".join(venues[:3])
+        return (
+            f"关于「{query}」，检索到 {len(papers)} 篇相关论文。"
+            f"较有代表性的是 **{title}**（来源：{venue}）"
+            + (f"，主要来源包括 {venue_text}" if venue_text else "")
+            + "。建议结合下方论文清单精读，或切换「深度」模式获取基于证据的综合回答。"
+        )
+
+    try:
+        from research_assistant.llm import get_llm  # noqa: PLC0415
+        from research_assistant.llm import MockProvider  # noqa: PLC0415
+
+        llm = get_llm()
+        if isinstance(llm, MockProvider):
+            return fallback()
+        payload = {
+            "question": query,
+            "papers": [
+                {
+                    "title": p.get("title") or p.get("paper_id", ""),
+                    "authors": p.get("author") or "未知作者",
+                    "year": p.get("year") or "",
+                    "venue": (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv",
+                    "abstract": str(p.get("abstract") or "")[:200],
+                }
+                for p in papers[:6]
+            ],
+        }
+        text = llm.chat_text(QUICK_ANSWER_PROMPT, f"问题：{query}\n\n论文信息：{payload}")
+        return text if text and len(text.strip()) > 5 else fallback()
+    except Exception:
+        return fallback()
+
+
 def search_papers(query: str, top_k: int = 10, task_type: str | None = None) -> dict:
-    """论文检索：直接走本地索引（快、带相关度），返回前端兼容的 {data, meta}。
+    """论文检索：直接走本地索引（快、带相关度），返回前端兼容的 {data, meta, summary}。
 
     简单论文检索不再经过慢速多智能体工作流（supervisor/scout 逐次调用 LLM，
     单次可达数十秒，导致前端超时回退到无相关度的本地数据）。改为本地
-    vector/BM25 直检，相关度随 relevance_score 透传；复杂任务（研读/对话）
-    仍走完整工作流。
+    vector/BM25 直检，相关度随 relevance_score 透传；summary 为基于检索结果的
+    轻量「简易回答」（一次 LLM，失败回退模板）。复杂任务（研读/对话）仍走完整工作流。
     """
     papers = _direct_search(query, top_k)
     workflow = {
@@ -162,6 +224,7 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None) -> 
         })
     return {
         "data": [_to_frontend_paper(p) for p in papers],
+        "summary": _quick_summary(query, papers),
         "meta": {
             "query": query,
             "count": len(papers),
@@ -196,6 +259,33 @@ def match_venues(title: str, abstract: str, keywords: list[str] | None = None) -
         ],
         "match_reason": analysis.get("match_reason", ""),
     }
+
+
+def _extract_references(result: dict) -> list[dict] | None:
+    """从 scout 检索结果提取前端可展示的参考来源列表（供深搜页/AI 助手引用区）。
+
+    返回 [{title, authors, venue, year, ccf, citations, match}]；无检索结果时返回 None。
+    """
+    outputs = (result.get("working_memory") or {}).get("agent_outputs") or {}
+    scout = outputs.get("scout") or {}
+    papers = scout.get("retrieved_papers") or []
+    if not papers:
+        return None
+    refs = []
+    for p in papers[:10]:
+        title = (p.get("title") or "").strip()
+        if not title:
+            continue
+        refs.append({
+            "title": title,
+            "authors": p.get("author") or "未知作者",
+            "venue": (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv",
+            "year": p.get("year"),
+            "ccf": p.get("ccf"),
+            "citations": int(p.get("citation_count", 0) or 0),
+            "match": (p.get("match_label") or p.get("match_level") or "").upper(),
+        })
+    return refs or None
 
 
 def _extract_generated_files(result: dict) -> list[dict] | None:
@@ -247,6 +337,7 @@ def chat_with_meta(message: str, task_type: str | None = None,
         "reply": result.get("final_response") or "（agent 未产生回复）",
         "workflow": _workflow_trace(result),
         "generated_files": _extract_generated_files(result),
+        "references": _extract_references(result),
     }
 
 

@@ -285,3 +285,111 @@ export async function searchPapers(query: string) {
 export function findScholar(scholars: Scholar[], id: string): Scholar {
   return scholars.find((s) => s.id === id) ?? scholars[0];
 }
+
+/** 快速模式检索结果（/api/search 数据字段对齐） */
+export interface QuickPaper {
+  id: string;
+  title: string;
+  authors: string;
+  venue: string;
+  ccf: string;
+  year: number | null;
+  citations: number;
+  abstract: string;
+  relevance: number | null;
+  match: string;
+}
+
+/**
+ * 快速检索（AI 助手「快速」模式 / 发现页）：只调 scout 数据层做本地直检
+ * （三路 RRF 融合 + 可选交叉编码器精排），后端额外返回基于检索结果的
+ * 「简易回答」（一次轻量 LLM，失败回退模板）。后端不可达时回退本地 mock。
+ */
+export async function quickSearchPapers(
+  query: string,
+): Promise<{ papers: QuickPaper[]; summary: string }> {
+  try {
+    const json = await apiPost<{ data: Array<Record<string, unknown>>; summary?: unknown }>(
+      "/api/search",
+      { query },
+    );
+    const papers = (json.data ?? []).map((p) => ({
+      id: String(p.id ?? ""),
+      title: String(p.title ?? "Untitled"),
+      authors:
+        Array.isArray(p.author_list) && (p.author_list as unknown[]).length
+          ? (p.author_list as unknown[]).join(", ")
+          : String(p.authors ?? ""),
+      venue: String(p.venue ?? "arXiv"),
+      ccf: p.ccf ? String(p.ccf) : "",
+      year: p.year ? Number(p.year) : null,
+      citations: Number(p.citations ?? 0),
+      abstract: String(p.abstract ?? ""),
+      relevance: typeof p.relevance === "number" ? (p.relevance as number) : null,
+      match: String(p.matchLabel ?? p.match ?? ""),
+    }));
+    return { papers, summary: typeof json.summary === "string" ? json.summary : "" };
+  } catch {
+    const fallback = await searchPapers(query);
+    return {
+      papers: fallback.map((p) => ({
+        id: p.id,
+        title: p.title,
+        authors: p.authors,
+        venue: p.venue,
+        ccf: "",
+        year: null,
+        citations: p.citations,
+        abstract: p.abstract,
+        relevance: null,
+        match: "",
+      })),
+      summary: "",
+    };
+  }
+}
+
+/**
+ * 快速模式的回答文本：优先使用后端的「简易回答」summary（直接回应用户问题），
+ * 之后附上检索到的论文清单（供精读/跳转）。
+ */
+export function formatQuickAnswer(
+  query: string,
+  papers: QuickPaper[],
+  summary?: string,
+): string {
+  const list = formatPaperList(query, papers);
+  const head = (summary ?? "").trim();
+  if (head) return `${head}\n\n---\n\n${list}`;
+  return list;
+}
+
+/** 简易回答模板（后端 summary 不可用时的兜底头部 + 论文清单） */
+export function formatPaperList(query: string, papers: QuickPaper[]): string {
+  if (papers.length === 0) {
+    return `针对「${query}」，未检索到相关论文。建议更换关键词后重试。`;
+  }
+  const lines = [
+    `针对「${query}」，为你检索到 **${papers.length} 篇**候选论文（快速检索，按相关度排序）：`,
+    "",
+  ];
+  papers.forEach((p, index) => {
+    const meta = [
+      p.venue,
+      p.year ? String(p.year) : "",
+      p.ccf ? `CCF ${p.ccf}` : "",
+      `引用 ${p.citations}`,
+      p.relevance != null ? `相关度 ${Math.round(p.relevance * 100)}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    lines.push(`${index + 1}. **${p.title}**（${p.authors || "未知作者"}）`);
+    if (meta) lines.push(`   - ${meta}`);
+    if (p.abstract) {
+      const abstract =
+        p.abstract.length > 140 ? p.abstract.slice(0, 140).trimEnd() + "…" : p.abstract;
+      lines.push(`   - 摘要：${abstract}`);
+    }
+  });
+  return lines.join("\n");
+}

@@ -20,6 +20,13 @@ class LLMProvider(ABC):
     def complete(self, system_prompt: str, user_payload: dict, output_model: type[BaseModel]) -> BaseModel:
         """以结构化方式让模型按 output_model 输出。"""
 
+    def chat_text(self, system_prompt: str, user_text: str) -> str:
+        """纯文本生成（非结构化）：用于最终回答组合等自然语言场景。
+
+        基类默认不支持，返回空串表示不可用；真实 provider 覆写本方法。
+        """
+        return ""
+
     @property
     def name(self) -> str:
         return self.__class__.__name__
@@ -154,6 +161,18 @@ class OpenAIChatProvider(LLMProvider):
         )
         return (resp.choices[0].message.content or "").strip()
 
+    def chat_text(self, system_prompt: str, user_text: str) -> str:
+        """纯文本生成：不传 response_format，用于最终回答组合等场景。"""
+        resp = self._client.chat.completions.create(
+            model=self.model,
+            temperature=self.temperature,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+        )
+        return (resp.choices[0].message.content or "").strip()
+
 
 class OllamaProvider(LLMProvider):
     """本地 Ollama 接入：原生 /api/chat，format 传 JSON Schema 做引导解码。
@@ -238,6 +257,35 @@ class OllamaProvider(LLMProvider):
             raise RuntimeError(f"Ollama 翻译请求失败 (HTTP {e.code}) {self.base_url}: {err_body or e.reason}") from e
         except urllib.error.URLError as e:
             # 传输层错误（如服务未启动）直接抛出以便定位
+            raise ConnectionError(f"无法连接 Ollama ({self.base_url}): {e}") from e
+
+    def chat_text(self, system_prompt: str, user_text: str) -> str:
+        """纯文本生成：不传 format 键（自然语言生成），用于最终回答组合等场景。"""
+        import urllib.request
+        import urllib.error
+
+        body = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            "stream": False,
+            "options": {"temperature": self.temperature},
+        }
+        try:
+            req = urllib.request.Request(
+                f"{self.base_url}/api/chat",
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+            return (raw["message"]["content"] or "").strip()
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Ollama 请求失败 (HTTP {e.code}) {self.base_url}: {err_body or e.reason}") from e
+        except urllib.error.URLError as e:
             raise ConnectionError(f"无法连接 Ollama ({self.base_url}): {e}") from e
 
 

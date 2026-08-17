@@ -212,6 +212,7 @@ export function toVenue(v: BackendVenue): Venue {
 export function toLibraryItem(l: BackendLibraryItem): LibraryItem {
   return {
     id: l.id,
+    recordId: l.recordId,
     title: l.title,
     venue: l.venue || "arXiv",
     arxiv: l.arxiv ?? "arXiv: —",

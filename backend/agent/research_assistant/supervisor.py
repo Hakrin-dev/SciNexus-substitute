@@ -1,6 +1,7 @@
 """Supervisor 控制平面：LLM 规划、状态机控制、工具授权与异常恢复。"""
 from __future__ import annotations
 
+import re
 import uuid
 from typing import Any
 
@@ -11,9 +12,12 @@ from research_assistant.schemas import SupervisorDecision, SupervisorStep
 # 意图 -> 路由计划（对应设计文档模块二~八）
 INTENT_TABLE: dict[str, dict] = {
     "paper_search": {
-        "description": "智能论文搜索",
-        "required_agents": ["scout"],
-        "steps": [{"agent": "scout", "action": "retrieve papers"}],
+        "description": "智能论文搜索与综合回答（先检索，再基于检索结果回答）",
+        "required_agents": ["scout", "synthesis"],
+        "steps": [
+            {"agent": "scout", "action": "retrieve papers"},
+            {"agent": "synthesis", "action": "synthesize answer from retrieved papers"},
+        ],
     },
     "similar_papers": {
         "description": "相似论文查询",
@@ -25,8 +29,11 @@ INTENT_TABLE: dict[str, dict] = {
     },
     "ai_reading": {
         "description": "AI 辅助论文阅读",
-        "required_agents": ["synthesis"],
-        "steps": [{"agent": "synthesis", "action": "read & structure papers"}],
+        "required_agents": ["scout", "synthesis"],
+        "steps": [
+            {"agent": "scout", "action": "retrieve papers"},
+            {"agent": "synthesis", "action": "read & structure papers"},
+        ],
     },
     "research_exploration": {
         "description": "科研探索",
@@ -143,10 +150,10 @@ vector_rag、graph_rag、pdf_parser、graph_expand、venue_db、evidence_check�
 
 【收敛示例】
 用户："帮我搜索 transformer 相关的论文"
-避免（scope 过大，多调用 agent）：
-  scout, librarian, research_design, writer, critic   # ❌ 用户只需检索
-倾向（最小执行）：
-  scout(action="retrieve papers")                      # ✅
+该请求需要先检索证据再生成回答（检索 + 综合是不可分割的基本两步）：
+  scout(retrieve papers), synthesis(synthesize answer)     # ✅ 检索并回答
+避免（只检索不回答，用户得不到结论）：
+  scout                                             # ❌ 缺综合回答步骤
 
 用户："帮我写一篇关于联邦学习的综述"
 避免（缺少上游证据）：
@@ -466,13 +473,13 @@ def _scout_result_markdown(out: dict, limit: int = 5) -> list[str]:
         return ["", "未检索到可展示论文。"]
     lines = ["", "## 检索结果", f"为你筛出 {len(papers)} 篇候选论文，优先阅读："]
     for index, paper in enumerate(papers[:limit], start=1):
-        title = paper.get("title") or paper.get("paper_id") or "Untitled"
+        title = _strip_markup(paper.get("title") or paper.get("paper_id") or "Untitled")
         author = paper.get("author") or "Unknown authors"
         year = paper.get("year") or ""
-        venue = paper.get("evidence_snippet") or paper.get("venue") or ""
+        venue = _strip_markup(paper.get("evidence_snippet") or paper.get("venue") or "")
         cites = paper.get("citation_count", 0)
         match = paper.get("match_level") or paper.get("match_label") or ""
-        abstract = (paper.get("abstract") or "").replace("\n", " ").strip()
+        abstract = _strip_markup((paper.get("abstract") or "").replace("\n", " "))
         if len(abstract) > 180:
             abstract = abstract[:180].rstrip() + "..."
         lines.append(f"{index}. **{title}** ({author}, {year})")
@@ -495,8 +502,9 @@ def _librarian_result_markdown(out: dict, limit: int = 6) -> list[str]:
         f"已构建 {len(nodes)} 个节点、{len(edges)} 条关系。建议先看这些节点：",
     ]
     for index, node in enumerate(ordered[:limit], start=1):
+        label = _strip_markup(node.get('label') or node.get('id') or "未知节点")
         lines.append(
-            f"{index}. **{node.get('label', node.get('id', '未知节点'))}** "
+            f"{index}. **{label}** "
             f"({node.get('category', 'paper')}，优先级 {node.get('read_priority', '-')})"
         )
     rel_counter: dict[str, int] = {}
@@ -512,7 +520,7 @@ def _librarian_result_markdown(out: dict, limit: int = 6) -> list[str]:
 def _synthesis_result_markdown(out: dict) -> list[str]:
     elements = out.get("structured_elements") or {}
     if not elements:
-        return ["", "## 研读结果", out.get("qa_response", "未生成结构化研读结果。")]
+        return ["", "## 综合回答", out.get("qa_response", "未生成结构化研读结果。")]
     core = elements.get("core_innovation") or {}
     lines = ["", "## 研读结果"]
     if elements.get("summary"):
@@ -586,44 +594,87 @@ def route_edge(state: dict) -> str:
     return plan[idx]["agent"]
 
 
+# 语料中的排版标签（OpenAlex 题名/摘要常见 <scp>/<i> 等），回复前统一清除
+_MARKUP_TAG_RE = re.compile(r"</?(?:scp|i|b|em|strong|sub|sup|span|font)\b[^>]*>", re.IGNORECASE)
+
+
+def _strip_markup(text: str) -> str:
+    """清除 XML 排版标签并把连续空白折叠为单个空格。"""
+    text = _MARKUP_TAG_RE.sub("", text or "")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+FINALIZE_SYSTEM_PROMPT = (
+    "你是研枢（SciNexus）科研助手，负责把多个科研智能体的工作结果整理成面向用户的最终回答。\n"
+    "回答要求：\n"
+    "1. 使用中文，Markdown 排版：标题、加粗、有序/无序列表、引用（>）、表格等要素按内容需要合理使用；\n"
+    "2. 开头先给 2~4 句的总体结论，再分节展开细节；\n"
+    "3. 论文条目统一保留「编号. **标题**（作者, 年份）」格式，匹配度、来源、引用数等元信息分行展示；\n"
+    "4. 严禁输出任何内部调试信息（如「任务已完成，参与智能体: [...]」「[agent] SUCCESS」这类状态行）；\n"
+    "5. 只能基于下方提供的智能体工作结果作答，严禁虚构未提供的数据、引用或结论；\n"
+    "6. 不要用代码块围栏包裹整篇回答。"
+)
+
+
+def _compose_final_answer(query: str, evidence_md: str, llm) -> str:
+    """调用 LLM 把结构化工作结果组合成自然语言回答；失败抛异常由调用方回退模板。"""
+    user_text = f"用户问题：{query}\n\n各智能体的工作结果（Markdown）：\n{evidence_md[:8000]}"
+    return llm.chat_text(FINALIZE_SYSTEM_PROMPT, user_text)
+
+
 def finalize_node(state: dict) -> dict:
-    """收尾节点：从工作记忆汇总最终响应。"""
+    """收尾节点：汇总各智能体输出。
+
+    - 真实 LLM 可用时：把结构化证据交给 LLM 组合成排版良好的自然语言回答；
+    - mock / LLM 失败时：回退为纯结构化 Markdown（不含内部状态行）；
+    - writer / code_assistant 生成的代码文件不经 LLM 改写，原样追加在回答末尾。
+    """
     wm = state.get("working_memory") or {}
     outputs = wm.get("agent_outputs") or {}
-    lines = [f"任务已完成，参与智能体: {state.get('intent', {}).get('required_agents', [])}"]
+
+    evidence: list[str] = []
+    file_sections: list[str] = []
     for agent, out in outputs.items():
         status = out.get("status", "")
-        summary = {
-            "scout": f"检索到 {len(out.get('retrieved_papers', []))} 篇论文",
-            "synthesis": out.get("structured_elements", {}).get("summary", ""),
-            "librarian": f"构建图谱: {len(out.get('graph_data', {}).get('nodes', []))} 节点 / {len(out.get('graph_data', {}).get('edges', []))} 边",
-            "research_design": out.get("proposal", {}).get("title", ""),
-            "code_assistant": _code_assistant_summary(out),
-            "writer": f"生成写作文件: {len(out.get('generated_files') or [])} 个",
-            "critic": f"审稿决策: {out.get('review_report', {}).get('decision', '')}",
-        }.get(agent, "")
-        lines.append(f"[{agent}] {status} - {summary}")
-        if status != "SUCCESS":
+        if agent in {"code_assistant", "writer"} and status == "SUCCESS":
+            file_sections.extend(_generated_files_markdown(out))
             continue
         if agent == "scout":
-            lines.extend(_scout_result_markdown(out))
+            evidence.extend(_scout_result_markdown(out))
         elif agent == "librarian":
-            lines.extend(_librarian_result_markdown(out))
+            evidence.extend(_librarian_result_markdown(out))
         elif agent == "synthesis":
-            lines.extend(_synthesis_result_markdown(out))
+            evidence.extend(_synthesis_result_markdown(out))
         elif agent == "research_design":
-            lines.extend(_research_design_result_markdown(out))
+            evidence.extend(_research_design_result_markdown(out))
         elif agent == "critic":
-            lines.extend(_critic_result_markdown(out))
-        if agent in {"code_assistant", "writer"} and status == "SUCCESS":
-            lines.extend(_generated_files_markdown(out))
+            evidence.extend(_critic_result_markdown(out))
 
     errors = state.get("errors") or []
     if errors:
-        lines.append(f"警告: {len(errors)} 个 agent 返回失败 -> {errors}")
+        evidence.append("")
+        evidence.append(f"> ⚠️ 有 {len(errors)} 个智能体执行失败（已重试/跳过），以上为可用结果。")
+
+    body = "\n".join(section for section in evidence if section).strip()
+    reply = body or "（本次任务未产生可展示的结果。）"
+
+    # LLM 组合自然语言回答（仅真实 LLM；mock 或调用失败时保持结构化模板）
+    if body:
+        try:
+            llm = get_supervisor_llm()
+            if not isinstance(llm, MockProvider):
+                composed = _compose_final_answer(state.get("user_query", ""), body, llm)
+                if composed and len(composed.strip()) > 20:
+                    reply = composed.strip()
+        except Exception:
+            # LLM 组合失败不阻断流程，回退结构化模板
+            reply = body
+
+    if file_sections:
+        reply = reply.rstrip() + "\n\n" + "\n".join(file_sections)
 
     task_state = dict(wm.get("task_state") or {})
     if task_state.get("status") != "blocked":
         task_state["status"] = "done"
     wm["task_state"] = task_state
-    return {"final_response": "\n".join(lines), "working_memory": wm}
+    return {"final_response": reply, "working_memory": wm}

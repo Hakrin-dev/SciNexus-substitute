@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { MessageSquarePlus } from "lucide-react";
 import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
-import { sendChat } from "@/lib/api/services";
+import { sendChat, quickSearchPapers, formatQuickAnswer } from "@/lib/api/services";
 import { ComposerShell } from "./composer";
+import { MarkdownView } from "./markdown-view";
 
 interface Message {
   role: "user" | "assistant";
@@ -38,6 +39,8 @@ export function AgentChat() {
   const [value, setValue] = useState("");
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
+  /** 回答模式：fast=快速（scout 直检 + 简单回答，零 LLM）；deep=深度（完整多智能体工作流） */
+  const [mode, setMode] = useState<"fast" | "deep">("fast");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,23 +63,38 @@ export function AgentChat() {
     ]);
     setStreaming(true);
     try {
-      let acc = "";
-      for await (const event of sendChat(q, history)) {
-        if (event.type === "delta") {
-          acc += event.text;
+      if (mode === "deep") {
+        // 深度模式：完整多智能体工作流（Supervisor → scout/synthesis/... → LLM 组合回答）
+        let acc = "";
+        for await (const event of sendChat(q, history)) {
+          if (event.type === "delta") {
+            acc += event.text;
+            setMessages((prev) => {
+              const next = [...prev];
+              next[next.length - 1] = { role: "assistant", content: acc };
+              return next;
+            });
+          }
+        }
+        if (!acc) {
           setMessages((prev) => {
             const next = [...prev];
-            next[next.length - 1] = { role: "assistant", content: acc };
+            next[next.length - 1] = {
+              role: "assistant",
+              content: "（agent 未产生回复，请检查后端 LLM 配置）",
+            };
             return next;
           });
         }
-      }
-      if (!acc) {
+      } else {
+        // 快速模式：只走 scout 本地直检（三路 RRF + 可选交叉编码器精排），
+        // 前端展示后端「简易回答」summary + 论文清单
+        const { papers, summary } = await quickSearchPapers(q);
         setMessages((prev) => {
           const next = [...prev];
           next[next.length - 1] = {
             role: "assistant",
-            content: "（agent 未产生回复，请检查后端 LLM 配置）",
+            content: formatQuickAnswer(q, papers, summary),
           };
           return next;
         });
@@ -97,6 +115,7 @@ export function AgentChat() {
       value={value}
       onChange={setValue}
       onSend={() => send()}
+      onModeChange={(m) => setMode(m === "deep" ? "deep" : "fast")}
       placeholder="使用'@'引用或使用'/'唤起插件或技能…"
       menuPlacement="down"
     />
@@ -188,9 +207,13 @@ export function AgentChat() {
                   <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft">
                     <PromptCircle className="size-4 text-primary" />
                   </span>
-                  <p className="max-w-[80%] rounded-2xl rounded-tl-md bg-card px-4 py-2.5 text-sm leading-relaxed text-ink shadow-card">
-                    {msg.content}
-                  </p>
+                  <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-card px-4 py-2.5 shadow-card">
+                    {msg.content ? (
+                      <MarkdownView content={msg.content} />
+                    ) : (
+                      <span className="text-sm text-faint">思考中…</span>
+                    )}
+                  </div>
                 </div>
               ),
             )}

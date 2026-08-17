@@ -77,7 +77,10 @@ export interface Publication {
 
 /** 知识库文献 */
 export interface LibraryItem {
+  /** 论文 id（同一论文可被多次收藏，可能重复，用于跳转详情） */
   id: string;
+  /** 文献库记录 id（唯一，用于列表 key） */
+  recordId?: string;
   title: string;
   venue: string;
   arxiv: string;

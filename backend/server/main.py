@@ -544,6 +544,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 "tokens": len(reply),
                 "workflow": result["workflow"],
                 "generated_files": result["generated_files"],
+                "references": result["references"],
             }
         except Exception as exc:
             logger.warning(f"Agent 对话失败，回退 mock: {exc}")
@@ -583,15 +584,18 @@ async def chat_stream(req: ChatRequest):
             reply = result["reply"]
             workflow = result["workflow"]
             generated_files = result["generated_files"]
+            references = result["references"]
         except Exception as exc:
             logger.warning(f"Agent 对话失败，回退 mock: {exc}")
             reply = _generate_chat_reply(message, reason=str(exc))
             workflow = None
             generated_files = None
+            references = None
     else:
         reply = _generate_chat_reply(message)
         workflow = None
         generated_files = None
+        references = None
 
     async def event_generator() -> AsyncGenerator[str, None]:
         # 先发送对话元信息（含生成文件列表，便于右侧编辑区展示）
@@ -601,6 +605,7 @@ async def chat_stream(req: ChatRequest):
             "tokens": len(reply),
             "workflow": workflow,
             "generated_files": generated_files,
+            "references": references,
         }
         yield "event: meta\ndata: " + json.dumps(meta, ensure_ascii=False) + "\n\n"
 

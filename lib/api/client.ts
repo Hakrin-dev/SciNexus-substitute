@@ -32,6 +32,7 @@ export type ChatStreamEvent =
         conversation_id?: string;
         workflow?: unknown;
         generated_files?: unknown;
+        references?: unknown;
         tokens?: number;
       };
     }

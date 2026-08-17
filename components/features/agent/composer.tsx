@@ -145,8 +145,14 @@ function ModelSelect() {
   );
 }
 
-/** 模式选择(演示):蓝底白字触发钮,点击展开四种模式 */
-function ModeSelect({ placement = "down" }: { placement?: "up" | "down" }) {
+/** 模式选择:蓝底白字触发钮,点击展开四种模式;选择结果通过 onModeChange 通知父组件 */
+function ModeSelect({
+  placement = "down",
+  onModeChange,
+}: {
+  placement?: "up" | "down";
+  onModeChange?: (mode: string) => void;
+}) {
   const [mode, setMode] = useState<(typeof MODES)[number]["value"]>("fast");
   const [open, setOpen] = useState(false);
   const ref = useCloseOnOutside(open, () => setOpen(false));
@@ -180,6 +186,7 @@ function ModeSelect({ placement = "down" }: { placement?: "up" | "down" }) {
               onClick={() => {
                 setMode(m.value);
                 setOpen(false);
+                onModeChange?.(m.value);
               }}
               className={cn(
                 "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors",
@@ -208,12 +215,15 @@ export function ComposerShell({
   onSend,
   placeholder,
   menuPlacement = "down",
+  onModeChange,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   placeholder: string;
   menuPlacement?: "up" | "down";
+  /** 模式选择（快速/深度/灵感/疑惑）变化回调；不传则保持纯展示 */
+  onModeChange?: (mode: string) => void;
 }) {
   return (
     <div className="rounded-2xl bg-card p-3 shadow-pop">
@@ -248,7 +258,7 @@ export function ComposerShell({
 
         {/* 右下:模式选择 + 发送 */}
         <div className="ml-auto flex items-center gap-2">
-          <ModeSelect placement={menuPlacement} />
+          <ModeSelect placement={menuPlacement} onModeChange={onModeChange} />
           <button
             type="button"
             aria-label="发送"

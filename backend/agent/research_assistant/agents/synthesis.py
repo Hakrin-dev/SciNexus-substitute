@@ -39,6 +39,18 @@ QA_SYSTEM_PROMPT = (
     "5. 使用中文，客观、精炼、结构化，可直接展示给用户。"
 )
 
+SEARCH_ANSWER_SYSTEM_PROMPT = (
+    "你是研枢（YanShu）科研平台的检索综合助手。\n"
+    "用户提出了一个科研问题，下方是 scout 智能体检索到的候选论文列表（含标题、作者、年份、"
+    "来源、CCF 级别、引用数与摘要）。请基于这些检索结果给出一份结构清晰的综合回答：\n"
+    "\n"
+    "1. 开头用 2~4 句直接回答用户的提问（总结/结论）；\n"
+    "2. 然后分点展开，每篇论文用「编号. **标题**（作者, 年份）」开头，附来源、引用数与一句关键评价；\n"
+    "3. 若检索结果不足，如实说明并建议调整关键词；\n"
+    "4. 只依据下方论文信息作答，严禁编造论文中不存在的内容；\n"
+    "5. 使用中文与 Markdown 排版，不要输出任何内部状态信息。"
+)
+
 
 class SynthesisAgent(BaseAgent):
     name = "synthesis"
@@ -81,6 +93,74 @@ class SynthesisAgent(BaseAgent):
         if len(snippet) > limit:
             snippet = snippet[:limit].rstrip() + "..."
         return snippet
+
+    def _run_search_answer(self, state: dict) -> dict:
+        """轻量综合模式（task_type=paper_search）：基于 scout 的检索结果直接生成综合回答。
+
+        不逐篇精读 PDF（不做结构化抽取），仅用检索到的论文元信息 + 摘要做一次
+        LLM 综合，速度远快于深度研读，适用于发现页/AI 助手的开放式检索问答。
+        """
+        query = state["user_query"]
+        wm = state.get("working_memory") or {}
+        outputs = wm.get("agent_outputs") or {}
+        scout_out = outputs.get("scout") or {}
+        papers = list(scout_out.get("retrieved_papers") or [])
+
+        # 兜底：scout 输出缺失时按证据链从数据后端取论文
+        if not papers:
+            ev = wm.get("evidence_chain_index") or {}
+            papers = [backend.get_paper(pid) for pid in (ev.get("paper_ids") or [])]
+            papers = [p for p in papers if p]
+
+        if not papers:
+            result = {
+                "status": "SUCCESS",
+                "structured_elements": {},
+                "qa_response": "未检索到相关论文。建议更换关键词，或开启 Ollama 语义检索后重试。",
+                "mode": "search_summary",
+            }
+            wm = self.remember(state, "synthesize answer", result)
+            return {"last_output": result, "working_memory": wm}
+
+        paper_list = [
+            {
+                "index": index + 1,
+                "title": p.get("title") or p.get("paper_id") or "Untitled",
+                "authors": p.get("author") or "未知作者",
+                "year": p.get("year") or "",
+                "venue": (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv",
+                "ccf": p.get("ccf") or "",
+                "citations": int(p.get("citation_count", 0) or 0),
+                "abstract": self._evidence_snippet(p, 200),
+            }
+            for index, p in enumerate(papers[:10])
+        ]
+
+        if self.mock:
+            lines = [f"针对「{query}」，共检索到 {len(paper_list)} 篇候选论文："]
+            for item in paper_list:
+                lines.append(
+                    f"{item['index']}. **{item['title']}**（{item['authors']}，{item['year']}）"
+                    f" — {item['venue']}，引用 {item['citations']}"
+                )
+            answer = "\n".join(lines)
+        else:
+            answer = self.llm.complete(
+                SEARCH_ANSWER_SYSTEM_PROMPT,
+                {"question": query, "papers": paper_list},
+                QAAnswer,
+            ).answer
+
+        result = {
+            "status": "SUCCESS",
+            "structured_elements": {},
+            "qa_response": answer,
+            "mode": "search_summary",
+            "retrieved_papers": papers[:10],
+        }
+        paper_ids = [p.get("paper_id") or p.get("id", "") for p in papers[:10]]
+        wm = self.remember(state, "synthesize answer", result, paper_ids=paper_ids)
+        return {"last_output": result, "working_memory": wm}
 
     def _build_qa_answer(self, state: dict, question: str, plan: SynthesisPlan,
                          analyses: dict[str, dict], elements: StructuredElements,
@@ -133,6 +213,11 @@ class SynthesisAgent(BaseAgent):
 
     def run(self, state: dict) -> dict:
         query = state["user_query"]
+
+        # 轻量综合模式：paper_search 意图下基于 scout 检索结果直接回答（不做逐篇精读）
+        task_type = (state.get("intent") or {}).get("task_type", "")
+        if task_type == "paper_search":
+            return self._run_search_answer(state)
 
         # 论文定位顺序：显式 paper_id > 证据链 > 题名/查询启发式 > 库内第一篇
         paper_ids: list[str] = []

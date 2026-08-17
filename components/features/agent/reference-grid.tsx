@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ArrowRight, Bookmark, BookmarkCheck } from "lucide-react";
-import { agentReferences } from "@/lib/data/agent";
+import type { AgentReference } from "@/types";
 import { CiteMenu } from "./cite-menu";
 import { cn } from "@/lib/utils";
 
@@ -13,21 +13,24 @@ const TONE_COLORS: Record<string, string> = {
   gray: "bg-muted",
 };
 
-/** 参考来源卡片组 —— 10 篇引用文献的横向卡片,每篇可存入知识库 / 导出引用 */
-export function ReferenceGrid() {
+/** 参考来源卡片组 —— 引用文献的横向卡片,每篇可存入知识库 / 导出引用 */
+export function ReferenceGrid({ refs }: { refs?: AgentReference[] }) {
   /** 已存入知识库的文献 id(演示:本地状态) */
   const [saved, setSaved] = React.useState<Record<number, boolean>>({});
   const toggleSaved = (id: number) =>
     setSaved((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  // 无参考数据时不渲染该区块（避免展示无关演示内容）
+  if (!refs || refs.length === 0) return null;
+
   return (
     <section className="rounded-2xl bg-card p-6 shadow-card">
       <div className="flex items-center justify-between">
         <h3 className="text-[15px] font-semibold text-ink">
-          参考来源 · 10 篇
+          参考来源 · {refs.length} 篇
         </h3>
         <div className="flex items-center gap-4">
-          <CiteMenu refs={agentReferences} />
+          <CiteMenu refs={refs} />
           <button
             type="button"
             className="flex cursor-pointer items-center gap-1 text-xs font-medium text-primary hover:underline"
@@ -39,7 +42,7 @@ export function ReferenceGrid() {
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {agentReferences.map((ref) => (
+        {refs.map((ref) => (
           <article
             key={ref.id}
             className={cn(

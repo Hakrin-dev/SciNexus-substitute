@@ -23,9 +23,7 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 # 后端数据统一目录：papers.json / pdfs / embeddings.json / papers 缓存 / research.sqlite 均位于此
-# 容器部署时用 TOOL_DATA_DIR 指向 volume 挂载目录（默认仓库内 server/data），
-# 避免把宿主机数据目录挂到 /app/server/data 上遮蔽 Python 包（mock_data.py 等）。
-DATA_DIR = Path(os.getenv("TOOL_DATA_DIR") or (PROJECT_ROOT / "server" / "data"))
+DATA_DIR = PROJECT_ROOT / "server" / "data"
 
 # 论文 id -> arXiv id（与 scripts/download_pdfs.py 保持一致）
 ARXIV_ID = {

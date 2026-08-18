@@ -36,7 +36,11 @@ python -m uvicorn server.main:app --host 0.0.0.0 --port 8000
 
 ## 部署(已上线 ✅)
 
-**线上地址:http://47.76.187.249**(阿里云香港 ECS,免备案)
+**公开演示地址(发给别人用这个):https://izj6c48gbrymjc7orij3jbz.taild0b8bc.ts.net**(Tailscale Funnel,自带 HTTPS,任何网络可开)
+
+**线上地址(仅海外/阿里云内网):http://47.76.187.249**(阿里云香港 ECS,免备案)
+
+> ⚠️ 2026-08-18 起,大陆 → 该公网 IP 的链路被污染(家宽/移动均 TCP 层阻断,服务器本身正常)。日常访问请走 Tailscale 虚拟组网:**http://100.98.100.111**(本机需运行 Tailscale 客户端)。SSH 同理(`scinexus-ecs` 别名已指向 100.x 地址,不再走跳板)。
 
 ```
 git push origin main

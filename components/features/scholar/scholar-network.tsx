@@ -10,7 +10,7 @@ import {
   Search,
   Users,
 } from "lucide-react";
-import { scholars } from "@/lib/data/scholars";
+import { useScholars } from "@/lib/api/services";
 import { cn } from "@/lib/utils";
 
 const positions: Record<string, { x: number; y: number }> = {
@@ -39,6 +39,7 @@ export function ScholarNetwork() {
   const [selectedId, setSelectedId] = useState("kaiming-he");
   const [direction, setDirection] = useState("全部");
   const [query, setQuery] = useState("");
+  const { data: scholars = [] } = useScholars();
 
   const selected = scholars.find((scholar) => scholar.id === selectedId) ?? scholars[0];
   const visibleIds = useMemo(() => {
@@ -49,7 +50,7 @@ export function ScholarNetwork() {
         .filter((scholar) => !keyword || `${scholar.nameCn} ${scholar.nameEn} ${scholar.affiliation}`.toLowerCase().includes(keyword))
         .map((scholar) => scholar.id),
     );
-  }, [direction, query]);
+  }, [direction, query, scholars]);
 
   const connected = edges.filter((edge) => edge.source === selected.id || edge.target === selected.id);
 

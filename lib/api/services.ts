@@ -2,27 +2,16 @@
  * 各域 API 查询 hooks —— 统一「真实接口 + mock 保底」策略：
  * API 可用时返回真实数据；请求失败（后端未启动等）自动回退到 lib/data 的 mock，
  * 并用 placeholderData 保证首屏不闪烁。
+ *
+ * 后端为 Next.js Route Handlers（同源 /api/*），返回统一 { success, data, ... } 结构；
+ * 新版后端已在服务端完成视觉字段派生（venueTone / initials / avatarColor 等），
+ * 故此处直接消费 data，仅对阅读器详情做归一化。
  */
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
 import { apiGet, apiPost, streamChat, type ChatStreamEvent } from "./client";
-import {
-  toFeedPaper,
-  toGraph,
-  toInstitution,
-  toLibraryItem,
-  toPaperDetail,
-  toScholar,
-  toVenue,
-  type BackendGraph,
-  type BackendInstitution,
-  type BackendLibraryItem,
-  type BackendPaper,
-  type BackendScholar,
-  type BackendScholarDetail,
-  type BackendVenue,
-} from "./adapters";
+import { toPaperDetail, type BackendScholarDetail } from "./adapters";
 import { feedPapers } from "@/lib/data/papers";
 import { venues } from "@/lib/data/venues";
 import { libraryItems } from "@/lib/data/library";
@@ -32,7 +21,7 @@ import { getProject as mockGetProject, projects as mockProjects } from "@/lib/da
 import { privateGraph as mockPrivateGraph, publicGraph as mockPublicGraph } from "@/lib/data/knowledge-graph";
 import { paperDetail as mockPaperDetail } from "@/lib/data/paper-detail";
 import type { Project } from "@/lib/data/projects";
-import type { Scholar } from "@/types";
+import type { FeedPaper, LibraryItem, PaperGraph, Scholar, Venue } from "@/types";
 
 /** 主发现页 Feed 流 */
 export function useFeedPapers() {
@@ -40,10 +29,8 @@ export function useFeedPapers() {
     queryKey: ["api", "papers", "feed"],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendPaper[] }>(
-          "/api/papers?page=1&page_size=50",
-        );
-        return json.data.map(toFeedPaper);
+        const json = await apiGet<FeedPaper[]>("/api/papers", { page: 1, page_size: 50 });
+        return json.data ?? [];
       } catch {
         return feedPapers;
       }
@@ -59,8 +46,8 @@ export function useVenues() {
     queryKey: ["api", "venues"],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendVenue[] }>("/api/journals");
-        return json.data.map(toVenue);
+        const json = await apiGet<Venue[]>("/api/venues");
+        return json.data ?? [];
       } catch {
         return venues;
       }
@@ -70,7 +57,7 @@ export function useVenues() {
   });
 }
 
-/** 投稿方向匹配（use_llm 开关） */
+/** 投稿方向匹配 */
 export async function matchVenues(
   title: string,
   abstract: string,
@@ -78,11 +65,11 @@ export async function matchVenues(
   useLlm = false,
 ) {
   try {
-    const json = await apiPost<{ data: BackendVenue[]; mode?: string }>(
+    const json = await apiPost<Venue[]>(
       "/api/submission/match",
       { title, abstract, keywords, use_llm: useLlm },
     );
-    return { data: json.data.map(toVenue), mode: json.mode ?? "keyword" };
+    return { data: json.data ?? [], mode: "keyword" };
   } catch {
     return null;
   }
@@ -94,8 +81,8 @@ export function useLibraryItems() {
     queryKey: ["api", "library"],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendLibraryItem[] }>("/api/library");
-        return json.data.map(toLibraryItem);
+        const json = await apiGet<LibraryItem[]>("/api/library");
+        return json.data ?? [];
       } catch {
         return libraryItems;
       }
@@ -111,8 +98,8 @@ export function useScholars() {
     queryKey: ["api", "scholars"],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendScholar[] }>("/api/scholars");
-        return json.data.map((s, i) => toScholar(s, i));
+        const json = await apiGet<Scholar[]>("/api/scholars");
+        return json.data ?? [];
       } catch {
         return mockScholars;
       }
@@ -124,16 +111,14 @@ export function useScholars() {
 
 /** 学者详情（无真实详情时回退原型演示数据） */
 export function useScholarDetail(id: string) {
-  return useQuery({
+  return useQuery<BackendScholarDetail>({
     queryKey: ["api", "scholar", id],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendScholarDetail | BackendScholar }>(
-          `/api/scholars/${id}`,
-        );
-        const d = json.data as Partial<BackendScholarDetail>;
+        const json = await apiGet<any>(`/api/scholars/${id}`);
+        const d = json.data;
         if (d && Array.isArray(d.bio) && d.metrics) {
-          return d as BackendScholarDetail;
+          return d;
         }
         return mockScholarDetail;
       } catch {
@@ -151,10 +136,8 @@ export function useInstitutions() {
     queryKey: ["api", "institutions"],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendInstitution[] }>(
-          "/api/institutions",
-        );
-        return json.data.map((i, index) => toInstitution(i, index));
+        const json = await apiGet<any[]>("/api/institutions");
+        return json.data ?? [];
       } catch {
         return mockInstitutions;
       }
@@ -170,8 +153,8 @@ export function useProjects() {
     queryKey: ["api", "projects"],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: Project[] }>("/api/projects");
-        return json.data;
+        const json = await apiGet<Project[]>("/api/projects");
+        return json.data ?? [];
       } catch {
         return mockProjects;
       }
@@ -187,7 +170,7 @@ export function useProject(id: string) {
     queryKey: ["api", "project", id],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: Project }>(`/api/projects/${id}`);
+        const json = await apiGet<Project>(`/api/projects/${id}`);
         return json.data;
       } catch {
         return mockGetProject(id);
@@ -204,10 +187,10 @@ export function usePaperDetail(id: string) {
     queryKey: ["api", "paper", id],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendPaper }>(`/api/papers/${id}`);
-        const fulltext = await apiGet<{
-          data?: { chunks?: { page: number; text: string }[] };
-        }>(`/api/papers/${id}/fulltext`).catch(() => null);
+        const json = await apiGet<any>(`/api/papers/${id}`);
+        const fulltext = await apiGet<{ chunks?: { page: number; text: string }[] }>(
+          `/api/papers/${id}/fulltext`,
+        ).catch(() => null);
         return toPaperDetail(json.data, id, fulltext?.data ?? null);
       } catch {
         return { ...mockPaperDetail, id };
@@ -224,10 +207,8 @@ export function usePublicGraph() {
     queryKey: ["api", "graph", "public"],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendGraph }>(
-          "/api/papers/rdt-1b/graph",
-        );
-        return toGraph(json.data);
+        const json = await apiGet<PaperGraph>("/api/graph/public");
+        return json.data;
       } catch {
         return mockPublicGraph;
       }
@@ -243,8 +224,8 @@ export function usePrivateGraph() {
     queryKey: ["api", "graph", "private"],
     queryFn: async () => {
       try {
-        const json = await apiGet<{ data: BackendGraph }>("/api/knowledge/graph");
-        return toGraph(json.data);
+        const json = await apiGet<PaperGraph>("/api/graph/private");
+        return json.data;
       } catch {
         return mockPrivateGraph;
       }
@@ -254,26 +235,20 @@ export function usePrivateGraph() {
   });
 }
 
-/** 发送对话并流式接收（agent 对话 / 翻译共用后端 SSE 协议） */
+/** 发送对话并流式接收 */
 export async function* sendChat(
   message: string,
   history: { role: "user" | "assistant"; content: string }[],
   signal?: AbortSignal,
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
-  yield* streamChat(
-    "/api/chat/stream",
-    { message, messages: history },
-    signal,
-  );
+  yield* streamChat("/api/chat/stream", { message, messages: history }, signal);
 }
 
 /** 论文检索（/api/search，带 relevance） */
 export async function searchPapers(query: string) {
   try {
-    const json = await apiPost<{ data: BackendPaper[] }>("/api/search", {
-      query,
-    });
-    return json.data.map(toFeedPaper);
+    const json = await apiPost<FeedPaper[]>("/api/search", { query });
+    return json.data ?? [];
   } catch {
     return feedPapers.filter((p) =>
       `${p.title} ${p.abstract}`.toLowerCase().includes(query.toLowerCase()),
@@ -286,7 +261,7 @@ export function findScholar(scholars: Scholar[], id: string): Scholar {
   return scholars.find((s) => s.id === id) ?? scholars[0];
 }
 
-/** 快速模式检索结果（/api/search 数据字段对齐） */
+/** 快速模式检索结果 */
 export interface QuickPaper {
   id: string;
   title: string;
@@ -301,25 +276,21 @@ export interface QuickPaper {
 }
 
 /**
- * 快速检索（AI 助手「快速」模式 / 发现页）：只调 scout 数据层做本地直检
- * （三路 RRF 融合 + 可选交叉编码器精排），后端额外返回基于检索结果的
- * 「简易回答」（一次轻量 LLM，失败回退模板）。后端不可达时回退本地 mock。
+ * 快速检索：调后端本地索引，返回论文清单 + 后端生成的「简易回答」summary。
+ * 后端不可达时回退本地 mock。
  */
 export async function quickSearchPapers(
   query: string,
 ): Promise<{ papers: QuickPaper[]; summary: string }> {
   try {
-    const json = await apiPost<{ data: Array<Record<string, unknown>>; summary?: unknown }>(
+    const json = await apiPost<Array<Record<string, unknown>>>(
       "/api/search",
       { query },
     );
     const papers = (json.data ?? []).map((p) => ({
       id: String(p.id ?? ""),
       title: String(p.title ?? "Untitled"),
-      authors:
-        Array.isArray(p.author_list) && (p.author_list as unknown[]).length
-          ? (p.author_list as unknown[]).join(", ")
-          : String(p.authors ?? ""),
+      authors: String(p.authors ?? ""),
       venue: String(p.venue ?? "arXiv"),
       ccf: p.ccf ? String(p.ccf) : "",
       year: p.year ? Number(p.year) : null,
@@ -349,10 +320,7 @@ export async function quickSearchPapers(
   }
 }
 
-/**
- * 快速模式的回答文本：优先使用后端的「简易回答」summary（直接回应用户问题），
- * 之后附上检索到的论文清单（供精读/跳转）。
- */
+/** 快速模式的回答文本：优先后端 summary，再附论文清单 */
 export function formatQuickAnswer(
   query: string,
   papers: QuickPaper[],

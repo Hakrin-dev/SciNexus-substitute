@@ -17,7 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { libraryFolders, libraryTags } from "@/lib/data/library";
-import { useInstitutions, useLibraryItems, useScholars } from "@/lib/api/services";
+import { useLibraryItems, useScholars, useInstitutions } from "@/lib/api/services";
 import { cn } from "@/lib/utils";
 
 type SearchType = "全部" | "论文" | "学者" | "机构";
@@ -266,7 +266,7 @@ export function KnowledgeDashboard() {
               </div>
               <div className="mt-2 divide-y divide-line">
                 {libraryItems.map((item) => (
-                  <Link key={item.recordId ?? item.id} href={`/papers/${item.id}`} onClick={(event) => event.stopPropagation()} className="group/item flex items-start gap-3 py-3 first:pt-1">
+                  <Link key={item.id} href={`/papers/${item.id}`} onClick={(event) => event.stopPropagation()} className="group/item flex items-start gap-3 py-3 first:pt-1">
                     <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><FileText className="size-4" /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-medium text-ink group-hover/item:text-primary">{item.title}</span>

@@ -3,7 +3,7 @@
 import { PaperCard } from "./paper-card";
 import { useFeedPapers } from "@/lib/api/services";
 
-/** Feed 列表 —— 真实后端 /api/papers + mock 保底（placeholderData 避免闪烁） */
+/** Feed 列表 —— 真实接口 + mock 保底 */
 export function FeedList() {
   const { data } = useFeedPapers();
 

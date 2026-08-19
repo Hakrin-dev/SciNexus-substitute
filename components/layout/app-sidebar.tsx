@@ -59,7 +59,6 @@ const KNOWLEDGE_SUB_NAV = [
   { href: "/knowledge/institutions", label: "研究机构" },
 ];
 
-/** 「科研项目」的子栏目即用户创建的项目列表(副标题 = 项目名称) */
 const HISTORY_NAV: NavItem[] = [
   { href: "/history", label: "搜索", icon: History, disabled: true },
   { href: "/my-projects", label: "项目", icon: FolderOpen, disabled: true },

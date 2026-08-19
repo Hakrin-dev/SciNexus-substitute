@@ -31,10 +31,10 @@ function Field({
 }
 
 export function LoginModal({ open, onClose }: LoginModalProps) {
-  const login = useAuthStore((s) => s.login);
+  const demoLogin = useAuthStore((s) => s.demoLogin);
   /** 演示:点击登录即视为登录成功 */
   const handleLogin = () => {
-    login();
+    demoLogin();
     onClose();
   };
 

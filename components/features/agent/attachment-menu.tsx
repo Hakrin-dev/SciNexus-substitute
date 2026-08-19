@@ -13,28 +13,13 @@ import {
   Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { feedPapers } from "@/lib/data/papers";
-import { scholars } from "@/lib/data/scholars";
-import { institutions } from "@/lib/data/institutions";
-import { projects } from "@/lib/data/projects";
+import { useFeedPapers, useScholars, useInstitutions, useProjects } from "@/lib/api/services";
 
 /** 引用面板的通用分组:副标题 + 点击向下展开的条目列表(演示) */
 interface RefGroup {
   label: string;
   items: string[];
 }
-
-const KNOWLEDGE_GROUPS: RefGroup[] = [
-  { label: "论文库", items: feedPapers.slice(0, 3).map((p) => p.title) },
-  {
-    label: "学者关系",
-    items: scholars.slice(0, 3).map((s) => `${s.nameCn} · ${s.affiliation}`),
-  },
-  {
-    label: "研究机构",
-    items: institutions.slice(0, 3).map((i) => `${i.nameCn} · ${i.type}`),
-  },
-];
 
 const HISTORY_GROUPS: RefGroup[] = [
   {
@@ -50,14 +35,6 @@ const HISTORY_GROUPS: RefGroup[] = [
     items: ["视频帧插值的技术空白点", "整理成周报"],
   },
 ];
-
-const PROJECT_GROUPS: RefGroup[] = projects.map((p) => ({
-  label: p.name,
-  items: [
-    `简介:${p.tagline}`,
-    ...p.milestones.slice(0, 2).map((m) => `里程碑:${m.title}`),
-  ],
-}));
 
 /**
  * 二级面板:悬停展开。
@@ -146,6 +123,21 @@ export function AttachmentMenu({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
+  const { data: papers = [] } = useFeedPapers();
+  const { data: scholars = [] } = useScholars();
+  const { data: institutions = [] } = useInstitutions();
+  const { data: projects = [] } = useProjects();
+
+  const knowledgeGroups: RefGroup[] = [
+    { label: "论文库", items: papers.slice(0, 3).map((p) => p.title) },
+    { label: "学者关系", items: scholars.slice(0, 3).map((s) => `${s.nameCn} · ${s.affiliation}`) },
+    { label: "研究机构", items: institutions.slice(0, 3).map((i) => `${i.nameCn} · ${i.type}`) },
+  ];
+  const projectGroups: RefGroup[] = projects.map((p) => ({
+    label: p.name,
+    items: [`简介:${p.tagline}`, ...p.milestones.slice(0, 2).map((m) => `里程碑:${m.title}`)],
+  }));
+
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
@@ -163,9 +155,9 @@ export function AttachmentMenu({
   }, [open]);
 
   const REF_ITEMS = [
-    { label: "引用知识库", icon: Library, groups: KNOWLEDGE_GROUPS, expandable: true },
+    { label: "引用知识库", icon: Library, groups: knowledgeGroups, expandable: true },
     { label: "引用历史对话", icon: History, groups: HISTORY_GROUPS },
-    { label: "引用科研项目", icon: Layers, groups: PROJECT_GROUPS },
+    { label: "引用科研项目", icon: Layers, groups: projectGroups },
   ];
 
   return (

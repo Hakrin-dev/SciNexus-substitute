@@ -145,18 +145,26 @@ function ModelSelect() {
   );
 }
 
-/** 模式选择:蓝底白字触发钮,点击展开四种模式;选择结果通过 onModeChange 通知父组件 */
+/** 模式选择:蓝底白字触发钮,点击展开四种模式。支持受控模式（value/onChange）。 */
 function ModeSelect({
   placement = "down",
-  onModeChange,
+  value,
+  onChange,
 }: {
   placement?: "up" | "down";
-  onModeChange?: (mode: string) => void;
+  value?: (typeof MODES)[number]["value"];
+  onChange?: (v: (typeof MODES)[number]["value"]) => void;
 }) {
-  const [mode, setMode] = useState<(typeof MODES)[number]["value"]>("fast");
+  const [internal, setInternal] = useState<(typeof MODES)[number]["value"]>("fast");
   const [open, setOpen] = useState(false);
   const ref = useCloseOnOutside(open, () => setOpen(false));
+  const mode = value ?? internal;
   const current = MODES.find((m) => m.value === mode) ?? MODES[0];
+
+  const apply = (v: (typeof MODES)[number]["value"]) => {
+    if (onChange) onChange(v);
+    else setInternal(v);
+  };
 
   return (
     <div ref={ref} className="relative">
@@ -184,9 +192,8 @@ function ModeSelect({
               key={m.value}
               type="button"
               onClick={() => {
-                setMode(m.value);
+                apply(m.value);
                 setOpen(false);
-                onModeChange?.(m.value);
               }}
               className={cn(
                 "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors",
@@ -215,6 +222,7 @@ export function ComposerShell({
   onSend,
   placeholder,
   menuPlacement = "down",
+  mode,
   onModeChange,
 }: {
   value: string;
@@ -222,8 +230,8 @@ export function ComposerShell({
   onSend: () => void;
   placeholder: string;
   menuPlacement?: "up" | "down";
-  /** 模式选择（快速/深度/灵感/疑惑）变化回调；不传则保持纯展示 */
-  onModeChange?: (mode: string) => void;
+  mode?: (typeof MODES)[number]["value"];
+  onModeChange?: (v: (typeof MODES)[number]["value"]) => void;
 }) {
   return (
     <div className="rounded-2xl bg-card p-3 shadow-pop">
@@ -258,7 +266,7 @@ export function ComposerShell({
 
         {/* 右下:模式选择 + 发送 */}
         <div className="ml-auto flex items-center gap-2">
-          <ModeSelect placement={menuPlacement} onModeChange={onModeChange} />
+          <ModeSelect placement={menuPlacement} value={mode} onChange={onModeChange} />
           <button
             type="button"
             aria-label="发送"

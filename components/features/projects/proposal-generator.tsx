@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { apiPost } from "@/lib/api/client";
 import {
   PROPOSAL_DRAFTS,
   PROPOSAL_TYPES,
@@ -39,6 +40,7 @@ export function ProposalGenerator({ projectName }: { projectName: string }) {
   const [type, setType] = React.useState<ProposalType>("proposal");
   const [step, setStep] = React.useState(0);
   const [copied, setCopied] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
 
   React.useEffect(() => {
     if (!open) return;
@@ -60,9 +62,18 @@ export function ProposalGenerator({ projectName }: { projectName: string }) {
     return () => clearTimeout(t);
   }, [phase, step]);
 
-  const start = () => {
+  const start = async () => {
     setStep(0);
     setPhase("generating");
+    try {
+      const json = await apiPost<{ content?: string }>("/api/proposal/generate", {
+        type,
+        topic: projectName,
+      });
+      setDraft(json.data?.content ?? PROPOSAL_DRAFTS[type]);
+    } catch {
+      setDraft(PROPOSAL_DRAFTS[type]);
+    }
   };
 
   const reset = () => {
@@ -70,11 +81,11 @@ export function ProposalGenerator({ projectName }: { projectName: string }) {
     setCopied(false);
   };
 
-  const draft = PROPOSAL_DRAFTS[type];
+  const displayDraft = draft || PROPOSAL_DRAFTS[type];
 
   const copyDraft = async () => {
     try {
-      await navigator.clipboard.writeText(draft);
+      await navigator.clipboard.writeText(displayDraft);
     } catch {
       // 剪贴板不可用时静默失败,仍展示已复制态做演示
     }
@@ -83,7 +94,7 @@ export function ProposalGenerator({ projectName }: { projectName: string }) {
   };
 
   const downloadDraft = () => {
-    const blob = new Blob([draft], { type: "text/markdown;charset=utf-8" });
+    const blob = new Blob([displayDraft], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -221,7 +232,7 @@ export function ProposalGenerator({ projectName }: { projectName: string }) {
                   </Button>
                 </div>
                 <pre className="scrollbar-subtle mt-4 flex-1 overflow-y-auto whitespace-pre-wrap rounded-xl bg-panel p-5 font-sans text-[13px] leading-relaxed text-ink-2">
-                  {draft}
+                  {displayDraft}
                 </pre>
               </>
             )}

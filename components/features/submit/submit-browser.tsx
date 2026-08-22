@@ -20,8 +20,8 @@ const LEVEL_TO_BADGE: Record<string, string> = {
 
 /** 投稿浏览区 —— 等级过滤 + 卡片列表;顶部的两组切换 tab 在 submit-page.tsx */
 export function SubmitBrowser({ kind }: { kind: "conference" | "journal" }) {
-  const [levels, setLevels] = useState<string[]>([]);
   const { data: venues = [] } = useVenues();
+  const [levels, setLevels] = useState<string[]>([]);
 
   const toggleLevel = (chip: string) =>
     setLevels((prev) =>

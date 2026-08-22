@@ -41,7 +41,7 @@ export function LibraryTable() {
         <div>
           <h1 className="text-xl font-bold text-ink">在读</h1>
           <p className="mt-1 text-xs text-faint">
-            {libraryItems.length} 篇文献 · 已接后端 /api/library
+            12 篇文献 · 上次更新 7 月 25 日
           </p>
         </div>
         <Button className="rounded-xl" onClick={() => fileInput.current?.click()}>
@@ -93,7 +93,7 @@ export function LibraryTable() {
       <div className="mt-3 space-y-2">
         {filtered.map((item) => (
           <div
-            key={item.recordId ?? item.id}
+            key={item.id}
             className="grid cursor-pointer grid-cols-[minmax(0,1fr)_220px_90px] items-center gap-4 rounded-xl px-5 py-3 transition-colors hover:bg-card"
           >
             <div className="flex min-w-0 items-center gap-3">

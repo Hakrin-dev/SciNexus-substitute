@@ -17,12 +17,12 @@ const SORTS = [
 
 /** 机构浏览区 —— 搜索 + 排序 + 单列大卡片 */
 export function InstitutionsBrowser() {
+  const { data: institutions = [] } = useInstitutions();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("rank");
   const [type, setType] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 300);
   const { bookmarkedInstitutions } = useUserPreferences();
-  const { data: institutions = [] } = useInstitutions();
 
   const isBookmarked = useCallback(
     (i: Institution) => bookmarkedInstitutions[i.id] ?? i.bookmarked ?? false,

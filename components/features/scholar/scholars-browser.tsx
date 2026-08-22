@@ -17,11 +17,11 @@ const SORTS = [
 
 /** 学者浏览区 —— 搜索防抖过滤 + 排序切换(README 5.2 交互增强) */
 export function ScholarsBrowser() {
+  const { data: scholars = [] } = useScholars();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("top");
   const [direction, setDirection] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 300);
-  const { data: scholars = [] } = useScholars();
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();

@@ -1,8 +1,6 @@
 # 放在 ECS 的 /opt/scinexus/ 下使用(与线上一致,本文件为唯一事实来源)
 # 镜像来自 GitHub Container Registry(ghcr.io),由 GitHub Actions 构建推送
 # 部署为拉取式:Watchtower 每 60s 轮询 GHCR latest,发现新 digest 自动 pull + 重建 web
-# api 服务不纳入 Watchtower(后端变化不频繁,避免意外重启打断 AI 对话),更新需手动:
-#   docker compose pull api && docker compose up -d api
 services:
   web:
     image: ghcr.io/hakrin-dev/scinexus-frontend:latest
@@ -17,39 +15,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-
-  api:
-    image: ghcr.io/hakrin-dev/scinexus-backend:latest
-    ports:
-      - "8000:8000"
-    volumes:
-      # 数据目录挂载(必须可写):
-      #  - agent 启动时会对 research.sqlite 做 DELETE+全量重写(store._upsert)
-      #  - embeddings.json / papers/ 缓存会被运行时写回
-      # 不能挂到 /app/server/data:那是 Python 包(mock_data.py 等),会被宿主机目录遮蔽
-      # 导致 from server.data.mock_data import ... 直接 ImportError,服务起不来
-      - /opt/scinexus/data:/app/data
-    environment:
-      # 数据层:sqlite = 读 volume 内 research.sqlite(真实入库语料)
-      # 空 volume(未上传数据)时自动回退镜像内置演示论文库 mock_data.py,
-      # 且首次启动会在 /app/data 自动生成 research.sqlite —— 业务先跑通无需上传任何数据
-      - TOOL_DATA_DIR=/app/data
-      - TOOL_DATA_SOURCE=sqlite
-      - AGENT_ENABLED=true
-      # LLM 配置从 /opt/scinexus/.env 读取(compose 自动加载同目录 .env)
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
-      - LLM_MODEL=${LLM_MODEL}
-      - LLM_PROVIDER=${LLM_PROVIDER}
-    restart: unless-stopped
-    labels:
-      - com.centurylinklabs.watchtower.enable=false
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
 
   watchtower:
     # nicholas-fedor 维护分支:containrrr 官方版已归档,其 client 过老不兼容 Docker 29

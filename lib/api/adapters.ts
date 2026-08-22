@@ -1,10 +1,11 @@
 /**
- * 后端响应 → 前端类型适配层（前端优先，数据字段由后端对齐，视觉字段在此派生）。
+ * 后端响应 → 前端类型适配层。
  *
- * 后端契约见 backend/server/serializers.py：
- *  论文  id/title/authors/author_list/affiliation/venue/ccf/year/date/abstract/tags/citations(数字)/doi/relevance
- *  期刊  id/abbr/kind/fullName/ccf/deadline/deadlineLabel/urgent/rate/submissions/domain/location/matchPct/matchClass/matchReason
- *  文献库 id(论文id)/recordId/title/venue/authors/ccf/arxiv/addedAt/status/readingProgress/tags/folder
+ * 新版 Next.js 后端已在 Route Handler 内完成大部分视觉字段派生（venueTone / initials /
+ * avatarColor / badges / metaRows 等），故这里只保留：
+ *  1. 后端契约类型（BackendXxx，作为接口契约文档与类型标注）；
+ *  2. 视觉派生工具（ccfTone / initials / deadlineOffsetMs 等，供 mock 数据与边缘场景复用）；
+ *  3. 归一化转换（toXxx，兜底空值，供后端返回数据字段时使用）。
  */
 import type {
   FeedPaper,
@@ -21,7 +22,7 @@ import type {
   VenueMetaIcon,
 } from "@/types";
 
-// ==================== 后端数据类型 ====================
+// ==================== 后端契约类型 ====================
 
 export interface BackendPaper {
   id: string;
@@ -159,7 +160,7 @@ function deadlineOffsetMs(deadline?: string | null): number {
   return Math.max(0, t - Date.now());
 }
 
-// ==================== 实体适配 ====================
+// ==================== 归一化转换（兜底空值） ====================
 
 export function toFeedPaper(p: BackendPaper): FeedPaper {
   return {
@@ -249,10 +250,14 @@ export function toPaperDetail(
   const totalPage = chunks.length
     ? Math.max(...chunks.map((c) => c.page))
     : 1;
+  const rawAuthors: unknown = (p as any).author_list ?? p.authors;
+  const authors: string[] = Array.isArray(rawAuthors)
+    ? (rawAuthors as string[])
+    : [String(rawAuthors || "佚名")];
   return {
     id: p.id || id,
     title: p.title,
-    authors: p.author_list?.length ? p.author_list : [p.authors || "佚名"],
+    authors,
     affiliation: p.affiliation ?? "未知机构",
     likes: 0,
     page: { current: 1, total: totalPage },

@@ -1,23 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Publication } from "@/types";
+import { useScholarDetail } from "@/lib/api/services";
+import type { BackendPublication } from "@/lib/api/adapters";
 
 const TABS = ["Top 引用", "近期热门", "最新"];
 
-/** 研究成果 —— 论文列表 + 排序标签 + 分页（数据由学者详情页传入） */
-export function PublicationList({ publications }: { publications: Publication[] }) {
+/** 研究成果 —— 论文列表 + 排序标签 + 分页。
+ *  支持传入 `publications` 覆盖；未传则使用学者详情 hook 获取。
+ */
+export function PublicationList({
+  publications: publicationsProp,
+}: {
+  publications?: BackendPublication[];
+} = {}) {
   const [tab, setTab] = useState(TABS[0]);
+  const { id } = useParams<{ id: string }>();
+  const { data: detail } = useScholarDetail(id ?? "");
+
+  const publications = useMemo(
+    () => publicationsProp ?? detail?.publications ?? [],
+    [publicationsProp, detail],
+  );
 
   return (
     <section className="rounded-2xl bg-card p-6 shadow-card">
       <div className="flex items-center justify-between">
         <h2 className="text-[17px] font-bold text-ink">
           研究成果
-          <span className="ml-2 text-sm font-normal text-faint">{publications.length}</span>
+          <span className="ml-2 text-sm font-normal text-faint">
+            {publications.length}
+          </span>
         </h2>
         <div className="flex gap-1">
           {TABS.map((t) => (
@@ -71,7 +88,7 @@ export function PublicationList({ publications }: { publications: Publication[] 
       </div>
 
       <div className="mt-6 flex items-center justify-center gap-3">
-        <span className="text-xs text-faint">第 1 / {Math.max(1, Math.ceil(publications.length / 3))} 页</span>
+        <span className="text-xs text-faint">第 1 / 9 页</span>
         <Button variant="outline" size="sm" disabled>
           上一页
         </Button>

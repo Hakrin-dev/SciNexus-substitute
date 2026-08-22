@@ -8,6 +8,7 @@ import { useVenues } from "@/lib/api/services";
 /** 等级 chip → 徽章名映射(用于过滤) */
 const LEVEL_TO_BADGE: Record<string, string> = {
   "CCF-A": "CCF A",
+  "CCF-B": "CCF B",
   "CCF-C": "CCF C",
   "CAAI-A": "CAAI A",
   "CAAI-C": "CAAI C",

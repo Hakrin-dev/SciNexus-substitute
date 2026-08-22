@@ -38,6 +38,7 @@ export type VenueMetaIcon = "folder" | "pin" | "cal" | "chart" | "quote";
 
 export type VenueBadgeName =
   | "CCF A"
+  | "CCF B"
   | "CCF C"
   | "CORE A*"
   | "TH-CPL A"

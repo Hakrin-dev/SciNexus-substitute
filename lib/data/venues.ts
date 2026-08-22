@@ -3,6 +3,7 @@ import type { Venue, VenueBadgeName } from "@/types";
 /** 徽章配色 —— 与投稿详情页 SVG 的 BD 调色板一致 */
 export const BADGE_PALETTE: Record<VenueBadgeName, { bg: string; fg: string }> = {
   "CCF A": { bg: "#D1FAE5", fg: "#059669" },
+  "CCF B": { bg: "#DBEAFE", fg: "#2563EB" },
   "CCF C": { bg: "#FEF3C7", fg: "#D97706" },
   "CORE A*": { bg: "#EDE9FE", fg: "#7C3AED" },
   "TH-CPL A": { bg: "#FCE7F3", fg: "#DB2777" },

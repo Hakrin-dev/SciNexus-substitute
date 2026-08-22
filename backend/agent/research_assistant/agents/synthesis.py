@@ -136,6 +136,7 @@ class SynthesisAgent(BaseAgent):
             for index, p in enumerate(papers[:10])
         ]
 
+        history = state.get("history") or []
         if self.mock:
             lines = [f"针对「{query}」，共检索到 {len(paper_list)} 篇候选论文："]
             for item in paper_list:
@@ -147,7 +148,11 @@ class SynthesisAgent(BaseAgent):
         else:
             answer = self.llm.complete(
                 SEARCH_ANSWER_SYSTEM_PROMPT,
-                {"question": query, "papers": paper_list},
+                {
+                    "question": query,
+                    "history": history[-8:],
+                    "papers": paper_list,
+                },
                 QAAnswer,
             ).answer
 

@@ -328,6 +328,7 @@ export type ChatStreamEvent =
       type: "meta";
       meta: {
         conversation_id?: string;
+        run_id?: string;
         workflow?: unknown;
         generated_files?: unknown;
         references?: unknown;

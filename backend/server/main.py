@@ -13,6 +13,7 @@ import random
 import asyncio
 import logging
 import json
+import uuid
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -174,6 +175,8 @@ class ChatRequest(BaseModel):
     paper_id: Optional[str] = None          # 论文ID（论文问答/阅读场景定位论文）
     task_type: Optional[str] = None         # 显式 Agent 任务类型
     model: Optional[str] = None              # 模型路由：默认 / 订阅 / API接入
+    run_id: Optional[str] = None              # 单次任务运行 ID
+    context: Optional[dict[str, Any]] = None  # 前序任务产出的结构化上下文
 
 class TranslateRequest(BaseModel):
     """学术文本翻译请求"""
@@ -538,11 +541,15 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 paper_id=req.paper_id,
                 history=_chat_history(req),
                 model=req.model,
+                conversation_id=req.conversation_id,
+                run_id=req.run_id,
+                context=req.context,
             )
             reply = result["reply"]
             return {
                 "reply": reply,
-                "conversation_id": req.conversation_id or "new",
+                "conversation_id": result.get("conversation_id") or req.conversation_id,
+                "run_id": result.get("run_id"),
                 "tokens": len(reply),
                 "workflow": result["workflow"],
                 "generated_files": result["generated_files"],
@@ -575,6 +582,7 @@ async def chat_stream(req: ChatRequest):
     message = _chat_message(req)
     if not message:
         raise HTTPException(status_code=400, detail="消息不能为空")
+    conversation_id = req.conversation_id or f"conv_{uuid.uuid4().hex}"
     if AGENT_ENABLED:
         try:
             result = _agent_chat_with_meta(
@@ -583,6 +591,9 @@ async def chat_stream(req: ChatRequest):
                 paper_id=req.paper_id,
                 history=_chat_history(req),
                 model=req.model,
+                conversation_id=req.conversation_id,
+                run_id=req.run_id,
+                context=req.context,
             )
             reply = result["reply"]
             workflow = result["workflow"]
@@ -602,9 +613,10 @@ async def chat_stream(req: ChatRequest):
 
     async def event_generator() -> AsyncGenerator[str, None]:
         # 先发送对话元信息（含生成文件列表，便于右侧编辑区展示）
-        conv_id = req.conversation_id or "new"
+        conv_id = conversation_id
         meta = {
             "conversation_id": conv_id,
+            "run_id": result.get("run_id"),
             "tokens": len(reply),
             "workflow": workflow,
             "generated_files": generated_files,

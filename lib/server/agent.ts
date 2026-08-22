@@ -286,9 +286,11 @@ export async function runAgent(
       ? `\n\n检索到的相关论文：\n` +
         papers.slice(0, 6).map((p) => `- ${p.title}（${p.authors}，${p.venue}）`).join("\n")
       : "";
+    const history = _history?.slice(-8) ?? [];
     const composed = await chatText(
       FINALIZE_SYSTEM_PROMPT,
-      `用户问题：${userQuery}${evidence}`,
+      `${history.length ? `对话历史：\n${history.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\n` : ""}` +
+        `用户问题：${userQuery}${evidence}`,
       model,
     );
     reply = composed && composed.trim().length > 20 ? composed.trim() : ruleReply(intent.taskType, userQuery, papers);

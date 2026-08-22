@@ -241,8 +241,14 @@ export async function* sendChat(
   history: { role: "user" | "assistant"; content: string }[],
   signal?: AbortSignal,
   model?: "默认" | "订阅" | "API接入",
+  conversationId?: string,
+  context?: Record<string, unknown>,
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
-  yield* streamChat("/api/chat/stream", { message, messages: history, model }, signal);
+  yield* streamChat(
+    "/api/chat/stream",
+    { message, messages: history, model, conversation_id: conversationId, context },
+    signal,
+  );
 }
 
 /** 论文检索（/api/search，带 relevance） */

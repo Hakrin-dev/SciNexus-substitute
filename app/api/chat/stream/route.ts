@@ -28,14 +28,18 @@ export async function POST(req: NextRequest) {
 
   const body = await parseBody<ChatReq>(req);
   const msg = extractMessage(body);
-  const result = await runAgent(msg || "你好", body.task_type, body.paper_id, undefined, body.model);
+  const history = body.messages?.filter(
+    (item) => (item.role === "user" || item.role === "assistant") && item.content,
+  ).slice(-24) ?? [];
+  const result = await runAgent(msg || "你好", body.task_type, body.paper_id, history, body.model);
   const { reply, workflow, references, generatedFiles } = result;
+
+  const conversationId = body.conversation_id || genId("conv_");
 
   // 异步落库（无需等待）
   (async () => {
     try {
       const db = getDB();
-      const conversationId = body.conversation_id || genId("conv_");
       const convExists = db
         .prepare("SELECT 1 FROM conversations WHERE id = ? AND user_id = ?")
         .get(conversationId, userId);
@@ -55,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      const convId = body.conversation_id || genId("conv_");
+      const convId = conversationId;
       const meta = {
         conversation_id: convId,
         tokens: reply.length,

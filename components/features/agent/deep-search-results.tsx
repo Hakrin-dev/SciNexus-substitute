@@ -149,6 +149,7 @@ export function DeepSearchResults() {
   const [value, setValue] = useState("");
   const [mode, setMode] = useState<Mode>("fast");
   const [model, setModel] = useState<ModelChoice>("默认");
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const startedRef = useRef<string | null>(null);
   const turnsRef = useRef<Turn[]>([]);
@@ -191,8 +192,15 @@ export function DeepSearchResults() {
               { role: "assistant" as const, content: t.answer },
             ]);
           let acc = "";
-          for await (const event of streamChat("/api/chat/stream", { message: q, messages: history, model })) {
+          for await (const event of streamChat("/api/chat/stream", {
+            message: q,
+            messages: history,
+            model,
+            conversation_id: conversationId ?? undefined,
+            context: { topic: turnsRef.current[0]?.query ?? q },
+          })) {
             if (event.type === "meta") {
+              if (event.meta.conversation_id) setConversationId(event.meta.conversation_id);
               updateLast({
                 workflow: (event.meta.workflow as Workflow | null) ?? null,
                 refs: (event.meta.references as ChatReference[] | null) ?? null,

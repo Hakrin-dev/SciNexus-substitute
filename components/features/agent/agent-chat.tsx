@@ -52,7 +52,6 @@ export function AgentChat() {
     const q = (text ?? value).trim();
     if (!q || streaming) return;
     setValue("");
-    setActiveConv("new");
     const history = messages.map((m) => ({
       role: m.role,
       content: m.content,
@@ -67,7 +66,12 @@ export function AgentChat() {
       if (mode === "deep") {
         // 深度模式：完整多智能体工作流（Supervisor → scout/synthesis/... → LLM 组合回答）
         let acc = "";
-        for await (const event of sendChat(q, history, undefined, model)) {
+        for await (const event of sendChat(q, history, undefined, model, activeConv ?? undefined, {
+          topic: messages[0]?.content ?? q,
+        })) {
+          if (event.type === "meta" && event.meta.conversation_id) {
+            setActiveConv(event.meta.conversation_id);
+          }
           if (event.type === "delta") {
             acc += event.text;
             setMessages((prev) => {

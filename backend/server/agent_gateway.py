@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import sys
+import uuid
 from pathlib import Path
 
 SERVER_DIR = Path(__file__).resolve().parent
@@ -30,7 +31,8 @@ def _resolve_model(model: str | None) -> str | None:
 
 def _run_agent(user_query: str, task_type: str | None = None,
                paper_id: str | None = None, history: list[dict] | None = None,
-               model: str | None = None) -> dict:
+               model: str | None = None, conversation_id: str | None = None,
+               run_id: str | None = None, context: dict | None = None) -> dict:
     """运行一次 agent 工作流，返回完整 result 状态。
 
     paper_id/history 传入初始状态：synthesis 等 agent 据此定位论文并保持多轮上下文。
@@ -45,6 +47,8 @@ def _run_agent(user_query: str, task_type: str | None = None,
         checkpoint=False,
     )
     initial = {
+        "conversation_id": conversation_id or f"conv_{uuid.uuid4().hex}",
+        "run_id": run_id or f"run_{uuid.uuid4().hex}",
         "user_query": user_query,
         "plan_index": 0,
         "working_memory": {
@@ -57,6 +61,8 @@ def _run_agent(user_query: str, task_type: str | None = None,
         initial["paper_id"] = paper_id
     if history:
         initial["history"] = history
+    if context:
+        initial["context"] = context
     if task_type:
         initial["raw_input"] = {"task_type": task_type}
     return graph.invoke(initial)
@@ -338,16 +344,18 @@ def translate_text(text: str, target_lang: str = "中文", source_lang: str | No
 
 def chat(message: str, task_type: str | None = None,
          paper_id: str | None = None, history: list[dict] | None = None,
-         model: str | None = None) -> str:
+         model: str | None = None, conversation_id: str | None = None,
+         run_id: str | None = None, context: dict | None = None) -> str:
     """调用 agent 全流程，返回 final_response 作为对话回复。"""
-    return chat_with_meta(message, task_type, paper_id, history, model)["reply"]
+    return chat_with_meta(message, task_type, paper_id, history, model, conversation_id, run_id, context)["reply"]
 
 
 def chat_with_meta(message: str, task_type: str | None = None,
                    paper_id: str | None = None, history: list[dict] | None = None,
-                   model: str | None = None) -> dict:
+                   model: str | None = None, conversation_id: str | None = None,
+                   run_id: str | None = None, context: dict | None = None) -> dict:
     """调用 agent 全流程，返回回复、前端可展示的工作流与生成文件列表。"""
-    result = _run_agent(message, task_type, paper_id, history, model)
+    result = _run_agent(message, task_type, paper_id, history, model, conversation_id, run_id, context)
     outputs = (result.get("working_memory") or {}).get("agent_outputs") or {}
     if result.get("errors") and not outputs:
         raise RuntimeError(f"agent 工作流失败: {result.get('errors')}")
@@ -356,6 +364,8 @@ def chat_with_meta(message: str, task_type: str | None = None,
         "workflow": _workflow_trace(result),
         "generated_files": _extract_generated_files(result),
         "references": _extract_references(result),
+        "conversation_id": result.get("conversation_id", conversation_id),
+        "run_id": result.get("run_id"),
     }
 
 

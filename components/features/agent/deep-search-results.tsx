@@ -21,7 +21,7 @@ import {
 } from "@/lib/api/services";
 import { MarkdownView } from "./markdown-view";
 import { ReferenceGrid } from "./reference-grid";
-import { ComposerShell } from "./composer";
+import { ComposerShell, type ModelChoice } from "./composer";
 import type { AgentReference } from "@/types";
 
 interface WorkflowStep {
@@ -148,6 +148,7 @@ export function DeepSearchResults() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [value, setValue] = useState("");
   const [mode, setMode] = useState<Mode>("fast");
+  const [model, setModel] = useState<ModelChoice>("默认");
   const [busy, setBusy] = useState(false);
   const startedRef = useRef<string | null>(null);
   const turnsRef = useRef<Turn[]>([]);
@@ -190,7 +191,7 @@ export function DeepSearchResults() {
               { role: "assistant" as const, content: t.answer },
             ]);
           let acc = "";
-          for await (const event of streamChat("/api/chat/stream", { message: q, messages: history })) {
+          for await (const event of streamChat("/api/chat/stream", { message: q, messages: history, model })) {
             if (event.type === "meta") {
               updateLast({
                 workflow: (event.meta.workflow as Workflow | null) ?? null,
@@ -326,6 +327,8 @@ export function DeepSearchResults() {
           onChange={setValue}
           onSend={send}
           onModeChange={(m) => setMode(m === "deep" ? "deep" : "fast")}
+          model={model}
+          onModelChange={setModel}
           placeholder={
             busy
               ? "正在生成回答，请稍候…"

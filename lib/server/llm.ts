@@ -16,19 +16,29 @@ interface LLMConfig {
   model: string;
 }
 
-function getLLMConfig(): LLMConfig | null {
+export type ModelChoice = "默认" | "订阅" | "API接入";
+
+function getLLMConfig(modelChoice?: ModelChoice): LLMConfig | null {
   const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
+  const selectedModel = modelChoice === "订阅"
+    ? process.env.LLM_SUBSCRIPTION_MODEL
+    : modelChoice === "API接入"
+      ? process.env.LLM_API_MODEL
+      : undefined;
   return {
     baseUrl: (process.env.LLM_API_URL || "https://api.openai.com/v1").replace(/\/+$/, ""),
     apiKey,
-    model: process.env.LLM_MODEL || "gpt-4o-mini",
+    model: selectedModel || process.env.LLM_MODEL || "gpt-4o-mini",
   };
 }
 
 /** 调用 OpenAI 兼容的 chat/completions，失败或未配置返回 null */
-export async function callLLM(messages: { role: string; content: string }[]): Promise<string | null> {
-  const cfg = getLLMConfig();
+export async function callLLM(
+  messages: { role: string; content: string }[],
+  modelChoice?: ModelChoice,
+): Promise<string | null> {
+  const cfg = getLLMConfig(modelChoice);
   if (!cfg) return null;
   try {
     const resp = await fetch(`${cfg.baseUrl}/chat/completions`, {
@@ -59,11 +69,15 @@ export function hasLLM(): boolean {
 }
 
 /** 通用文本生成：给定 system/user 提示词，返回模型文本（未配置/失败返回 null） */
-export async function chatText(systemPrompt: string, userText: string): Promise<string | null> {
+export async function chatText(
+  systemPrompt: string,
+  userText: string,
+  modelChoice?: ModelChoice,
+): Promise<string | null> {
   return callLLM([
     { role: "system", content: systemPrompt },
     { role: "user", content: userText },
-  ]);
+  ], modelChoice);
 }
 
 /** 学术文本翻译：有真实 LLM 时翻译，否则回退为原样返回（前端可据此提示） */

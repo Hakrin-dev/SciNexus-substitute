@@ -9,7 +9,7 @@
  *  4. finalize 组合为最终回答，并产出 workflow / references / generatedFiles
  */
 import { getDB, jsonParse, mapPaper } from "./db";
-import { chatText, hasLLM } from "./llm";
+import { chatText, hasLLM, type ModelChoice } from "./llm";
 import { genId } from "./utils";
 
 export interface AgentStep {
@@ -231,7 +231,8 @@ export async function runAgent(
   userQuery: string,
   taskType?: string | null,
   _paperId?: string | null,
-  _history?: { role: string; content: string }[]
+  _history?: { role: string; content: string }[],
+  model?: ModelChoice,
 ): Promise<AgentResult> {
   const explicit = taskType && INTENT_TABLE[taskType] ? taskType : null;
   const intent = explicit
@@ -285,7 +286,11 @@ export async function runAgent(
       ? `\n\n检索到的相关论文：\n` +
         papers.slice(0, 6).map((p) => `- ${p.title}（${p.authors}，${p.venue}）`).join("\n")
       : "";
-    const composed = await chatText(FINALIZE_SYSTEM_PROMPT, `用户问题：${userQuery}${evidence}`);
+    const composed = await chatText(
+      FINALIZE_SYSTEM_PROMPT,
+      `用户问题：${userQuery}${evidence}`,
+      model,
+    );
     reply = composed && composed.trim().length > 20 ? composed.trim() : ruleReply(intent.taskType, userQuery, papers);
   } else {
     reply = ruleReply(intent.taskType, userQuery, papers);

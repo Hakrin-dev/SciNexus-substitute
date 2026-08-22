@@ -25,6 +25,7 @@ interface ChatReq {
   messages?: { role: string; content: string }[];
   task_type?: string;
   paper_id?: string;
+  model?: "默认" | "订阅" | "API接入";
 }
 
 /** 从 messages 中提取多轮历史（排除最后一条用户消息），最多保留最近 24 条 */
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
     ).run(conversationId, msg);
 
     // 多智能体编排生成回复
-    const result = await runAgent(msg, body.task_type, body.paper_id, chatHistory(body));
+    const result = await runAgent(msg, body.task_type, body.paper_id, chatHistory(body), body.model);
     const { reply, workflow, references, generatedFiles } = result;
 
     // 写入 AI 消息

@@ -16,8 +16,9 @@ import { QuestionOutline } from "@/components/icons/question-outline";
 import { cn } from "@/lib/utils";
 import { AttachmentMenu } from "./attachment-menu";
 
-/** 模型选择(演示) */
-const MODELS = ["默认", "订阅", "API接入"] as const;
+/** 模型路由：具体模型名由后端环境变量配置 */
+export const MODELS = ["默认", "订阅", "API接入"] as const;
+export type ModelChoice = (typeof MODELS)[number];
 
 /** 模式选择(演示):快速 / 深度 / 灵感 / 疑惑 */
 const MODES = [
@@ -92,8 +93,7 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
 }
 
 /** 模型选择(演示):默认 / 订阅 / API接入 */
-function ModelSelect() {
-  const [model, setModel] = useState<(typeof MODELS)[number]>("默认");
+function ModelSelect({ model, onChange }: { model: ModelChoice; onChange: (model: ModelChoice) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -126,7 +126,7 @@ function ModelSelect() {
               key={m}
               type="button"
               onClick={() => {
-                setModel(m);
+                onChange(m);
                 setOpen(false);
               }}
               className={cn(
@@ -224,6 +224,8 @@ export function ComposerShell({
   menuPlacement = "down",
   mode,
   onModeChange,
+  model = "默认",
+  onModelChange,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -232,6 +234,8 @@ export function ComposerShell({
   menuPlacement?: "up" | "down";
   mode?: (typeof MODES)[number]["value"];
   onModeChange?: (v: (typeof MODES)[number]["value"]) => void;
+  model?: ModelChoice;
+  onModelChange?: (model: ModelChoice) => void;
 }) {
   return (
     <div className="rounded-2xl bg-card p-3 shadow-pop">
@@ -255,7 +259,7 @@ export function ComposerShell({
         />
         {/* 右上:模型选择 */}
         <div className="absolute right-1 top-0.5">
-          <ModelSelect />
+          <ModelSelect model={model} onChange={onModelChange ?? (() => {})} />
         </div>
       </div>
 

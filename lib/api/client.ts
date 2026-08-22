@@ -7,11 +7,11 @@
  *   const { data } = await api.papers.list({ page: 1 });
  */
 
-// 后端基础地址：默认同源（Next.js 部署模式），可通过 NEXT_PUBLIC_API_URL 覆盖
+// 后端基础地址：默认使用 FastAPI，可通过 NEXT_PUBLIC_API_URL 覆盖
 export const API_BASE =
   (typeof window !== "undefined"
     ? (window as any).__API_BASE__ || process.env.NEXT_PUBLIC_API_URL
-    : process.env.NEXT_PUBLIC_API_URL) || "";
+    : process.env.NEXT_PUBLIC_API_URL) || "http://localhost:8000";
 
 // 存储 token 的 key（与 stores/auth.ts 保持一致，可替换为 Cookie/HttpOnly）
 const TOKEN_KEY = "yanshu_token";

@@ -173,6 +173,7 @@ class ChatRequest(BaseModel):
     messages: Optional[list[dict[str, Any]]] = None  # 前端/模型对话消息数组
     paper_id: Optional[str] = None          # 论文ID（论文问答/阅读场景定位论文）
     task_type: Optional[str] = None         # 显式 Agent 任务类型
+    model: Optional[str] = None              # 模型路由：默认 / 订阅 / API接入
 
 class TranslateRequest(BaseModel):
     """学术文本翻译请求"""
@@ -536,6 +537,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 task_type=req.task_type,
                 paper_id=req.paper_id,
                 history=_chat_history(req),
+                model=req.model,
             )
             reply = result["reply"]
             return {
@@ -580,6 +582,7 @@ async def chat_stream(req: ChatRequest):
                 task_type=req.task_type,
                 paper_id=req.paper_id,
                 history=_chat_history(req),
+                model=req.model,
             )
             reply = result["reply"]
             workflow = result["workflow"]

@@ -289,15 +289,15 @@ class OllamaProvider(LLMProvider):
             raise ConnectionError(f"无法连接 Ollama ({self.base_url}): {e}") from e
 
 
-def get_llm() -> LLMProvider:
+def get_llm(model: str | None = None) -> LLMProvider:
     if settings.mock_mode:
         return MockProvider()
     if settings.llm_provider == "ollama":
-        return OllamaProvider()
-    return OpenAIChatProvider()
+        return OllamaProvider(model=model or settings.ollama_model)
+    return OpenAIChatProvider(model=model)
 
 
-def get_supervisor_llm() -> LLMProvider:
+def get_supervisor_llm(model: str | None = None) -> LLMProvider:
     """创建 Supervisor 专用模型，默认继承业务 agent 的 LLM 配置。"""
     provider = settings.supervisor_llm_provider
     if provider == "mock":
@@ -305,13 +305,13 @@ def get_supervisor_llm() -> LLMProvider:
     if provider == "ollama":
         return OllamaProvider(
             base_url=settings.supervisor_ollama_base_url,
-            model=settings.supervisor_ollama_model,
+            model=model or settings.supervisor_ollama_model,
             temperature=settings.supervisor_llm_temperature,
         )
     return OpenAIChatProvider(
         api_key=settings.supervisor_openai_api_key,
         base_url=settings.supervisor_openai_base_url,
-        model=settings.supervisor_llm_model,
+        model=model or settings.supervisor_llm_model,
         temperature=settings.supervisor_llm_temperature,
         json_mode=settings.supervisor_openai_json_mode,
     )

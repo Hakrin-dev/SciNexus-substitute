@@ -17,6 +17,7 @@ interface ChatReq {
   messages?: { role: string; content: string }[];
   task_type?: string;
   paper_id?: string;
+  model?: "默认" | "订阅" | "API接入";
 }
 
 export async function POST(req: NextRequest) {
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   const body = await parseBody<ChatReq>(req);
   const msg = extractMessage(body);
-  const result = await runAgent(msg || "你好", body.task_type, body.paper_id);
+  const result = await runAgent(msg || "你好", body.task_type, body.paper_id, undefined, body.model);
   const { reply, workflow, references, generatedFiles } = result;
 
   // 异步落库（无需等待）

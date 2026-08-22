@@ -240,8 +240,9 @@ export async function* sendChat(
   message: string,
   history: { role: "user" | "assistant"; content: string }[],
   signal?: AbortSignal,
+  model?: "默认" | "订阅" | "API接入",
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
-  yield* streamChat("/api/chat/stream", { message, messages: history }, signal);
+  yield* streamChat("/api/chat/stream", { message, messages: history, model }, signal);
 }
 
 /** 论文检索（/api/search，带 relevance） */

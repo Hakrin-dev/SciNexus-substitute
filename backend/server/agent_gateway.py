@@ -19,15 +19,31 @@ AGENT_ENABLED = os.getenv("AGENT_ENABLED", "true").lower() not in ("0", "false",
 from server.serializers import serialize_paper  # noqa: E402
 
 
+def _resolve_model(model: str | None) -> str | None:
+    """把前端模型选项映射到后端环境变量，避免把真实模型名暴露给 UI。"""
+    if model == "订阅":
+        return os.getenv("LLM_SUBSCRIPTION_MODEL") or os.getenv("LLM_MODEL")
+    if model == "API接入":
+        return os.getenv("LLM_API_MODEL") or os.getenv("LLM_MODEL")
+    return os.getenv("LLM_MODEL")
+
+
 def _run_agent(user_query: str, task_type: str | None = None,
-               paper_id: str | None = None, history: list[dict] | None = None) -> dict:
+               paper_id: str | None = None, history: list[dict] | None = None,
+               model: str | None = None) -> dict:
     """运行一次 agent 工作流，返回完整 result 状态。
 
     paper_id/history 传入初始状态：synthesis 等 agent 据此定位论文并保持多轮上下文。
     """
     from research_assistant.graph import build_graph  # noqa: PLC0415
+    from research_assistant.llm import get_llm, get_supervisor_llm  # noqa: PLC0415
 
-    graph = build_graph(checkpoint=False)
+    selected_model = _resolve_model(model)
+    graph = build_graph(
+        llm=get_llm(model=selected_model),
+        supervisor_llm=get_supervisor_llm(model=selected_model),
+        checkpoint=False,
+    )
     initial = {
         "user_query": user_query,
         "plan_index": 0,
@@ -321,15 +337,17 @@ def translate_text(text: str, target_lang: str = "中文", source_lang: str | No
 
 
 def chat(message: str, task_type: str | None = None,
-         paper_id: str | None = None, history: list[dict] | None = None) -> str:
+         paper_id: str | None = None, history: list[dict] | None = None,
+         model: str | None = None) -> str:
     """调用 agent 全流程，返回 final_response 作为对话回复。"""
-    return chat_with_meta(message, task_type, paper_id, history)["reply"]
+    return chat_with_meta(message, task_type, paper_id, history, model)["reply"]
 
 
 def chat_with_meta(message: str, task_type: str | None = None,
-                   paper_id: str | None = None, history: list[dict] | None = None) -> dict:
+                   paper_id: str | None = None, history: list[dict] | None = None,
+                   model: str | None = None) -> dict:
     """调用 agent 全流程，返回回复、前端可展示的工作流与生成文件列表。"""
-    result = _run_agent(message, task_type, paper_id, history)
+    result = _run_agent(message, task_type, paper_id, history, model)
     outputs = (result.get("working_memory") or {}).get("agent_outputs") or {}
     if result.get("errors") and not outputs:
         raise RuntimeError(f"agent 工作流失败: {result.get('errors')}")

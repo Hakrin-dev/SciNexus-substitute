@@ -5,7 +5,7 @@ import { MessageSquarePlus } from "lucide-react";
 import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
 import { sendChat, quickSearchPapers, formatQuickAnswer } from "@/lib/api/services";
-import { ComposerShell } from "./composer";
+import { ComposerShell, type ModelChoice } from "./composer";
 import { MarkdownView } from "./markdown-view";
 
 interface Message {
@@ -41,6 +41,7 @@ export function AgentChat() {
   const [streaming, setStreaming] = useState(false);
   /** 回答模式：fast=快速（scout 直检 + 简单回答，零 LLM）；deep=深度（完整多智能体工作流） */
   const [mode, setMode] = useState<"fast" | "deep">("fast");
+  const [model, setModel] = useState<ModelChoice>("默认");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,7 +67,7 @@ export function AgentChat() {
       if (mode === "deep") {
         // 深度模式：完整多智能体工作流（Supervisor → scout/synthesis/... → LLM 组合回答）
         let acc = "";
-        for await (const event of sendChat(q, history)) {
+        for await (const event of sendChat(q, history, undefined, model)) {
           if (event.type === "delta") {
             acc += event.text;
             setMessages((prev) => {
@@ -116,6 +117,8 @@ export function AgentChat() {
       onChange={setValue}
       onSend={() => send()}
       onModeChange={(m) => setMode(m === "deep" ? "deep" : "fast")}
+      model={model}
+      onModelChange={setModel}
       placeholder="使用'@'引用或使用'/'唤起插件或技能…"
       menuPlacement="down"
     />

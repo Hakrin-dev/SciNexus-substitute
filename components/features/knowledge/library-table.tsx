@@ -91,9 +91,9 @@ export function LibraryTable() {
 
       {/* 数据行 */}
       <div className="mt-3 space-y-2">
-        {filtered.map((item) => (
+        {filtered.map((item, index) => (
           <div
-            key={item.id}
+            key={item.recordId ?? `${item.id}-${index}`}
             className="grid cursor-pointer grid-cols-[minmax(0,1fr)_220px_90px] items-center gap-4 rounded-xl px-5 py-3 transition-colors hover:bg-card"
           >
             <div className="flex min-w-0 items-center gap-3">

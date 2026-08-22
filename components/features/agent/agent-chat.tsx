@@ -121,6 +121,7 @@ export function AgentChat() {
       value={value}
       onChange={setValue}
       onSend={() => send()}
+      mode={mode}
       onModeChange={setMode}
       model={model}
       onModelChange={setModel}

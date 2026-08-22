@@ -166,6 +166,7 @@ class SearchRequest(BaseModel):
     year_to: Optional[int] = None           # 发表年份上限
     sort_by: Optional[str] = "relevance"    # 排序依据：relevance / citations / date
     task_type: Optional[str] = None           # 显式 Agent 任务类型
+    conversation_id: Optional[str] = None     # 与后续深度任务共享的话题会话
 
 class ChatRequest(BaseModel):
     """AI 对话请求"""
@@ -177,6 +178,7 @@ class ChatRequest(BaseModel):
     model: Optional[str] = None              # 模型路由：默认 / 订阅 / API接入
     run_id: Optional[str] = None              # 单次任务运行 ID
     context: Optional[dict[str, Any]] = None  # 前序任务产出的结构化上下文
+    mode: Optional[str] = None                # fast / deep / idea / doubt
 
 class TranslateRequest(BaseModel):
     """学术文本翻译请求"""
@@ -431,7 +433,9 @@ async def search_endpoint(req: SearchRequest, request: Request):
     logger.info(f"Search: query='{req.query}', mode={req.mode}")
     if AGENT_ENABLED:
         try:
-            return _agent_search(req.query, task_type=req.task_type)
+            result = _agent_search(req.query, task_type=req.task_type, conversation_id=req.conversation_id)
+            result.setdefault("conversation_id", req.conversation_id or f"conv_{uuid.uuid4().hex}")
+            return result
         except Exception as exc:
             logger.warning(f"Agent 检索失败，回退 mock: {exc}")
     return _search_papers_impl(req)
@@ -537,7 +541,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         try:
             result = _agent_chat_with_meta(
                 message,
-                task_type=req.task_type,
+                task_type=req.task_type or {"deep": "research_exploration", "idea": "research_ideation", "doubt": "concept_explanation"}.get(req.mode),
                 paper_id=req.paper_id,
                 history=_chat_history(req),
                 model=req.model,
@@ -587,7 +591,7 @@ async def chat_stream(req: ChatRequest):
         try:
             result = _agent_chat_with_meta(
                 message,
-                task_type=req.task_type,
+                task_type=req.task_type or {"deep": "research_exploration", "idea": "research_ideation", "doubt": "concept_explanation"}.get(req.mode),
                 paper_id=req.paper_id,
                 history=_chat_history(req),
                 model=req.model,

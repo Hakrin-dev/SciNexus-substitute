@@ -43,6 +43,24 @@ INTENT_TABLE: dict[str, dict] = {
             {"agent": "librarian", "action": "build research graph"},
         ],
     },
+    "research_ideation": {
+        "description": "基于证据发现研究空白并提出可行创新方向",
+        "required_agents": ["scout", "librarian", "research_design", "critic"],
+        "steps": [
+            {"agent": "scout", "action": "retrieve topic evidence"},
+            {"agent": "librarian", "action": "identify research gaps"},
+            {"agent": "research_design", "action": "propose research directions"},
+            {"agent": "critic", "action": "check novelty and feasibility"},
+        ],
+    },
+    "concept_explanation": {
+        "description": "基于证据解释科研概念并澄清论文疑惑",
+        "required_agents": ["scout", "synthesis"],
+        "steps": [
+            {"agent": "scout", "action": "retrieve relevant evidence"},
+            {"agent": "synthesis", "action": "explain concept step by step"},
+        ],
+    },
     "autonomous_research": {
         "description": "自主科研全流程",
         "required_agents": ["scout", "librarian", "research_design", "code_assistant", "writer", "critic"],

@@ -40,7 +40,7 @@ export function AgentChat() {
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   /** 回答模式：fast=快速（scout 直检 + 简单回答，零 LLM）；deep=深度（完整多智能体工作流） */
-  const [mode, setMode] = useState<"fast" | "deep">("fast");
+  const [mode, setMode] = useState<"fast" | "deep" | "idea" | "doubt">("fast");
   const [model, setModel] = useState<ModelChoice>("默认");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -63,12 +63,12 @@ export function AgentChat() {
     ]);
     setStreaming(true);
     try {
-      if (mode === "deep") {
+      if (mode !== "fast") {
         // 深度模式：完整多智能体工作流（Supervisor → scout/synthesis/... → LLM 组合回答）
         let acc = "";
         for await (const event of sendChat(q, history, undefined, model, activeConv ?? undefined, {
           topic: messages[0]?.content ?? q,
-        })) {
+        }, mode)) {
           if (event.type === "meta" && event.meta.conversation_id) {
             setActiveConv(event.meta.conversation_id);
           }
@@ -94,7 +94,8 @@ export function AgentChat() {
       } else {
         // 快速模式：只走 scout 本地直检（三路 RRF + 可选交叉编码器精排），
         // 前端展示后端「简易回答」summary + 论文清单
-        const { papers, summary } = await quickSearchPapers(q);
+        const { papers, summary, conversationId } = await quickSearchPapers(q, activeConv ?? undefined);
+        if (conversationId) setActiveConv(conversationId);
         setMessages((prev) => {
           const next = [...prev];
           next[next.length - 1] = {
@@ -120,7 +121,7 @@ export function AgentChat() {
       value={value}
       onChange={setValue}
       onSend={() => send()}
-      onModeChange={(m) => setMode(m === "deep" ? "deep" : "fast")}
+      onModeChange={setMode}
       model={model}
       onModelChange={setModel}
       placeholder="使用'@'引用或使用'/'唤起插件或技能…"

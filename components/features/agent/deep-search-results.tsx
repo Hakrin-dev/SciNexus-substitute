@@ -46,7 +46,7 @@ interface ChatReference {
   match?: string;
 }
 
-type Mode = "fast" | "deep";
+type Mode = "fast" | "deep" | "idea" | "doubt";
 
 interface Turn {
   query: string;
@@ -176,7 +176,8 @@ export function DeepSearchResults() {
       setBusy(true);
       try {
         if (m === "fast") {
-          const { papers, summary } = await quickSearchPapers(q);
+          const { papers, summary, conversationId: returnedConversationId } = await quickSearchPapers(q, conversationId ?? undefined);
+          if (returnedConversationId) setConversationId(returnedConversationId);
           updateLast({
             papers,
             summary,
@@ -196,6 +197,7 @@ export function DeepSearchResults() {
             message: q,
             messages: history,
             model,
+            mode: m,
             conversation_id: conversationId ?? undefined,
             context: { topic: turnsRef.current[0]?.query ?? q },
           })) {
@@ -334,7 +336,7 @@ export function DeepSearchResults() {
           value={value}
           onChange={setValue}
           onSend={send}
-          onModeChange={(m) => setMode(m === "deep" ? "deep" : "fast")}
+          onModeChange={setMode}
           model={model}
           onModelChange={setModel}
           placeholder={

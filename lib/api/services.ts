@@ -243,10 +243,11 @@ export async function* sendChat(
   model?: "默认" | "订阅" | "API接入",
   conversationId?: string,
   context?: Record<string, unknown>,
+  mode?: "fast" | "deep" | "idea" | "doubt",
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
   yield* streamChat(
     "/api/chat/stream",
-    { message, messages: history, model, conversation_id: conversationId, context },
+    { message, messages: history, model, mode, conversation_id: conversationId, context },
     signal,
   );
 }
@@ -288,12 +289,14 @@ export interface QuickPaper {
  */
 export async function quickSearchPapers(
   query: string,
-): Promise<{ papers: QuickPaper[]; summary: string }> {
+  conversationId?: string,
+): Promise<{ papers: QuickPaper[]; summary: string; conversationId?: string }> {
   try {
     const json = await apiPost<Array<Record<string, unknown>>>(
       "/api/search",
-      { query },
+      { query, conversation_id: conversationId },
     );
+    const response = json as typeof json & { conversation_id?: unknown };
     const papers = (json.data ?? []).map((p) => ({
       id: String(p.id ?? ""),
       title: String(p.title ?? "Untitled"),
@@ -306,7 +309,13 @@ export async function quickSearchPapers(
       relevance: typeof p.relevance === "number" ? (p.relevance as number) : null,
       match: String(p.matchLabel ?? p.match ?? ""),
     }));
-    return { papers, summary: typeof json.summary === "string" ? json.summary : "" };
+    return {
+      papers,
+      summary: typeof json.summary === "string" ? json.summary : "",
+      conversationId: typeof response.conversation_id === "string"
+        ? response.conversation_id
+        : typeof json.meta?.conversation_id === "string" ? json.meta.conversation_id : undefined,
+    };
   } catch {
     const fallback = await searchPapers(query);
     return {

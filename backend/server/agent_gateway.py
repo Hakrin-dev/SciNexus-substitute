@@ -218,7 +218,8 @@ def _quick_summary(query: str, papers: list[dict]) -> str:
         return fallback()
 
 
-def search_papers(query: str, top_k: int = 10, task_type: str | None = None) -> dict:
+def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
+                  conversation_id: str | None = None) -> dict:
     """论文检索：直接走本地索引（快、带相关度），返回前端兼容的 {data, meta, summary}。
 
     简单论文检索不再经过慢速多智能体工作流（supervisor/scout 逐次调用 LLM，
@@ -250,6 +251,8 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None) -> 
         "meta": {
             "query": query,
             "count": len(papers),
+            "conversation_id": conversation_id or f"conv_{uuid.uuid4().hex}",
+            "run_id": f"run_{uuid.uuid4().hex}",
             "task_type": task_type or "paper_search",
             "agents": ["data_source"],
             "workflow": workflow,

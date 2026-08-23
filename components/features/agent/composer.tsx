@@ -1,32 +1,131 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import Image, { type StaticImageData } from "next/image";
 import {
   ArrowUp,
   Atom,
+  Check,
   ChevronDown,
+  ChevronRight,
   Globe,
-  Lightbulb,
   Plug,
   Plus,
   Scroll,
   Zap,
 } from "lucide-react";
-import { QuestionOutline } from "@/components/icons/question-outline";
+import chatgptLogo from "@/brand/LLM logo/ChatGPT.svg";
+import deepseekLogo from "@/brand/LLM logo/DeepSeek.png";
+import grokLogo from "@/brand/LLM logo/Grok.webp";
+import glmLogo from "@/brand/LLM logo/GLM.svg";
+import geminiLogo from "@/brand/LLM logo/Gemini.svg";
+import kimiLogo from "@/brand/LLM logo/Kimi.png";
+import qwenLogo from "@/brand/LLM logo/Qwen.svg";
 import { cn } from "@/lib/utils";
 import { AttachmentMenu } from "./attachment-menu";
 
-/** 模型路由：具体模型名由后端环境变量配置 */
-export const MODELS = ["默认", "订阅", "API接入"] as const;
-export type ModelChoice = (typeof MODELS)[number];
-
-/** 模式选择(演示):快速 / 深度 / 灵感 / 疑惑 */
-const MODES = [
+/** 回答模式:快速(闪电)/ 深度(原子核) */
+export const MODES = [
   { value: "fast", label: "快速", icon: Zap },
   { value: "deep", label: "深度", icon: Atom },
-  { value: "idea", label: "灵感", icon: Lightbulb },
-  { value: "doubt", label: "疑惑", icon: QuestionOutline },
 ] as const;
+export type ComposerMode = (typeof MODES)[number]["value"];
+
+/** 回答风格(演示) */
+export const STYLES = ["头脑风暴", "简明扼要", "全面细致", "严谨质疑"] as const;
+export type StyleChoice = (typeof STYLES)[number];
+
+/**
+ * 模型厂商与具体型号(演示数据;实际模型名由后端环境变量路由)。
+ * logo 为 brand/LLM logo 下的品牌标识;logoClass 做逐个大小适配
+ * (各源文件留白/出血不一致,如 Qwen 有效内容仅占画布约 54%,需放大)。
+ */
+export const PROVIDERS: {
+  name: string;
+  logo: StaticImageData;
+  logoClass?: string;
+  /** 源文件满出血背景、图形居中且占比小(如 Grok): overflow 裁剪 + 放大突出中间图形 */
+  logoZoom?: boolean;
+  models: readonly string[];
+}[] = [
+  {
+    name: "ChatGPT",
+    logo: chatgptLogo,
+    models: ["GPT-5.6 Sol", "GPT-5.6 Terra", "GPT-5.6 Luna", "GPT-5.5", "GPT-5.5 Pro"],
+  },
+  {
+    name: "DeepSeek",
+    logo: deepseekLogo,
+    logoClass: "scale-110",
+    models: ["DeepSeek-V4", "DeepSeek-V4 Pro", "DeepSeek-R3"],
+  },
+  {
+    name: "Grok",
+    logo: grokLogo,
+    logoClass: "scale-[1.8]",
+    logoZoom: true,
+    models: ["Grok 5", "Grok 5 Heavy", "Grok 4.2"],
+  },
+  {
+    name: "GLM",
+    logo: glmLogo,
+    models: ["GLM-5", "GLM-5 Air", "GLM-4.6"],
+  },
+  {
+    name: "Gemini",
+    logo: geminiLogo,
+    models: ["Gemini 3.5 Pro", "Gemini 3.5 Flash", "Gemini 3.0"],
+  },
+  {
+    name: "Kimi",
+    logo: kimiLogo,
+    logoClass: "rounded-[3px]",
+    models: ["Kimi K3", "Kimi K3 Thinking", "Kimi K2.5"],
+  },
+  {
+    name: "Qwen",
+    logo: qwenLogo,
+    logoClass: "scale-[1.85]",
+    models: ["Qwen4-Max", "Qwen4-Plus", "Qwen4-Turbo"],
+  },
+];
+
+export const DEFAULT_MODEL: string = PROVIDERS[0].models[0];
+
+/** 模型选择:具体模型名(演示);后端按环境变量路由到实际模型 */
+export type ModelChoice = string;
+
+/** 按具体模型名反查厂商(未识别时回退到第一个厂商) */
+function providerOf(model: string) {
+  return (
+    PROVIDERS.find((p) => p.models.includes(model)) ?? PROVIDERS[0]
+  );
+}
+
+/** 厂商 logo:固定 16px 框内 object-contain,按厂商微调缩放/圆角;logoZoom 时裁剪放大突出中间图形 */
+function ProviderLogo({
+  provider,
+}: {
+  provider: (typeof PROVIDERS)[number];
+}) {
+  const img = (
+    <Image
+      src={provider.logo}
+      alt={provider.name}
+      width={16}
+      height={16}
+      className={cn("size-4 shrink-0 object-contain", provider.logoClass)}
+    />
+  );
+  if (provider.logoZoom) {
+    return (
+      <span className="flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-[3px]">
+        {img}
+      </span>
+    );
+  }
+  return img;
+}
 
 function useCloseOnOutside(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
@@ -35,8 +134,15 @@ function useCloseOnOutside(open: boolean, close: () => void) {
     const onPointerDown = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) close();
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
     document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open, close]);
   return ref;
 }
@@ -92,79 +198,38 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
   );
 }
 
-/** 模型选择(演示):默认 / 订阅 / API接入 */
-function ModelSelect({ model, onChange }: { model: ModelChoice; onChange: (model: ModelChoice) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="flex h-7 cursor-pointer items-center gap-1 rounded-lg bg-chip px-2.5 text-xs text-ink-2 transition-colors hover:text-ink"
-      >
-        {model}
-        <ChevronDown
-          className={cn("size-3 text-faint transition-transform", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-28 rounded-xl border border-line bg-card p-1 shadow-pop">
-          {MODELS.map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => {
-                onChange(m);
-                setOpen(false);
-              }}
-              className={cn(
-                "flex h-8 w-full cursor-pointer items-center rounded-lg px-2.5 text-xs transition-colors",
-                m === model
-                  ? "bg-primary-soft font-medium text-primary"
-                  : "text-ink-2 hover:bg-chip",
-              )}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** 模式选择:蓝底白字触发钮,点击展开四种模式。支持受控模式（value/onChange）。 */
-function ModeSelect({
+/**
+ * 模型选择面板(演示):触发钮显示已选模型 logo + 具体名称;
+ * 点击展开三行——
+ *  模型:点击向下展开厂商列表,悬停厂商向右展开具体型号,选中后关闭面板;
+ *  风格:点击向下展开风格选项,选中后行标签改为所选风格名;
+ *  模式:左「快速」右「深度」分段开关——选中项伸展占满剩余空间
+ *       (图标+文字),未选中项收缩为仅图标。
+ */
+function ModelPicker({
   placement = "down",
-  value,
-  onChange,
+  model,
+  onModelChange,
+  style,
+  onStyleChange,
+  mode,
+  onModeChange,
 }: {
   placement?: "up" | "down";
-  value?: (typeof MODES)[number]["value"];
-  onChange?: (v: (typeof MODES)[number]["value"]) => void;
+  model: ModelChoice;
+  onModelChange: (m: ModelChoice) => void;
+  style: StyleChoice | null;
+  onStyleChange: (s: StyleChoice) => void;
+  mode: ComposerMode;
+  onModeChange: (v: ComposerMode) => void;
 }) {
-  const [internal, setInternal] = useState<(typeof MODES)[number]["value"]>("fast");
   const [open, setOpen] = useState(false);
+  const [section, setSection] = useState<"model" | "style" | null>(null);
   const ref = useCloseOnOutside(open, () => setOpen(false));
-  const mode = value ?? internal;
-  const current = MODES.find((m) => m.value === mode) ?? MODES[0];
+  const provider = providerOf(model);
 
-  const apply = (v: (typeof MODES)[number]["value"]) => {
-    if (onChange) onChange(v);
-    else setInternal(v);
-  };
+  const toggle = (s: "model" | "style") =>
+    setSection((cur) => (cur === s ? null : s));
 
   return (
     <div ref={ref} className="relative">
@@ -172,49 +237,161 @@ function ModeSelect({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 text-[13px] font-medium text-white transition-colors hover:bg-primary/90"
+        className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-chip px-3 text-[13px] text-ink-2 transition-colors hover:text-ink"
       >
-        <current.icon className="size-4" strokeWidth={1.8} />
-        {current.label}
+        <ProviderLogo provider={provider} />
+        <span className="max-w-36 truncate">{model}</span>
         <ChevronDown
-          className={cn("size-3.5 transition-transform", open && "rotate-180")}
+          className={cn(
+            "size-3.5 text-faint transition-transform",
+            open && "rotate-180",
+          )}
         />
       </button>
+
       {open && (
         <div
           className={cn(
-            "absolute right-0 z-50 w-36 rounded-xl border border-line bg-card p-1.5 shadow-pop",
+            "absolute left-0 z-50 w-64 rounded-xl border border-line bg-card p-1.5 shadow-pop",
             placement === "down" ? "top-full mt-2" : "bottom-full mb-2",
           )}
         >
-          {MODES.map((m) => (
-            <button
-              key={m.value}
-              type="button"
-              onClick={() => {
-                apply(m.value);
-                setOpen(false);
-              }}
-              className={cn(
-                "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors",
-                m.value === mode
-                  ? "bg-primary-soft font-medium text-primary"
-                  : "text-ink-2 hover:bg-chip",
-              )}
-            >
-              <m.icon className="size-4" strokeWidth={1.8} />
-              {m.label}
-            </button>
-          ))}
+          {/* 模型:点击向下展开厂商,悬停厂商向右展开具体型号 */}
+          <button
+            type="button"
+            aria-expanded={section === "model"}
+            onClick={() => toggle("model")}
+            className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
+          >
+            <span className="flex-1 text-left">模型</span>
+            <span className="max-w-28 truncate text-xs text-faint">{model}</span>
+            {section === "model" ? (
+              <ChevronDown className="size-3.5 shrink-0 text-faint" />
+            ) : (
+              <ChevronRight className="size-3.5 shrink-0 text-faint" />
+            )}
+          </button>
+          {section === "model" && (
+            <div className="mb-1 ml-1.5">
+              {PROVIDERS.map((p) => (
+                <div key={p.name} className="group/prov relative">
+                  <button
+                    type="button"
+                    className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 text-[13px] text-ink-2 transition-colors hover:bg-chip group-hover/prov:bg-chip"
+                  >
+                    <ProviderLogo provider={p} />
+                    <span className="flex-1 text-left">{p.name}</span>
+                    <ChevronRight className="size-3.5 text-faint" />
+                  </button>
+                  {/* 悬停向右展开的具体型号面板 */}
+                  <div className="invisible absolute left-full top-0 z-50 pl-1.5 opacity-0 transition-opacity duration-100 group-hover/prov:visible group-hover/prov:opacity-100">
+                    <div className="w-44 rounded-xl border border-line bg-card p-1 shadow-pop">
+                      {p.models.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => {
+                            onModelChange(m);
+                            setSection(null);
+                            setOpen(false);
+                          }}
+                          className={cn(
+                            "flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-xs transition-colors",
+                            m === model
+                              ? "bg-primary-soft font-medium text-primary"
+                              : "text-ink-2 hover:bg-chip",
+                          )}
+                        >
+                          <span className="flex-1 truncate text-left">{m}</span>
+                          {m === model && <Check className="size-3.5 shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 风格:点击向下展开;选中后行标签改为所选风格名 */}
+          <button
+            type="button"
+            aria-expanded={section === "style"}
+            onClick={() => toggle("style")}
+            className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
+          >
+            <span className="flex-1 text-left">{style ?? "风格"}</span>
+            {section === "style" ? (
+              <ChevronDown className="size-3.5 shrink-0 text-faint" />
+            ) : (
+              <ChevronRight className="size-3.5 shrink-0 text-faint" />
+            )}
+          </button>
+          {section === "style" && (
+            <div className="mb-1 ml-1.5">
+              {STYLES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    onStyleChange(s);
+                    setSection(null);
+                  }}
+                  className={cn(
+                    "flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] transition-colors",
+                    s === style
+                      ? "bg-primary-soft font-medium text-primary"
+                      : "text-ink-2 hover:bg-chip",
+                  )}
+                >
+                  <span className="flex-1 text-left">{s}</span>
+                  {s === style && <Check className="size-3.5 shrink-0" />}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 模式:左「快速」右「深度」;选中项伸展占满(图标+文字),未选中仅图标 */}
+          <div className="flex h-9 items-center gap-1 px-1.5">
+            {MODES.map((m) => {
+              const active = mode === m.value;
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  aria-label={m.label}
+                  aria-pressed={active}
+                  onClick={() => onModeChange(m.value)}
+                  className={cn(
+                    "flex h-7 cursor-pointer items-center overflow-hidden whitespace-nowrap rounded-lg text-xs transition-all duration-200",
+                    active
+                      ? "flex-1 justify-center gap-1 bg-primary-soft px-2 font-medium text-primary"
+                      : "w-7 shrink-0 justify-center text-muted hover:bg-chip",
+                  )}
+                >
+                  <m.icon className="size-3.5 shrink-0" strokeWidth={1.8} />
+                  {active && m.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+/** 发送键左侧轮换显示的快捷键提示(上滑:新句自下方入,旧句向上方出) */
+const SHORTCUT_HINTS = ["Shift + Enter 换行", "Alt + Enter 搜索论文"] as const;
+
+/** 轮换间隔(ms) */
+const HINT_INTERVAL = 4000;
+
 /**
  * 加高版提问框(演示):
- * 框内右上为模型选择,右下为模式选择 + 发送,左下为「+」与别针(引用菜单)。
+ * 左下为「+」、别针(引用菜单)与模型选择(模型/风格/模式);
+ * 右下为快捷键提示(发送键左侧,上滑轮换)+ 圆形发送键(常亮)。
+ * headerRight:对话态下挂在输入框右上方的仪表(任务进度条 + 上下文圆环)。
  */
 export function ComposerShell({
   value,
@@ -224,19 +401,47 @@ export function ComposerShell({
   menuPlacement = "down",
   mode,
   onModeChange,
-  model = "默认",
+  model,
   onModelChange,
+  style,
+  onStyleChange,
+  onSearchPapers,
+  headerRight,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   placeholder: string;
   menuPlacement?: "up" | "down";
-  mode?: (typeof MODES)[number]["value"];
-  onModeChange?: (v: (typeof MODES)[number]["value"]) => void;
+  mode?: ComposerMode;
+  onModeChange?: (v: ComposerMode) => void;
   model?: ModelChoice;
   onModelChange?: (model: ModelChoice) => void;
+  style?: StyleChoice | null;
+  onStyleChange?: (s: StyleChoice) => void;
+  /** Alt+Enter:检索论文(各页面自行决定结果呈现方式) */
+  onSearchPapers?: () => void;
+  /** 输入框右上方挂载的附加内容(如对话态的进度条/上下文环) */
+  headerRight?: ReactNode;
 }) {
+  const [internalMode, setInternalMode] = useState<ComposerMode>("fast");
+  const [internalModel, setInternalModel] =
+    useState<ModelChoice>(DEFAULT_MODEL);
+  const [internalStyle, setInternalStyle] = useState<StyleChoice | null>(null);
+  const [hintIndex, setHintIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(
+      () => setHintIndex((i) => (i + 1) % SHORTCUT_HINTS.length),
+      HINT_INTERVAL,
+    );
+    return () => clearInterval(timer);
+  }, []);
+
+  const modeValue = mode ?? internalMode;
+  const modelValue = model ?? internalModel;
+  const styleValue = style === undefined ? internalStyle : style;
+
   return (
     <div className="rounded-2xl bg-card p-3 shadow-pop">
       <div className="relative">
@@ -244,6 +449,12 @@ export function ComposerShell({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
+            // Alt+Enter:检索论文
+            if (e.key === "Enter" && e.altKey) {
+              e.preventDefault();
+              onSearchPapers?.();
+              return;
+            }
             if (
               e.key === "Enter" &&
               !e.shiftKey &&
@@ -255,32 +466,53 @@ export function ComposerShell({
           }}
           placeholder={placeholder}
           rows={2}
-          className="h-[72px] w-full resize-none bg-transparent px-1.5 pt-1 text-sm leading-relaxed text-ink outline-none placeholder:text-faint"
+          className={cn(
+            "h-[72px] w-full resize-none bg-transparent px-1.5 pt-1 text-sm leading-relaxed text-ink outline-none placeholder:text-faint",
+            headerRight && "pr-40",
+          )}
         />
-        {/* 右上:模型选择 */}
-        <div className="absolute right-1 top-0.5">
-          <ModelSelect model={model} onChange={onModelChange ?? (() => {})} />
-        </div>
+        {/* 右上:对话态仪表(任务进度 + 上下文占比) */}
+        {headerRight && (
+          <div className="absolute right-1 top-1">{headerRight}</div>
+        )}
       </div>
 
       <div className="mt-1 flex items-center gap-1.5">
-        {/* 左下:+(插件/技能/联网搜索)与别针(上传/引用) */}
+        {/* 左下:+(插件/技能/联网搜索)、别针(上传/引用)与模型选择 */}
         <PlusMenu placement={menuPlacement} />
         <AttachmentMenu placement={menuPlacement} />
+        <ModelPicker
+          placement={menuPlacement}
+          model={modelValue}
+          onModelChange={onModelChange ?? setInternalModel}
+          style={styleValue}
+          onStyleChange={onStyleChange ?? setInternalStyle}
+          mode={modeValue}
+          onModeChange={onModeChange ?? setInternalMode}
+        />
 
-        {/* 右下:模式选择 + 发送 */}
+        {/* 右下:快捷键提示(上滑轮换)+ 圆形发送键(常亮) */}
         <div className="ml-auto flex items-center gap-2">
-          <ModeSelect placement={menuPlacement} value={mode} onChange={onModeChange} />
+          <span className="relative h-4 w-[118px] shrink-0 select-none overflow-hidden text-right">
+            <span
+              key={`out-${hintIndex}`}
+              aria-hidden
+              className="absolute inset-0 animate-[hint-slide-out_0.45s_ease_both] text-[11px] leading-4 text-faint"
+            >
+              {SHORTCUT_HINTS[(hintIndex + 1) % SHORTCUT_HINTS.length]}
+            </span>
+            <span
+              key={`in-${hintIndex}`}
+              className="absolute inset-0 animate-[hint-slide-in_0.45s_ease_both] text-[11px] leading-4 text-faint"
+            >
+              {SHORTCUT_HINTS[hintIndex]}
+            </span>
+          </span>
           <button
             type="button"
             aria-label="发送"
             onClick={onSend}
-            className={cn(
-              "flex size-9 cursor-pointer items-center justify-center rounded-xl transition-colors",
-              value.trim()
-                ? "bg-primary text-white hover:bg-primary/90"
-                : "bg-chip text-faint",
-            )}
+            className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-primary text-white transition-colors hover:bg-primary/90"
           >
             <ArrowUp className="size-4" />
           </button>

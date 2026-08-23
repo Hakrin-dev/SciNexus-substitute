@@ -21,7 +21,11 @@ from server.serializers import serialize_paper  # noqa: E402
 
 
 def _resolve_model(model: str | None) -> str | None:
-    """把前端模型选项映射到后端环境变量，避免把真实模型名暴露给 UI。"""
+    """把前端模型选项映射到后端环境变量，避免把真实模型名暴露给 UI。
+
+    "订阅"/"API接入" 为历史路由值；前端现传入具体模型名（演示），
+    未识别的值回退到默认 LLM_MODEL。
+    """
     if model == "订阅":
         return os.getenv("LLM_SUBSCRIPTION_MODEL") or os.getenv("LLM_MODEL")
     if model == "API接入":

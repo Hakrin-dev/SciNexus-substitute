@@ -17,7 +17,7 @@ interface ChatReq {
   messages?: { role: string; content: string }[];
   task_type?: string;
   paper_id?: string;
-  model?: "默认" | "订阅" | "API接入";
+  model?: string;
 }
 
 export async function POST(req: NextRequest) {

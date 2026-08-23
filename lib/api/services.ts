@@ -240,10 +240,10 @@ export async function* sendChat(
   message: string,
   history: { role: "user" | "assistant"; content: string }[],
   signal?: AbortSignal,
-  model?: "默认" | "订阅" | "API接入",
+  model?: string,
   conversationId?: string,
   context?: Record<string, unknown>,
-  mode?: "fast" | "deep" | "idea" | "doubt",
+  mode?: "fast" | "deep",
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
   yield* streamChat(
     "/api/chat/stream",

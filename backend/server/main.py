@@ -175,10 +175,10 @@ class ChatRequest(BaseModel):
     messages: Optional[list[dict[str, Any]]] = None  # 前端/模型对话消息数组
     paper_id: Optional[str] = None          # 论文ID（论文问答/阅读场景定位论文）
     task_type: Optional[str] = None         # 显式 Agent 任务类型
-    model: Optional[str] = None              # 模型路由：默认 / 订阅 / API接入
+    model: Optional[str] = None              # 模型路由：前端选择的具体模型名（未识别的值回退默认 LLM_MODEL）
     run_id: Optional[str] = None              # 单次任务运行 ID
     context: Optional[dict[str, Any]] = None  # 前序任务产出的结构化上下文
-    mode: Optional[str] = None                # fast / deep / idea / doubt
+    mode: Optional[str] = None                # fast / deep
 
 class TranslateRequest(BaseModel):
     """学术文本翻译请求"""

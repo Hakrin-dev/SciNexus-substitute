@@ -11,6 +11,8 @@ export interface FeedPaper {
   tags: string[];
   likes: number;
   citations: number;
+  /** CCF 等级(A/B/C),用于「影响因子」排序的占位依据;无数据时为 null */
+  ccf?: string | null;
   thumb: string;
 }
 

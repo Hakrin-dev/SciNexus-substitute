@@ -135,3 +135,25 @@
     background-color: var(--color-line);
   }
 }
+
+/* 提问框快捷键提示的上滑轮换:新句自下方滑入,旧句向上方滑出 */
+@keyframes hint-slide-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes hint-slide-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}

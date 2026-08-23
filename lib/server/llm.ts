@@ -16,7 +16,8 @@ interface LLMConfig {
   model: string;
 }
 
-export type ModelChoice = "默认" | "订阅" | "API接入";
+/** 前端模型选择：具体模型名（演示）。"订阅"/"API接入" 为历史路由值，其余值回退默认模型 */
+export type ModelChoice = string;
 
 function getLLMConfig(modelChoice?: ModelChoice): LLMConfig | null {
   const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;

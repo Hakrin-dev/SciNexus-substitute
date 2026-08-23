@@ -21,7 +21,12 @@ import {
 } from "@/lib/api/services";
 import { MarkdownView } from "./markdown-view";
 import { ReferenceGrid } from "./reference-grid";
-import { ComposerShell, type ModelChoice } from "./composer";
+import {
+  ComposerShell,
+  DEFAULT_MODEL,
+  type ComposerMode,
+  type ModelChoice,
+} from "./composer";
 import type { AgentReference } from "@/types";
 
 interface WorkflowStep {
@@ -46,7 +51,7 @@ interface ChatReference {
   match?: string;
 }
 
-type Mode = "fast" | "deep" | "idea" | "doubt";
+type Mode = ComposerMode;
 
 interface Turn {
   query: string;
@@ -148,7 +153,7 @@ export function DeepSearchResults() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [value, setValue] = useState("");
   const [mode, setMode] = useState<Mode>("fast");
-  const [model, setModel] = useState<ModelChoice>("默认");
+  const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const startedRef = useRef<string | null>(null);
@@ -234,11 +239,11 @@ export function DeepSearchResults() {
     }
   }, [query, runTurn]);
 
-  const send = () => {
+  const send = (forceMode?: Mode) => {
     const q = value.trim();
     if (!q || busy) return;
     setValue("");
-    void runTurn(q, mode);
+    void runTurn(q, forceMode ?? mode);
   };
 
   return (
@@ -335,7 +340,8 @@ export function DeepSearchResults() {
         <ComposerShell
           value={value}
           onChange={setValue}
-          onSend={send}
+          onSend={() => send()}
+          onSearchPapers={() => send("fast")}
           mode={mode}
           onModeChange={setMode}
           model={model}

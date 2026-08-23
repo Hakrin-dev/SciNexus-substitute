@@ -5,7 +5,12 @@ import { MessageSquarePlus } from "lucide-react";
 import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
 import { sendChat, quickSearchPapers, formatQuickAnswer } from "@/lib/api/services";
-import { ComposerShell, type ModelChoice } from "./composer";
+import {
+  ComposerShell,
+  DEFAULT_MODEL,
+  type ComposerMode,
+  type ModelChoice,
+} from "./composer";
 import { MarkdownView } from "./markdown-view";
 
 interface Message {
@@ -33,6 +38,11 @@ const HISTORY = [
 const MOCK_REPLY =
   "后端服务暂时不可用，已回退本地演示模式。启动后端后（backend 目录运行 uvicorn），我将通过 /api/chat/stream 生成带来源引用的回答。";
 
+/** 演示用最大上下文字符数(粗略按 1 token ≈ 2 字符,折合约 16k token) */
+const MAX_CONTEXT_CHARS = 32000;
+/** 点击圆环 compact 后保留的最近消息条数 */
+const COMPACT_KEEP = 6;
+
 /** AI 助手对话页 —— 类似网页版 ChatGPT:空状态居中提问,对话后消息流 + 底部输入框 */
 export function AgentChat() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -40,19 +50,22 @@ export function AgentChat() {
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   /** 回答模式：fast=快速（scout 直检 + 简单回答，零 LLM）；deep=深度（完整多智能体工作流） */
-  const [mode, setMode] = useState<"fast" | "deep" | "idea" | "doubt">("fast");
-  const [model, setModel] = useState<ModelChoice>("默认");
+  const [mode, setMode] = useState<ComposerMode>("fast");
+  const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
+  /** compact 压缩点:仅把 compactFrom 之后的消息送入上下文(界面消息流不受影响) */
+  const [compactFrom, setCompactFrom] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const send = async (text?: string) => {
+  const send = async (text?: string, forceMode?: ComposerMode) => {
     const q = (text ?? value).trim();
     if (!q || streaming) return;
     setValue("");
-    const history = messages.map((m) => ({
+    const effectiveMode = forceMode ?? mode;
+    const history = messages.slice(compactFrom).map((m) => ({
       role: m.role,
       content: m.content,
     }));
@@ -63,12 +76,12 @@ export function AgentChat() {
     ]);
     setStreaming(true);
     try {
-      if (mode !== "fast") {
+      if (effectiveMode !== "fast") {
         // 深度模式：完整多智能体工作流（Supervisor → scout/synthesis/... → LLM 组合回答）
         let acc = "";
         for await (const event of sendChat(q, history, undefined, model, activeConv ?? undefined, {
           topic: messages[0]?.content ?? q,
-        }, mode)) {
+        }, effectiveMode)) {
           if (event.type === "meta" && event.meta.conversation_id) {
             setActiveConv(event.meta.conversation_id);
           }
@@ -116,17 +129,81 @@ export function AgentChat() {
     }
   };
 
+  /** 对话态输入框右上仪表:细进度条(已完成回合/总回合)+ 细圆环(上下文占比,点击 compact) */
+  const totalTurns = messages.filter((m) => m.role === "user").length;
+  const doneTurns = messages.filter(
+    (m) => m.role === "assistant" && m.content,
+  ).length;
+  const progress = totalTurns > 0 ? doneTurns / totalTurns : 0;
+  const contextChars = messages
+    .slice(compactFrom)
+    .reduce((n, m) => n + m.content.length, 0);
+  const contextRatio = Math.min(1, contextChars / MAX_CONTEXT_CHARS);
+  /** 圆环周长(r=6.5) */
+  const RING_C = 40.84;
+
+  const meters =
+    messages.length > 0 ? (
+      <div className="flex items-center gap-2.5">
+        <div
+          role="progressbar"
+          aria-valuenow={Math.round(progress * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          title={`任务进度:${doneTurns}/${totalTurns} 步`}
+          className="h-1 w-24 overflow-hidden rounded-full bg-chip"
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-500"
+            style={{ width: `${progress * 100}%` }}
+          />
+        </div>
+        <button
+          type="button"
+          aria-label="压缩上下文"
+          title={`上下文占用约 ${Math.round(contextRatio * 100)}%(点击 compact 压缩)`}
+          onClick={() =>
+            setCompactFrom(Math.max(0, messages.length - COMPACT_KEEP))
+          }
+          className="flex cursor-pointer items-center justify-center"
+        >
+          <svg viewBox="0 0 16 16" className="size-4 -rotate-90">
+            <circle
+              cx="8"
+              cy="8"
+              r="6.5"
+              fill="none"
+              strokeWidth="1.5"
+              className="stroke-line"
+            />
+            <circle
+              cx="8"
+              cy="8"
+              r="6.5"
+              fill="none"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              className="stroke-primary transition-all duration-500"
+              strokeDasharray={`${contextRatio * RING_C} ${RING_C}`}
+            />
+          </svg>
+        </button>
+      </div>
+    ) : null;
+
   const composer = (
     <ComposerShell
       value={value}
       onChange={setValue}
       onSend={() => send()}
+      onSearchPapers={() => send(undefined, "fast")}
       mode={mode}
       onModeChange={setMode}
       model={model}
       onModelChange={setModel}
       placeholder="使用'@'引用或使用'/'唤起插件或技能…"
-      menuPlacement="down"
+      menuPlacement={messages.length === 0 ? "down" : "up"}
+      headerRight={meters}
     />
   );
 
@@ -139,6 +216,7 @@ export function AgentChat() {
           setMessages([]);
           setActiveConv(null);
           setValue("");
+          setCompactFrom(0);
         }}
         className="flex h-10 shrink-0 cursor-pointer items-center gap-2.5 rounded-xl bg-primary px-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
       >

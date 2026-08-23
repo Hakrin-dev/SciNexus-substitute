@@ -25,7 +25,7 @@ interface ChatReq {
   messages?: { role: string; content: string }[];
   task_type?: string;
   paper_id?: string;
-  model?: "默认" | "订阅" | "API接入";
+  model?: string;
 }
 
 /** 从 messages 中提取多轮历史（排除最后一条用户消息），最多保留最近 24 条 */

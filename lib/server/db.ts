@@ -375,6 +375,7 @@ export function mapPaper(r: any) {
     tags: jsonParse<string[]>(r.tags_json, []),
     likes: r.likes,
     citations: r.citations,
+    ccf: r.ccf ?? null,
     thumb: r.thumb,
   };
 }

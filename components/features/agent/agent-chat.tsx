@@ -139,8 +139,8 @@ export function AgentChat() {
     .slice(compactFrom)
     .reduce((n, m) => n + m.content.length, 0);
   const contextRatio = Math.min(1, contextChars / MAX_CONTEXT_CHARS);
-  /** 圆环周长(r=6.5) */
-  const RING_C = 40.84;
+  /** 圆环周长(r=8) */
+  const RING_C = 50.27;
 
   const meters =
     messages.length > 0 ? (
@@ -167,19 +167,19 @@ export function AgentChat() {
           }
           className="flex cursor-pointer items-center justify-center"
         >
-          <svg viewBox="0 0 16 16" className="size-4 -rotate-90">
+          <svg viewBox="0 0 20 20" className="size-5 -rotate-90">
             <circle
-              cx="8"
-              cy="8"
-              r="6.5"
+              cx="10"
+              cy="10"
+              r="8"
               fill="none"
               strokeWidth="1.5"
               className="stroke-line"
             />
             <circle
-              cx="8"
-              cy="8"
-              r="6.5"
+              cx="10"
+              cy="10"
+              r="8"
               fill="none"
               strokeWidth="1.5"
               strokeLinecap="round"

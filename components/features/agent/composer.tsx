@@ -60,11 +60,9 @@ export const PROVIDERS: {
     models: ["DeepSeek-V4", "DeepSeek-V4 Pro", "DeepSeek-R3"],
   },
   {
-    name: "Grok",
-    logo: grokLogo,
-    logoClass: "scale-[1.8]",
-    logoZoom: true,
-    models: ["Grok 5", "Grok 5 Heavy", "Grok 4.2"],
+    name: "Gemini",
+    logo: geminiLogo,
+    models: ["Gemini 3.5 Pro", "Gemini 3.5 Flash", "Gemini 3.0"],
   },
   {
     name: "GLM",
@@ -72,9 +70,11 @@ export const PROVIDERS: {
     models: ["GLM-5", "GLM-5 Air", "GLM-4.6"],
   },
   {
-    name: "Gemini",
-    logo: geminiLogo,
-    models: ["Gemini 3.5 Pro", "Gemini 3.5 Flash", "Gemini 3.0"],
+    name: "Grok",
+    logo: grokLogo,
+    logoClass: "scale-[1.8]",
+    logoZoom: true,
+    models: ["Grok 5", "Grok 5 Heavy", "Grok 4.2"],
   },
   {
     name: "Kimi",
@@ -237,7 +237,7 @@ function ModelPicker({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-chip px-3 text-[13px] text-ink-2 transition-colors hover:text-ink"
+        className="flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-primary bg-transparent px-3 text-[13px] text-ink-2 transition-colors hover:bg-primary-soft hover:text-ink"
       >
         <ProviderLogo provider={provider} />
         <span className="max-w-36 truncate">{model}</span>

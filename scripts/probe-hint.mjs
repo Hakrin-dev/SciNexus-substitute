@@ -59,29 +59,27 @@ async function evalJs(expression) {
 }
 
 const SAMPLE = `(() => {
-  const spans = [...document.querySelectorAll("span")].filter(
-    (s) => s.textContent.includes("Enter") && s.className.includes("absolute"));
-  return spans.map((s) => {
+  const box = [...document.querySelectorAll("span")].find(
+    (s) => s.className.includes("overflow-hidden") && s.className.includes("text-right"));
+  if (!box) return "hint container not found";
+  return [...box.children].map((s) => {
     const cs = getComputedStyle(s);
     return (s.getAttribute("aria-hidden") ? "OUT" : "IN") +
-      " [" + s.textContent + "] opacity=" + cs.opacity +
-      " anim=" + cs.animationName;
+      " [" + s.textContent + "] opacity=" + cs.opacity;
   }).join(" | ");
 })()`;
 
 const deadline = Date.now() + 45000;
 while (Date.now() < deadline) {
-  if (await evalJs(`document.body ? document.body.innerText.includes("Enter") : false`)) break;
+  if (await evalJs(`document.body ? document.body.innerText.includes("搜索论文") : false`)) break;
   await sleep(250);
 }
 await sleep(500);
-console.log("t0  :", await evalJs(SAMPLE));
-await sleep(2200);
-console.log("t+2.2s(动画中):", await evalJs(SAMPLE));
-await sleep(2300);
-console.log("t+4.5s:", await evalJs(SAMPLE));
-await sleep(4100);
-console.log("t+8.6s:", await evalJs(SAMPLE));
+// 3 秒间隔、4 句轮换:每 1.6s 采样一次,覆盖一个多周期
+for (let i = 0; i < 9; i++) {
+  console.log(`t+${(i * 1.6).toFixed(1)}s:`, await evalJs(SAMPLE));
+  await sleep(1600);
+}
 
 edge.kill();
 setTimeout(() => {

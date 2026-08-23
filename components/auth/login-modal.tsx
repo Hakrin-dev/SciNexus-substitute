@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { X } from "lucide-react";
+import githubLogo from "@/brand/LOGO/Github.png";
+import googleLogo from "@/brand/LOGO/Google.svg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,7 +13,7 @@ import { useAuthStore } from "@/stores/auth";
 
 /**
  * 登录弹窗(纯演示,不做真实登录/注册逻辑)
- * 三个 Tab:账密登录 / 验证码登录 / 注册
+ * 三个 Tab:账密登录 / 免密登录(验证码 + GitHub/Google 关联登录) / 注册
  */
 
 interface LoginModalProps {
@@ -77,7 +80,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
         <Tabs defaultValue="password" className="mt-4">
           <TabsList className="w-full justify-start border-b border-line">
             <TabsTrigger value="password">账密登录</TabsTrigger>
-            <TabsTrigger value="code">验证码登录</TabsTrigger>
+            <TabsTrigger value="code">免密登录</TabsTrigger>
             <TabsTrigger value="register">注册</TabsTrigger>
           </TabsList>
 
@@ -112,6 +115,45 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
             <Button className="mt-1 w-full" onClick={handleLogin}>
               登录
             </Button>
+
+            {/* 分割线 + 第三方关联登录 */}
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-xs text-faint">其他登录方式</span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={handleLogin}
+                className="w-full"
+              >
+                <Image
+                  src={githubLogo}
+                  alt="GitHub"
+                  width={16}
+                  height={16}
+                  className="size-4 rounded-full"
+                />
+                GitHub 登录
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={handleLogin}
+                className="w-full"
+              >
+                <Image
+                  src={googleLogo}
+                  alt="Google"
+                  width={16}
+                  height={16}
+                  className="size-4"
+                />
+                Google 登录
+              </Button>
+            </div>
           </TabsContent>
 
           <TabsContent value="register" className="mt-5 flex flex-col gap-4">

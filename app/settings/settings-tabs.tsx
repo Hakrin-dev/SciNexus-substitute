@@ -18,6 +18,7 @@ import {
   Monitor,
   Moon,
   Newspaper,
+  Plug,
   Smile,
   Sun,
   Trophy,
@@ -31,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
+import { SkillScroll } from "@/components/icons/skill-scroll";
 
 /**
  * MCP 图标:官方 logo 的结形路径,改为 currentColor 描边,
@@ -59,8 +61,10 @@ export const SETTINGS_TABS = [
   { value: "profile", label: "个人", icon: UserRound },
   { value: "usage", label: "用量统计", icon: BarChart3 },
   { value: "agent", label: "Agent设置", icon: Bot },
-  { value: "mcp", label: "MCP", icon: null },
-  { value: "api", label: "API", icon: KeyRound },
+  { value: "mcp", label: "MCP Server", icon: null },
+  { value: "plugin-market", label: "Plugin Market", icon: Plug },
+  { value: "skills-bank", label: "Skills Bank", icon: SkillScroll },
+  { value: "api", label: "API Keys", icon: KeyRound },
   { value: "notifications", label: "通知", icon: Bell },
 ] as const;
 
@@ -450,6 +454,12 @@ export function SettingsTabs() {
       </TabsContent>
       <TabsContent value="mcp" className="mt-6">
         <Placeholder text="MCP 服务器配置(演示占位)" />
+      </TabsContent>
+      <TabsContent value="plugin-market" className="mt-6">
+        <Placeholder text="Plugin Market(演示占位)" />
+      </TabsContent>
+      <TabsContent value="skills-bank" className="mt-6">
+        <Placeholder text="Skills Bank(演示占位)" />
       </TabsContent>
       <TabsContent value="api" className="mt-6">
         <Placeholder text="API 密钥管理(演示占位)" />

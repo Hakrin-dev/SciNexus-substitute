@@ -201,7 +201,7 @@ export function AgentChat() {
       onModeChange={setMode}
       model={model}
       onModelChange={setModel}
-      placeholder="使用'@'引用或使用'/'唤起插件或技能…"
+      placeholder="帮我找一下关于扩散模型在机器人控制中的最新综述…"
       menuPlacement={messages.length === 0 ? "down" : "up"}
       headerRight={meters}
     />

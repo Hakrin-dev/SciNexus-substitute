@@ -11,16 +11,16 @@ import {
   Globe,
   Plug,
   Plus,
-  Scroll,
   Zap,
 } from "lucide-react";
-import chatgptLogo from "@/brand/LLM logo/ChatGPT.svg";
-import deepseekLogo from "@/brand/LLM logo/DeepSeek.png";
-import grokLogo from "@/brand/LLM logo/Grok.webp";
-import glmLogo from "@/brand/LLM logo/GLM.svg";
-import geminiLogo from "@/brand/LLM logo/Gemini.svg";
-import kimiLogo from "@/brand/LLM logo/Kimi.png";
-import qwenLogo from "@/brand/LLM logo/Qwen.svg";
+import { SkillScroll } from "@/components/icons/skill-scroll";
+import chatgptLogo from "@/brand/LOGO/ChatGPT.svg";
+import deepseekLogo from "@/brand/LOGO/DeepSeek.png";
+import grokLogo from "@/brand/LOGO/Grok.webp";
+import glmLogo from "@/brand/LOGO/GLM.svg";
+import geminiLogo from "@/brand/LOGO/Gemini.svg";
+import kimiLogo from "@/brand/LOGO/Kimi.png";
+import qwenLogo from "@/brand/LOGO/Qwen.svg";
 import { cn } from "@/lib/utils";
 import { AttachmentMenu } from "./attachment-menu";
 
@@ -37,7 +37,7 @@ export type StyleChoice = (typeof STYLES)[number];
 
 /**
  * 模型厂商与具体型号(演示数据;实际模型名由后端环境变量路由)。
- * logo 为 brand/LLM logo 下的品牌标识;logoClass 做逐个大小适配
+ * logo 为 brand/LOGO 下的品牌标识;logoClass 做逐个大小适配
  * (各源文件留白/出血不一致,如 Qwen 有效内容仅占画布约 54%,需放大)。
  */
 export const PROVIDERS: {
@@ -154,7 +154,7 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
 
   const ITEMS = [
     { label: "插件", icon: Plug },
-    { label: "技能", icon: Scroll },
+    { label: "技能", icon: SkillScroll },
     { label: "联网搜索", icon: Globe },
   ];
 
@@ -382,10 +382,15 @@ function ModelPicker({
 }
 
 /** 发送键左侧轮换显示的快捷键提示(上滑:新句自下方入,旧句向上方出) */
-const SHORTCUT_HINTS = ["Shift + Enter 换行", "Alt + Enter 搜索论文"] as const;
+const SHORTCUT_HINTS = [
+  "Alt + Enter 搜索论文",
+  "使用 @ 唤起引用",
+  "Shift + Enter 换行",
+  "使用 / 唤起插件或技能",
+] as const;
 
 /** 轮换间隔(ms) */
-const HINT_INTERVAL = 4000;
+const HINT_INTERVAL = 3000;
 
 /**
  * 加高版提问框(演示):
@@ -493,13 +498,17 @@ export function ComposerShell({
 
         {/* 右下:快捷键提示(上滑轮换)+ 圆形发送键(常亮) */}
         <div className="ml-auto flex items-center gap-2">
-          <span className="relative h-4 w-[118px] shrink-0 select-none overflow-hidden text-right">
+          <span className="relative h-4 w-[124px] shrink-0 select-none overflow-hidden text-right">
             <span
               key={`out-${hintIndex}`}
               aria-hidden
               className="absolute inset-0 animate-[hint-slide-out_0.45s_ease_both] text-[11px] leading-4 text-faint"
             >
-              {SHORTCUT_HINTS[(hintIndex + 1) % SHORTCUT_HINTS.length]}
+              {
+                SHORTCUT_HINTS[
+                  (hintIndex + SHORTCUT_HINTS.length - 1) % SHORTCUT_HINTS.length
+                ]
+              }
             </span>
             <span
               key={`in-${hintIndex}`}

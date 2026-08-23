@@ -78,7 +78,7 @@ function TabsTrigger({
       data-state={selected ? "active" : "inactive"}
       data-slot="tabs-trigger"
       className={cn(
-        "cursor-pointer rounded-lg px-3 py-1.5 text-sm text-muted transition-colors hover:text-ink",
+        "shrink-0 cursor-pointer whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted transition-colors hover:text-ink",
         "data-[state=active]:text-primary data-[state=active]:font-medium",
         className,
       )}

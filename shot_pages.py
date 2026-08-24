@@ -16,6 +16,8 @@ pages = [
     ('/scholars', 'f_scholars.png', 1440, 1250),
     ('/scholars/kaiming-he', 'f_scholar_detail.png', 1440, 1500),
     ('/knowledge', 'f_knowledge.png', 1440, 900),
+    ('/projects/scinexus', 'f_workbench_thread.png', 1680, 1450),
+    ('/projects/scinexus?view=overview', 'f_workbench_overview.png', 1680, 1550),
     ('/agents', 'f_agents.png', 1440, 1500),
     ('/agents/deep-search?q=diffusion', 'f_deep_search.png', 1440, 1650),
     ('/agents/deep-research', 'f_dr_home.png', 1440, 1250),

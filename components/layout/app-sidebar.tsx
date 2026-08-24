@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import {
+  Archive,
   ChevronDown,
   Compass,
-  Folder,
-  FolderOpen,
+  Database,
   History,
   Library,
   LogOut,
@@ -17,8 +17,10 @@ import {
   Plus,
   Send,
   User,
+  Wrench,
 } from "lucide-react";
 import { PromptCircle } from "@/components/icons/prompt-circle";
+import { WorkbenchGrid } from "@/components/icons/workbench-grid";
 import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
 import { useProjects } from "@/lib/api/services";
@@ -38,30 +40,57 @@ interface NavItem {
   matchPrefix?: string;
 }
 
+interface SubNavItem {
+  href: string;
+  label: string;
+  /** 无对应页面时禁用(即将上线) */
+  disabled?: boolean;
+}
+
+/** 「发现」的副标题:学者 / 机构(路由仍在 /knowledge 下) */
+const DISCOVER_SUB_NAV: SubNavItem[] = [
+  { href: "/knowledge/scholars", label: "学者" },
+  { href: "/knowledge/institutions", label: "机构" },
+];
+
 const RESEARCH_NAV: NavItem[] = [
-  { href: "/", label: "发现", icon: Compass, badge: "新" },
   // AI 助手无子栏目,用前缀匹配让 /agents/deep-search 等子页保持高亮
   { href: "/agents", label: "AI 助手", icon: PromptCircle, matchPrefix: "/agents" },
 ];
 
-/** 「投稿」为单页(会议 / 期刊 / 投递历史 在页内切换),用前缀匹配保持高亮 */
+/** 「知识库」的副标题 */
+const KNOWLEDGE_SUB_NAV: SubNavItem[] = [
+  { href: "/knowledge/papers", label: "论文" },
+  { href: "/knowledge/notes", label: "笔记", disabled: true },
+  { href: "/knowledge/memory", label: "记忆", disabled: true },
+];
+
+/** 「工具库」的副标题 */
+const TOOLS_SUB_NAV: SubNavItem[] = [
+  { href: "/tools/skills", label: "技能" },
+  { href: "/tools/plugins", label: "插件" },
+  { href: "/tools/mcp", label: "MCP" },
+];
+
+/** 「投稿」为单页(会议 / 期刊 在页内切换),精确匹配——/submit/history 归属「投稿历史」 */
 const SUBMIT_NAV: NavItem = {
   href: "/submit",
   label: "投稿",
   icon: Send,
-  matchPrefix: "/submit",
 };
 
-/** 「知识库」的子栏目 */
-const KNOWLEDGE_SUB_NAV = [
-  { href: "/knowledge/papers", label: "论文库" },
-  { href: "/knowledge/scholars", label: "学者关系" },
-  { href: "/knowledge/institutions", label: "研究机构" },
-];
+const DATABASE_NAV: NavItem = {
+  href: "/database",
+  label: "数据库",
+  icon: Database,
+  disabled: true,
+};
 
+/** 「投稿历史」即原投稿页的 History 视图(/submit/history) */
 const HISTORY_NAV: NavItem[] = [
-  { href: "/history", label: "搜索", icon: History, disabled: true },
-  { href: "/my-projects", label: "项目", icon: FolderOpen, disabled: true },
+  { href: "/history", label: "浏览记录", icon: History, disabled: true },
+  { href: "/my-projects", label: "归档项目", icon: Archive, disabled: true },
+  { href: "/submit/history", label: "投稿历史", icon: Send, matchPrefix: "/submit/history" },
 ];
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
@@ -142,7 +171,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
 }
 
 /**
- * 可展开导航项(知识库 / 科研项目)—— 展开状态存于全局 store。
+ * 可展开导航项(发现 / 知识库 / 课题工作台 / 工具库)—— 展开状态存于全局 store。
  * 折叠/展开规则(与 NavLink / 设置菜单一致):
  * - 不论侧边栏当前展开与否,点击主标题或副标题都会展开侧边栏并展开副标题;
  * - 其他普通栏目点击后一律折叠(见 NavLink);
@@ -155,32 +184,49 @@ function ExpandableNav({
   subNav,
   collapsed,
   footer,
+  badge,
+  noNav,
+  matchPrefixes,
+  excludePrefixes,
 }: {
   href: string;
   label: string;
   icon: typeof Compass;
-  subNav: { href: string; label: string }[];
+  subNav: SubNavItem[];
   collapsed: boolean;
   /** 子栏目列表末尾的附加内容(如「新建项目」) */
   footer?: React.ReactNode;
+  badge?: string;
+  /** 主标题无对应页面:点击只展开副标题,不跳转 */
+  noNav?: boolean;
+  /** 额外的高亮前缀(如「发现」附带学者/机构页) */
+  matchPrefixes?: string[];
+  /** 从 href 前缀匹配中排除的路径(如「知识库」不含学者/机构页) */
+  excludePrefixes?: string[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const routeActive = pathname.startsWith(href);
+  const excluded =
+    excludePrefixes?.some((p) => pathname.startsWith(p)) ?? false;
+  const routeActive =
+    (href === "/"
+      ? pathname === "/"
+      : pathname.startsWith(href) && !excluded) ||
+    (matchPrefixes?.some((p) => pathname.startsWith(p)) ?? false);
   const stored = useSidebarStore((s) => s.expanded[href]);
   const setExpanded = useSidebarStore((s) => s.setExpanded);
   const setCollapsed = useSidebarStore((s) => s.setCollapsed);
   const open = stored ?? routeActive;
   /** 主页是否独立于副标题(如 AI 助手:/agents 不是任何副标题页) */
   const hasOwnPage = !subNav.some((s) => s.href === href);
-  /** 跳转目标:有主标题页跳主标题页,没有则跳第一个副标题页 */
-  const dest = hasOwnPage ? href : subNav[0].href;
+  /** 跳转目标:有主标题页跳主标题页,没有则跳第一个可用副标题页 */
+  const dest = hasOwnPage ? href : (subNav.find((s) => !s.disabled)?.href ?? href);
 
   /** 点击主标题:展开侧边栏与副标题,并按跳转规则跳转 */
   const handleMainClick = () => {
     setCollapsed(false);
     if (!open) setExpanded(href, true);
-    if (pathname !== dest) router.push(dest);
+    if (!noNav && pathname !== dest) router.push(dest);
   };
 
   if (collapsed) {
@@ -192,7 +238,7 @@ function ExpandableNav({
           // 图标栏:点击可展开栏目 → 展开侧边栏并展开副标题
           setCollapsed(false);
           setExpanded(href, true);
-          if (pathname !== dest) router.push(dest);
+          if (!noNav && pathname !== dest) router.push(dest);
         }}
         className={cn(
           "flex h-10 shrink-0 items-center justify-center rounded-xl transition-colors",
@@ -223,6 +269,11 @@ function ExpandableNav({
         >
           <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
           <span className="flex-1 text-[15px] font-medium">{label}</span>
+          {badge && (
+            <span className="rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+              {badge}
+            </span>
+          )}
         </button>
         <button
           type="button"
@@ -241,6 +292,17 @@ function ExpandableNav({
         <div className="mt-0.5 flex flex-col gap-0.5 pl-6">
           {subNav.map((sub) => {
             const active = pathname === sub.href;
+            if (sub.disabled) {
+              return (
+                <span
+                  key={sub.href}
+                  title="即将上线"
+                  className="flex h-9 cursor-not-allowed items-center rounded-lg px-3 text-sm text-muted/50"
+                >
+                  {sub.label}
+                </span>
+              );
+            }
             return (
               <Link
                 key={sub.href}
@@ -368,20 +430,22 @@ export function AppSidebar() {
             研究
           </p>
         )}
+        <ExpandableNav
+          href="/"
+          label="发现"
+          icon={Compass}
+          subNav={DISCOVER_SUB_NAV}
+          collapsed={collapsed}
+          badge="新"
+          matchPrefixes={["/knowledge/scholars", "/knowledge/institutions", "/scholars"]}
+        />
         {RESEARCH_NAV.map((item) => (
           <NavLink key={item.label} item={item} collapsed={collapsed} />
         ))}
         <ExpandableNav
-          href="/knowledge"
-          label="知识库"
-          icon={Library}
-          subNav={KNOWLEDGE_SUB_NAV}
-          collapsed={collapsed}
-        />
-        <ExpandableNav
           href="/projects"
-          label="科研项目"
-          icon={Folder}
+          label="课题工作台"
+          icon={WorkbenchGrid}
           subNav={projectSubNav}
           collapsed={collapsed}
           footer={
@@ -396,6 +460,28 @@ export function AppSidebar() {
           }
         />
         <NavLink item={SUBMIT_NAV} collapsed={collapsed} />
+        {!collapsed && (
+          <p className="shrink-0 px-3 pb-1.5 pt-4 text-[11px] font-medium tracking-wide text-faint">
+            库
+          </p>
+        )}
+        <ExpandableNav
+          href="/knowledge"
+          label="知识库"
+          icon={Library}
+          subNav={KNOWLEDGE_SUB_NAV}
+          collapsed={collapsed}
+          excludePrefixes={["/knowledge/scholars", "/knowledge/institutions"]}
+        />
+        <ExpandableNav
+          href="/tools"
+          label="工具库"
+          icon={Wrench}
+          subNav={TOOLS_SUB_NAV}
+          collapsed={collapsed}
+          noNav
+        />
+        <NavLink item={DATABASE_NAV} collapsed={collapsed} />
         {!collapsed && (
           <p className="shrink-0 px-3 pb-1.5 pt-4 text-[11px] font-medium tracking-wide text-faint">
             历史

@@ -10,7 +10,7 @@ const KIND_TABS = [
   { value: "journal", label: "期刊" },
 ] as const;
 
-const STATUS_TABS = ["Deadline", "Tracking", "Rebuttal", "History"] as const;
+const STATUS_TABS = ["Deadline", "Tracking", "Rebuttal"] as const;
 
 type KindTab = (typeof KIND_TABS)[number]["value"];
 type StatusTab = (typeof STATUS_TABS)[number];
@@ -47,8 +47,8 @@ const DELIVERIES = [
   },
 ];
 
-/** 投递历史列表(演示) */
-function DeliveryHistory() {
+/** 投递历史列表(演示);独立页面见 /submit/history(侧边栏「历史 > 投稿历史」) */
+export function DeliveryHistory() {
   return (
     <div className="mt-5 space-y-2">
       {DELIVERIES.map((d) => (
@@ -71,7 +71,7 @@ function DeliveryHistory() {
   );
 }
 
-/** 投稿页 —— 同一行双 tab:会议/期刊 + Deadline/Tracking/Rebuttal/History */
+/** 投稿页 —— 同一行双 tab:会议/期刊 + Deadline/Tracking/Rebuttal */
 export function SubmitHome() {
   const [kind, setKind] = useState<KindTab>("conference");
   const [status, setStatus] = useState<StatusTab>("Deadline");
@@ -99,7 +99,7 @@ export function SubmitHome() {
           ))}
         </div>
 
-        {/* Deadline / Tracking / Rebuttal / History */}
+        {/* Deadline / Tracking / Rebuttal */}
         <div className="flex w-fit rounded-full bg-sidebar p-1">
           {STATUS_TABS.map((t) => (
             <button
@@ -121,11 +121,7 @@ export function SubmitHome() {
       </div>
 
       <div className="mt-5">
-        {status === "History" ? (
-          <DeliveryHistory />
-        ) : (
-          <SubmitBrowser kind={kind} />
-        )}
+        <SubmitBrowser kind={kind} />
       </div>
     </>
   );

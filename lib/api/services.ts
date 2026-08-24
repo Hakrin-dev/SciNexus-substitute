@@ -18,6 +18,24 @@ import { libraryItems } from "@/lib/data/library";
 import { scholars as mockScholars, scholarDetail as mockScholarDetail } from "@/lib/data/scholars";
 import { institutions as mockInstitutions } from "@/lib/data/institutions";
 import { getProject as mockGetProject, projects as mockProjects } from "@/lib/data/projects";
+import {
+  workbenchActivity as wbActivity,
+  workbenchAgentTasks as wbAgentTasks,
+  workbenchAssets as wbAssets,
+  workbenchCards as wbCards,
+  workbenchOutline as wbOutline,
+  workbenchOverview as wbOverview,
+  workbenchThreads as wbThreads,
+} from "@/lib/data/workbench";
+import type {
+  ActivityEntry,
+  AgentTask,
+  OutlineNode,
+  ResearchThread,
+  ThreadCard,
+  WorkbenchAsset,
+  WorkbenchOverview,
+} from "@/lib/data/workbench";
 import { privateGraph as mockPrivateGraph, publicGraph as mockPublicGraph } from "@/lib/data/knowledge-graph";
 import { paperDetail as mockPaperDetail } from "@/lib/data/paper-detail";
 import type { Project } from "@/lib/data/projects";
@@ -178,6 +196,127 @@ export function useProject(id: string) {
     },
     placeholderData: mockGetProject(id),
     staleTime: 60_000,
+  });
+}
+
+/* ── 课题工作台(后端端点未上线,当前恒为 mock 回退)────────────── */
+
+/** 研究大纲树 */
+export function useProjectOutline(id: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "outline"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<OutlineNode[]>(`/api/projects/${id}/outline`);
+        return json.data ?? wbOutline;
+      } catch {
+        return wbOutline;
+      }
+    },
+    placeholderData: wbOutline,
+    staleTime: 60_000,
+  });
+}
+
+/** 研究线程列表 */
+export function useProjectThreads(id: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "threads"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<ResearchThread[]>(`/api/projects/${id}/threads`);
+        return json.data ?? wbThreads;
+      } catch {
+        return wbThreads;
+      }
+    },
+    placeholderData: wbThreads,
+    staleTime: 60_000,
+  });
+}
+
+/** 全部线程卡片(按线程过滤由组件完成) */
+export function useThreadCards(id: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "thread-cards"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<ThreadCard[]>(`/api/projects/${id}/thread-cards`);
+        return json.data ?? wbCards;
+      } catch {
+        return wbCards;
+      }
+    },
+    placeholderData: wbCards,
+    staleTime: 60_000,
+  });
+}
+
+/** 工作台资产 */
+export function useWorkbenchAssets(id: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "assets"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<WorkbenchAsset[]>(`/api/projects/${id}/assets`);
+        return json.data ?? wbAssets;
+      } catch {
+        return wbAssets;
+      }
+    },
+    placeholderData: wbAssets,
+    staleTime: 60_000,
+  });
+}
+
+/** 活动日志 */
+export function useWorkbenchActivity(id: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "activity"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<ActivityEntry[]>(`/api/projects/${id}/activity`);
+        return json.data ?? wbActivity;
+      } catch {
+        return wbActivity;
+      }
+    },
+    placeholderData: wbActivity,
+    staleTime: 60_000,
+  });
+}
+
+/** 概览聚合 */
+export function useWorkbenchOverview(id: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "overview"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<WorkbenchOverview>(`/api/projects/${id}/overview`);
+        return json.data ?? wbOverview;
+      } catch {
+        return wbOverview;
+      }
+    },
+    placeholderData: wbOverview,
+    staleTime: 60_000,
+  });
+}
+
+/** Agent 任务状态(底部状态栏) */
+export function useAgentTasks(id: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "agent-tasks"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<AgentTask[]>(`/api/projects/${id}/tasks`);
+        return json.data ?? wbAgentTasks;
+      } catch {
+        return wbAgentTasks;
+      }
+    },
+    placeholderData: wbAgentTasks,
+    staleTime: 30_000,
   });
 }
 

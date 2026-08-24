@@ -18,7 +18,6 @@ import {
   Monitor,
   Moon,
   Newspaper,
-  Plug,
   Smile,
   Sun,
   Trophy,
@@ -32,38 +31,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
-import { SkillScroll } from "@/components/icons/skill-scroll";
-
-/**
- * MCP 图标:官方 logo 的结形路径,改为 currentColor 描边,
- * 与其他 lucide 图标同源同风格(随文字颜色变化)
- */
-export function McpIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="10 24 166 166"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={12}
-      strokeLinecap="round"
-      aria-hidden
-      className={className}
-    >
-      <path d="M25 97.8528L92.8823 29.9706C102.255 20.598 117.451 20.598 126.823 29.9706V29.9706C136.196 39.3431 136.196 54.5391 126.823 63.9117L75.5581 115.177" />
-      <path d="M76.2653 114.47L126.823 63.9117C136.196 54.5391 151.392 54.5391 160.765 63.9117L161.118 64.2652C170.491 73.6378 170.491 88.8338 161.118 98.2063L99.7248 159.6C96.6006 162.724 96.6006 167.789 99.7248 170.913L112.331 183.52" />
-      <path d="M109.853 46.9411L59.6482 97.1457C50.2757 106.518 50.2757 121.714 59.6482 131.087V131.087C69.0208 140.459 84.2168 140.459 93.5894 131.087L143.794 80.8822" />
-    </svg>
-  );
-}
 
 /** 设置页 Tab(顺序与侧边栏浮动标签栏一致) */
 export const SETTINGS_TABS = [
   { value: "profile", label: "个人", icon: UserRound },
   { value: "usage", label: "用量统计", icon: BarChart3 },
   { value: "agent", label: "Agent设置", icon: Bot },
-  { value: "mcp", label: "MCP Server", icon: null },
-  { value: "plugin-market", label: "Plugin Market", icon: Plug },
-  { value: "skills-bank", label: "Skills Bank", icon: SkillScroll },
   { value: "api", label: "API Keys", icon: KeyRound },
   { value: "notifications", label: "通知", icon: Bell },
 ] as const;
@@ -433,11 +406,7 @@ export function SettingsTabs() {
       <TabsList className="gap-4 border-b border-line">
         {SETTINGS_TABS.map((t) => (
           <TabsTrigger key={t.value} value={t.value} className="flex items-center gap-1.5">
-            {t.icon ? (
-              <t.icon className="size-4" strokeWidth={1.8} />
-            ) : (
-              <McpIcon className="size-4" />
-            )}
+            <t.icon className="size-4" strokeWidth={1.8} />
             {t.label}
           </TabsTrigger>
         ))}
@@ -451,15 +420,6 @@ export function SettingsTabs() {
       </TabsContent>
       <TabsContent value="agent" className="mt-6">
         <Placeholder text="Agent 设置(演示占位)" />
-      </TabsContent>
-      <TabsContent value="mcp" className="mt-6">
-        <Placeholder text="MCP 服务器配置(演示占位)" />
-      </TabsContent>
-      <TabsContent value="plugin-market" className="mt-6">
-        <Placeholder text="Plugin Market(演示占位)" />
-      </TabsContent>
-      <TabsContent value="skills-bank" className="mt-6">
-        <Placeholder text="Skills Bank(演示占位)" />
       </TabsContent>
       <TabsContent value="api" className="mt-6">
         <Placeholder text="API 密钥管理(演示占位)" />

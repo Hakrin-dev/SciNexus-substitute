@@ -36,6 +36,10 @@ next-env.d.ts
 .idea/
 *.swp
 
+# opencode 本地记忆和配置文件
+.opencode/memory/
+opencode.json
+
 # python(截图验证 / 品牌资产处理脚本;本地 venv 不入库)
 __pycache__/
 *.py[cod]

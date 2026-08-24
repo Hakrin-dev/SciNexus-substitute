@@ -9,15 +9,12 @@ import {
   KeyRound,
   Monitor,
   Moon,
-  Plug,
   Settings,
   Sun,
   UserRound,
 } from "lucide-react";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
 import { cn } from "@/lib/utils";
-import { McpIcon } from "@/app/settings/settings-tabs";
-import { SkillScroll } from "@/components/icons/skill-scroll";
 import { useSidebarStore } from "@/stores/sidebar";
 
 /** 设置选项,自上而下与设置页 Tab 顺序一致,点击跳转对应 Tab */
@@ -25,9 +22,6 @@ const MENU_ITEMS = [
   { label: "个人", icon: UserRound, href: "/settings?tab=profile" },
   { label: "用量统计", icon: BarChart3, href: "/settings?tab=usage" },
   { label: "Agent设置", icon: Bot, href: "/settings?tab=agent" },
-  { label: "MCP Server", icon: null, href: "/settings?tab=mcp" },
-  { label: "Plugin Market", icon: Plug, href: "/settings?tab=plugin-market" },
-  { label: "Skills Bank", icon: SkillScroll, href: "/settings?tab=skills-bank" },
   { label: "API Keys", icon: KeyRound, href: "/settings?tab=api" },
   { label: "通知", icon: Bell, href: "/settings?tab=notifications" },
 ];
@@ -85,11 +79,7 @@ export function SettingsMenu({ collapsed }: { collapsed: boolean }) {
               onClick={collapseAlways}
               className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
             >
-              {item.icon ? (
-                <item.icon className="size-4 shrink-0 text-muted" strokeWidth={1.8} />
-              ) : (
-                <McpIcon className="size-4 shrink-0 text-muted" />
-              )}
+              <item.icon className="size-4 shrink-0 text-muted" strokeWidth={1.8} />
               {item.label}
             </Link>
           ))}

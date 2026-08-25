@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   ListTree,
-  Pencil,
+  PanelRight,
+  PanelRightClose,
   ScrollText,
-  Settings2,
   Table2,
   Workflow,
 } from "lucide-react";
-import { ProposalGenerator } from "@/components/features/projects/proposal-generator";
+import { ProposalStudio } from "@/components/features/projects/proposal-studio";
 import { cn } from "@/lib/utils";
 import {
   useAgentTasks,
@@ -31,8 +31,7 @@ import { ThreadView } from "./thread-view";
 import { AssetTableView } from "./asset-table-view";
 import { LogView } from "./log-view";
 import { OverviewView } from "./overview-view";
-import { ContextPanel } from "./context-panel";
-import { AgentStatusBar } from "./agent-status-bar";
+import { AssistantSidebar } from "./assistant-sidebar";
 
 const VIEW_TABS = [
   { value: "overview", label: "概览", icon: LayoutDashboard },
@@ -44,9 +43,20 @@ const VIEW_TABS = [
 
 const VIEW_VALUES = new Set<string>(VIEW_TABS.map((t) => t.value));
 
+/** 助手栏视口默认值:xl+(1280px)展开,窄屏收起 */
+const desktopQuery = "(min-width: 1280px)";
+function subscribeDesktop(callback: () => void) {
+  const mq = window.matchMedia(desktopQuery);
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+function getDesktopMatches() {
+  return window.matchMedia(desktopQuery).matches;
+}
+
 /**
- * 课题工作台 `/projects/[id]` —— 左大纲轨 + 主工作区(五视图) + 右上下文面板 + 底部 Agent 栏。
- * 视图状态走 URL `?view=`,选中上下文在视图切换间保留。
+ * 课题工作台 `/projects/[id]` —— 左大纲轨 + 主工作区(五视图 / AI 生成工作台) + 可折叠右侧助手栏。
+ * 视图状态走 URL `?view=`;助手栏含 AI 建议、Agent 运行与「AI 生成」入口,初稿在中间栏编辑。
  */
 export function WorkbenchShell({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -57,6 +67,12 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
   const [selection, setSelection] = useState<
     { kind: "node" | "card" | "asset"; id: string } | null
   >(null);
+  /** 助手栏展开态:视口默认(xl+ 展开)+ 用户手动覆盖 */
+  const [panelOverride, setPanelOverride] = useState<boolean | null>(null);
+  const desktopViewport = useSyncExternalStore(subscribeDesktop, getDesktopMatches, () => true);
+  const sidebarOpen = panelOverride ?? desktopViewport;
+  /** AI 生成工作台(中间栏内联编辑);支持 ?studio=1 深链 */
+  const [studioOpen, setStudioOpen] = useState(searchParams.get("studio") === "1");
 
   const { data: project } = useProject(projectId);
   const { data: outline = [] } = useProjectOutline(projectId);
@@ -88,8 +104,13 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
   const doneMilestones = project.milestones.filter((m) => m.status === "done").length;
 
   return (
-    <div className="mx-auto max-w-[1280px] px-6 py-7 lg:px-8 lg:py-9">
-      {/* 页面级头部:标题 + 徽章 + 副标题 + 操作 */}
+    <div
+      className={cn(
+        "mx-auto px-6 py-7 lg:px-8 lg:py-9",
+        sidebarOpen ? "max-w-[1500px]" : "max-w-[1280px]",
+      )}
+    >
+      {/* 页面级头部:标题 + 徽章 + 副标题;右侧仅保留助手栏开关 */}
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -114,17 +135,18 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
             </span>
           </div>
         </div>
-        <div className="hidden shrink-0 gap-2 md:flex">
-          <ProposalGenerator projectName={project.name} />
-          <button className="flex h-9 items-center gap-2 rounded-lg border border-line bg-card px-3.5 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
-            <Pencil className="size-3.5" />
-            编辑
-          </button>
-          <button className="flex size-9 items-center justify-center rounded-lg border border-line bg-card text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
-            <Settings2 className="size-4" />
-            <span className="sr-only">项目设置</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setPanelOverride(!sidebarOpen)}
+          aria-label={sidebarOpen ? "收起 AI 助手栏" : "展开 AI 助手栏"}
+          title={sidebarOpen ? "收起 AI 助手栏" : "展开 AI 助手栏"}
+          className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-line bg-card text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary"
+        >
+          {sidebarOpen ? (
+            <PanelRightClose className="size-4" strokeWidth={1.8} />
+          ) : (
+            <PanelRight className="size-4" strokeWidth={1.8} />
+          )}
+        </button>
       </header>
 
       {/* 视图 Tab 行 */}
@@ -146,11 +168,11 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
         ))}
       </nav>
 
-      {/* 三栏:左大纲轨 + 主工作区 + 右上下文面板(概览视图自带右列,隐藏面板避免重复) */}
+      {/* 三栏:左大纲轨 + 主工作区 + 可折叠助手栏(宽度≈中间栏,略小) */}
       <div
         className={cn(
           "mt-4 grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)]",
-          view !== "overview" && "xl:grid-cols-[240px_minmax(0,1fr)_300px]",
+          sidebarOpen && "xl:grid-cols-[240px_minmax(0,1.05fr)_minmax(0,0.95fr)]",
         )}
       >
         <OutlineRail
@@ -164,56 +186,100 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
         />
 
         <motion.main
-          key={view}
+          key={studioOpen ? "studio" : view}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
           className="min-w-0 space-y-5"
         >
-          {view === "overview" && (
-            <OverviewView project={project} overview={overview} onJump={jumpTo} />
+          {studioOpen ? (
+            <ProposalStudio projectName={project.name} onExit={() => setStudioOpen(false)} />
+          ) : (
+            <>
+              {view === "overview" && (
+                <OverviewView project={project} overview={overview} onJump={jumpTo} />
+              )}
+              {view === "thread" && (
+                <ThreadView
+                  threads={threads}
+                  cards={cards}
+                  selection={selection}
+                  onSelect={(cardId) => setSelection({ kind: "card", id: cardId })}
+                />
+              )}
+              {view === "outline" && (
+                <OutlineView
+                  nodes={outline}
+                  selection={selection}
+                  onSelect={(nodeId) => setSelection({ kind: "node", id: nodeId })}
+                />
+              )}
+              {view === "assets" && (
+                <AssetTableView
+                  assets={assets}
+                  selection={selection}
+                  onSelect={(assetId) => setSelection({ kind: "asset", id: assetId })}
+                />
+              )}
+              {view === "log" && <LogView entries={activity} />}
+            </>
           )}
-          {view === "thread" && (
-            <ThreadView
-              threads={threads}
-              cards={cards}
-              selection={selection}
-              onSelect={(cardId) => setSelection({ kind: "card", id: cardId })}
-            />
-          )}
-          {view === "outline" && (
-            <OutlineView
-              nodes={outline}
-              selection={selection}
-              onSelect={(nodeId) => setSelection({ kind: "node", id: nodeId })}
-            />
-          )}
-          {view === "assets" && (
-            <AssetTableView
-              assets={assets}
-              selection={selection}
-              onSelect={(assetId) => setSelection({ kind: "asset", id: assetId })}
-            />
-          )}
-          {view === "log" && <LogView entries={activity} />}
         </motion.main>
 
-          {view !== "overview" && (
-            <ContextPanel
-              selection={selection}
-              nodes={outline}
-              cards={cards}
-              assets={assets}
-              overview={overview}
-              onSelectAsset={selectAssetAndShow}
-              onClear={() => setSelection(null)}
-              className="sticky top-20 hidden self-start xl:block"
-            />
-          )}
+        {/* 桌面端:助手栏作为栅格列(可折叠) */}
+        {sidebarOpen && (
+          <AssistantSidebar
+            projectName={project.name}
+            selection={selection}
+            nodes={outline}
+            cards={cards}
+            assets={assets}
+            overview={overview}
+            agentTasks={agentTasks}
+            onSelectAsset={selectAssetAndShow}
+            onClear={() => setSelection(null)}
+            onJump={jumpTo}
+            onGenerate={() => setStudioOpen(true)}
+            onClose={() => setPanelOverride(false)}
+            className="sticky top-20 hidden max-h-[calc(100vh-6.5rem)] self-start xl:flex"
+          />
+        )}
       </div>
 
-      {/* 底部 Agent 栏 */}
-      <AgentStatusBar tasks={agentTasks} className="mt-5" />
+      {/* 窄屏:助手栏以抽屉呈现 */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 xl:hidden" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-ink/40"
+            onClick={() => setPanelOverride(false)}
+            role="presentation"
+          />
+          <AssistantSidebar
+            projectName={project.name}
+            selection={selection}
+            nodes={outline}
+            cards={cards}
+            assets={assets}
+            overview={overview}
+            agentTasks={agentTasks}
+            onSelectAsset={(id) => {
+              selectAssetAndShow(id);
+              setPanelOverride(false);
+            }}
+            onClear={() => setSelection(null)}
+            onJump={(v) => {
+              jumpTo(v);
+              setPanelOverride(false);
+            }}
+            onGenerate={() => {
+              setStudioOpen(true);
+              setPanelOverride(false);
+            }}
+            onClose={() => setPanelOverride(false)}
+            className="absolute inset-y-0 right-0 max-h-none w-[min(440px,92vw)] rounded-none rounded-l-2xl"
+          />
+        </div>
+      )}
     </div>
   );
 }

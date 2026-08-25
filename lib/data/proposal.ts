@@ -1,6 +1,6 @@
-/** 开题报告 / 文献综述生成 —— 演示用初稿(模拟基于项目检索结果的生成产出) */
+/** 开题报告 / 文献综述 / 组会PPT 生成 —— 演示用初稿(模拟基于项目检索结果的生成产出) */
 
-export type ProposalType = "proposal" | "review";
+export type ProposalType = "proposal" | "review" | "slides";
 
 export const PROPOSAL_TYPES: {
   value: ProposalType;
@@ -17,7 +17,18 @@ export const PROPOSAL_TYPES: {
     label: "文献综述",
     description: "按主题脉络梳理领域进展,标注代表性工作与待解决问题",
   },
+  {
+    value: "slides",
+    label: "组会PPT",
+    description: "按「上周进展 → 关键结果 → 问题讨论 → 下步计划」逐页组织汇报大纲",
+  },
 ];
+
+export const PROPOSAL_LABELS: Record<ProposalType, string> = {
+  proposal: "开题报告",
+  review: "文献综述",
+  slides: "组会PPT",
+};
 
 export const PROPOSAL_DRAFTS: Record<ProposalType, string> = {
   proposal: `# 开题报告:面向科研流程的多智能体知识增强方法研究
@@ -75,4 +86,32 @@ RDT-1B [3] 将模型规模推至十亿参数并验证跨本体迁移能力;DexMa
 扩散策略已从学术原型进入工业验证阶段,与 VLA 基础模型的融合是下一步最值得关注的方向。
 
 (演示初稿,引用 [1]-[4] 对应项目文献库条目,请核对后使用)`,
+
+  slides: `# 组会汇报:多智能体综述管线的引用真实性保障(第 12 周)
+
+## P1 封面
+- 课题:多智能体综述管线如何保证引用真实性与论断不丢失
+- 汇报人 / 日期 / 导师
+
+## P2 上周进展回顾
+- 完成论断提取结构化输出实验(NeurIPS 语料,12/13 用例通过)
+- 聚类漏归补聚回归实验数据集 v2 就绪
+
+## P3 关键结果:全分划聚类
+- 分划不变式:每条论断必属且仅属一个维度 → 零静默丢失
+- 漏归论文补聚后全部测试集通过,假设 H1 已支持
+
+## P4 关键结果:引用校验
+- resolve_citations 重编号 + 悬空引用剔除
+- 遗留问题:长文档场景出现 1 例跨章节编号漂移(假设 H2 存疑)
+
+## P5 问题与讨论(希望导师给建议)
+1. 跨领域数据集验证如何选样?拟从 OpenAlex 拉取生物医学语料 200 篇
+2. 全局编号池方案是否需要先做形式化验证?
+
+## P6 下步计划
+- 本周:补充跨领域验证集,复跑幽灵引用回归
+- 下周:writer→critic 定向修订回环收益评估(q2)
+
+(演示大纲,由工作台根据研究线程自动整理,可直接编辑)`,
 };

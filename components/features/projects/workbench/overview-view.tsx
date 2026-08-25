@@ -17,7 +17,6 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { ProposalGenerator } from "@/components/features/projects/proposal-generator";
 import { cn } from "@/lib/utils";
 import type { MilestoneStatus, Project } from "@/lib/data/projects";
 import type { JumpableView, WorkbenchOverview } from "@/lib/data/workbench";
@@ -182,15 +181,14 @@ export function OverviewView({ project, overview, onJump }: Props) {
                 title="项目档案"
                 description={`负责人 ${project.owner} · 创建于 ${project.createdAt}`}
               />
-              <div className="flex gap-2">
-                <ProposalGenerator projectName={project.name} />
-                <button className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
-                  编辑
-                </button>
-                <button className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
-                  项目设置
-                </button>
-              </div>
+            <div className="flex gap-2">
+              <button className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
+                编辑
+              </button>
+              <button className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
+                项目设置
+              </button>
+            </div>
             </div>
 
             {project.overview.map((paragraph, i) => (

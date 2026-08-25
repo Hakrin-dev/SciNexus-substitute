@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
@@ -8,12 +9,9 @@ import {
   Pencil,
   ScrollText,
   Settings2,
-  Sparkles,
   Table2,
   Workflow,
 } from "lucide-react";
-import { AppShell } from "@/components/layout/app-shell";
-import { Button } from "@/components/ui/button";
 import { ProposalGenerator } from "@/components/features/projects/proposal-generator";
 import { cn } from "@/lib/utils";
 import {
@@ -26,7 +24,7 @@ import {
   useWorkbenchAssets,
   useWorkbenchOverview,
 } from "@/lib/api/services";
-import type { JumpableView, WorkbenchView } from "@/lib/data/workbench";
+import type { WorkbenchView } from "@/lib/data/workbench";
 import { OutlineRail } from "./outline-rail";
 import { OutlineView } from "./outline-view";
 import { ThreadView } from "./thread-view";
@@ -47,7 +45,7 @@ const VIEW_TABS = [
 const VIEW_VALUES = new Set<string>(VIEW_TABS.map((t) => t.value));
 
 /**
- * 课题工作台壳 `/projects/[id]` —— 左大纲轨 + 主工作区(五视图) + 右上下文面板 + 底部 Agent 栏。
+ * 课题工作台 `/projects/[id]` —— 左大纲轨 + 主工作区(五视图) + 右上下文面板 + 底部 Agent 栏。
  * 视图状态走 URL `?view=`,选中上下文在视图切换间保留。
  */
 export function WorkbenchShell({ projectId }: { projectId: string }) {
@@ -75,7 +73,7 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
     router.replace(`/projects/${projectId}?view=${next}`, { scroll: false });
 
   /** 跳转视图(概览阻塞项/AI 建议入口);选中上下文保留 */
-  const jumpTo = (next: JumpableView) => setView(next);
+  const jumpTo = (next: Exclude<WorkbenchView, "overview">) => setView(next);
 
   const selectAssetAndShow = (assetId: string) => {
     setSelection({ kind: "asset", id: assetId });
@@ -87,124 +85,136 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
       ? topLevelQuestionOf(selection.id, threads[0]?.questionId)
       : threads[0]?.questionId;
 
-  return (
-    <AppShell>
-      <div className="mx-auto max-w-[1280px] space-y-5 px-8 py-8">
-        {/* 项目头部 */}
-        <header className="rounded-2xl bg-card p-6 shadow-card">
-          <div className="flex items-start gap-5">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-lg font-bold text-primary">
-              {project.name.slice(0, 1)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3">
-                <h1 className="truncate text-xl font-bold text-ink">{project.name}</h1>
-                <span className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-medium text-primary">
-                  {project.status}
-                </span>
-                <span className="hidden items-center gap-1 rounded-full bg-chip px-2.5 py-1 text-xs text-muted sm:flex">
-                  <Sparkles className="size-3 text-primary" />
-                  科研 IDE 工作台
-                </span>
-              </div>
-              <p className="mt-1 truncate text-sm text-muted">{project.tagline}</p>
-            </div>
-            <div className="hidden shrink-0 gap-2 md:flex">
-              <ProposalGenerator projectName={project.name} />
-              <Button variant="outline" size="sm">
-                <Pencil className="size-3.5" />
-                编辑
-              </Button>
-              <Button variant="outline" size="sm">
-                <Settings2 className="size-3.5" />
-                设置
-              </Button>
-            </div>
-          </div>
+  const doneMilestones = project.milestones.filter((m) => m.status === "done").length;
 
-          <div className="mt-4 flex items-center gap-3">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-chip">
+  return (
+    <div className="mx-auto max-w-[1280px] px-6 py-7 lg:px-8 lg:py-9">
+      {/* 页面级头部:标题 + 徽章 + 副标题 + 操作 */}
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight text-ink">{project.name}</h1>
+            <span className="rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-medium text-primary">
+              科研 IDE 工作台
+            </span>
+            <span className="rounded-full bg-chip px-2.5 py-1 text-[11px] font-medium text-muted">
+              {project.status}
+            </span>
+          </div>
+          <p className="mt-1.5 truncate text-sm text-muted">{project.tagline}</p>
+          <div className="mt-2.5 flex items-center gap-3">
+            <div className="h-1.5 w-44 overflow-hidden rounded-full bg-chip">
               <div
                 className="h-full rounded-full bg-primary transition-[width]"
                 style={{ width: `${project.progress}%` }}
               />
             </div>
-            <span className="text-sm font-semibold text-ink">{project.progress}%</span>
+            <span className="text-xs text-muted">
+              进度 {project.progress}% · 里程碑 {doneMilestones}/{project.milestones.length}
+            </span>
           </div>
-
-          {/* 视图 Tab */}
-          <nav className="mt-4 flex flex-wrap gap-1.5 border-t border-line pt-4">
-            {VIEW_TABS.map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                onClick={() => setView(value)}
-                className={cn(
-                  "flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors",
-                  view === value
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted hover:bg-chip hover:text-ink",
-                )}
-              >
-                <Icon className="size-3.5" />
-                {label}
-              </button>
-            ))}
-          </nav>
-        </header>
-
-        {/* 三栏:左大纲轨 + 主工作区 + 右上下文面板 */}
-        <div className="grid items-start gap-5 lg:grid-cols-[230px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)_300px]">
-          <OutlineRail
-            nodes={outline}
-            activeQuestionId={activeQuestionId}
-            onSelect={(nodeId) => {
-              setSelection({ kind: "node", id: nodeId });
-              if (view !== "outline") setView("outline");
-            }}
-            className="sticky top-20 hidden self-start lg:block"
-          />
-
-          <main className="min-w-0 space-y-5">
-            {view === "overview" && <OverviewView project={project} overview={overview} onJump={jumpTo} />}
-            {view === "thread" && (
-              <ThreadView
-                threads={threads}
-                cards={cards}
-                selection={selection}
-                onSelect={(cardId) => setSelection({ kind: "card", id: cardId })}
-              />
-            )}
-            {view === "outline" && (
-              <OutlineView
-                nodes={outline}
-                selection={selection}
-                onSelect={(nodeId) => setSelection({ kind: "node", id: nodeId })}
-              />
-            )}
-            {view === "assets" && (
-              <AssetTableView
-                assets={assets}
-                selection={selection}
-                onSelect={(assetId) => setSelection({ kind: "asset", id: assetId })}
-              />
-            )}
-            {view === "log" && <LogView entries={activity} />}
-          </main>
-
-          <ContextPanel
-            selection={selection}
-            nodes={outline}
-            cards={cards}
-            assets={assets}
-            overview={overview}
-            onSelectAsset={selectAssetAndShow}
-            className="sticky top-20 hidden self-start xl:block"
-          />
         </div>
+        <div className="hidden shrink-0 gap-2 md:flex">
+          <ProposalGenerator projectName={project.name} />
+          <button className="flex h-9 items-center gap-2 rounded-lg border border-line bg-card px-3.5 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
+            <Pencil className="size-3.5" />
+            编辑
+          </button>
+          <button className="flex size-9 items-center justify-center rounded-lg border border-line bg-card text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
+            <Settings2 className="size-4" />
+            <span className="sr-only">项目设置</span>
+          </button>
+        </div>
+      </header>
 
-        <AgentStatusBar tasks={agentTasks} />
+      {/* 视图 Tab 行 */}
+      <nav className="mt-5 flex flex-wrap items-center gap-1.5">
+        {VIEW_TABS.map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            onClick={() => setView(value)}
+            className={cn(
+              "flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-[13px] transition-colors",
+              view === value
+                ? "bg-primary font-medium text-white"
+                : "bg-chip text-muted hover:text-ink",
+            )}
+          >
+            <Icon className="size-3.5" strokeWidth={1.8} />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {/* 三栏:左大纲轨 + 主工作区 + 右上下文面板(概览视图自带右列,隐藏面板避免重复) */}
+      <div
+        className={cn(
+          "mt-4 grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)]",
+          view !== "overview" && "xl:grid-cols-[240px_minmax(0,1fr)_300px]",
+        )}
+      >
+        <OutlineRail
+          nodes={outline}
+          activeQuestionId={activeQuestionId}
+          onSelect={(nodeId) => {
+            setSelection({ kind: "node", id: nodeId });
+            if (view !== "outline") setView("outline");
+          }}
+          className="sticky top-20 hidden self-start lg:block"
+        />
+
+        <motion.main
+          key={view}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="min-w-0 space-y-5"
+        >
+          {view === "overview" && (
+            <OverviewView project={project} overview={overview} onJump={jumpTo} />
+          )}
+          {view === "thread" && (
+            <ThreadView
+              threads={threads}
+              cards={cards}
+              selection={selection}
+              onSelect={(cardId) => setSelection({ kind: "card", id: cardId })}
+            />
+          )}
+          {view === "outline" && (
+            <OutlineView
+              nodes={outline}
+              selection={selection}
+              onSelect={(nodeId) => setSelection({ kind: "node", id: nodeId })}
+            />
+          )}
+          {view === "assets" && (
+            <AssetTableView
+              assets={assets}
+              selection={selection}
+              onSelect={(assetId) => setSelection({ kind: "asset", id: assetId })}
+            />
+          )}
+          {view === "log" && <LogView entries={activity} />}
+        </motion.main>
+
+          {view !== "overview" && (
+            <ContextPanel
+              selection={selection}
+              nodes={outline}
+              cards={cards}
+              assets={assets}
+              overview={overview}
+              onSelectAsset={selectAssetAndShow}
+              onClear={() => setSelection(null)}
+              className="sticky top-20 hidden self-start xl:block"
+            />
+          )}
       </div>
-    </AppShell>
+
+      {/* 底部 Agent 栏 */}
+      <AgentStatusBar tasks={agentTasks} className="mt-5" />
+    </div>
   );
 }
 

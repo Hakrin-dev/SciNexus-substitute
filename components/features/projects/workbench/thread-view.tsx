@@ -1,6 +1,7 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
+import { Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CARD_KIND_META, CARD_STATUS_META } from "./workbench-meta";
 import { formatDay } from "@/lib/data/workbench";
@@ -22,34 +23,54 @@ export function ThreadView({ threads, cards, selection, onSelect }: Props) {
           .filter((c) => c.threadId === thread.id)
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
         return (
-          <section key={thread.id} className="rounded-2xl bg-card p-5 shadow-card">
-            <header className="flex items-center gap-3">
-              <span className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-medium text-primary">
-                Q · {thread.questionId.toUpperCase()}
+          <section key={thread.id} className="rounded-2xl bg-card p-6 shadow-card">
+            <header className="flex items-start gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                <Workflow className="size-5" strokeWidth={1.8} />
               </span>
-              <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">{thread.title}</h2>
-              <span className="shrink-0 rounded-full bg-chip px-2.5 py-1 text-xs text-muted">
-                {thread.stage}
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-bold text-ink">{thread.title}</h2>
+                <p className="mt-0.5 text-xs text-muted">
+                  {thread.questionId.toUpperCase()} · 当前阶段
+                  <span className="ml-1.5 rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-muted">
+                    {thread.stage}
+                  </span>
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-panel px-2.5 py-1 text-[11px] text-faint">
+                {threadCards.length} 张卡片
               </span>
             </header>
 
-            <ol className="relative mt-4 space-y-3 pl-6">
-              <span className="absolute bottom-3 left-[9px] top-3 w-px bg-line" aria-hidden />
-              {threadCards.map((card) => (
-                <li key={card.id} className="relative">
+            <ol className="relative mt-6 space-y-3 pl-7">
+              <span className="absolute bottom-4 left-[11px] top-4 w-px bg-line" aria-hidden />
+              {threadCards.map((card, index) => (
+                <motion.li
+                  key={card.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.25) }}
+                  className="relative"
+                >
                   <span
                     aria-hidden
                     className={cn(
-                      "absolute -left-6 top-4 size-[9px] rounded-full border-2 border-card",
-                      card.status === "done"
-                        ? "bg-success"
-                        : card.status === "doing"
-                          ? "bg-brand-blue"
-                          : "bg-faint",
+                      "absolute -left-7 top-5 size-[9px] rounded-full border-2 border-card",
+                      card.kind === "hint"
+                        ? "bg-primary"
+                        : card.status === "done"
+                          ? "bg-success"
+                          : card.status === "doing"
+                            ? "bg-brand-blue"
+                            : "bg-faint",
                     )}
                   />
-                  <ThreadCardRow card={card} selected={selection?.kind === "card" && selection.id === card.id} onSelect={onSelect} />
-                </li>
+                  <ThreadCardRow
+                    card={card}
+                    selected={selection?.kind === "card" && selection.id === card.id}
+                    onSelect={onSelect}
+                  />
+                </motion.li>
               ))}
             </ol>
           </section>
@@ -79,19 +100,21 @@ function ThreadCardRow({
       onClick={() => onSelect(card.id)}
       onKeyDown={(e) => e.key === "Enter" && onSelect(card.id)}
       className={cn(
-        "cursor-pointer rounded-xl border p-4 transition-colors",
-        isHint ? "border-dashed border-primary/40 bg-primary-soft/50 hover:bg-primary-soft" : "border-line hover:bg-chip",
-        selected && (isHint ? "border-primary bg-primary-soft" : "border-primary/50 bg-chip"),
+        "cursor-pointer rounded-xl border p-4 transition-all",
+        isHint
+          ? "border-dashed border-primary/40 bg-primary-soft/50 hover:-translate-y-0.5 hover:bg-primary-soft hover:shadow-pop"
+          : "border-line/70 bg-card hover:-translate-y-0.5 hover:bg-panel hover:shadow-pop",
+        selected && (isHint ? "!border-primary bg-primary-soft shadow-pop" : "border-primary/60 bg-panel shadow-pop"),
       )}
     >
       <div className="flex items-center gap-2">
         <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md", meta.tone)}>
-          <Icon className="size-3.5" />
+          <Icon className="size-3.5" strokeWidth={1.8} />
         </span>
         <span className="text-xs font-medium text-muted">{meta.label}</span>
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-[11px] font-medium",
+            "rounded-full px-2 py-0.5 text-[10px] font-medium",
             CARD_STATUS_META[card.status].className,
           )}
         >
@@ -99,14 +122,16 @@ function ThreadCardRow({
         </span>
         {card.aiGenerated && (
           <span className="ml-auto flex items-center gap-1 text-[11px] text-faint">
-            <Sparkles className="size-3 text-primary" />
+            <span className="inline-flex size-4 items-center justify-center rounded-full bg-primary-soft">
+              ✦
+            </span>
             AI 生成
           </span>
         )}
       </div>
-      <p className="mt-2 text-sm font-semibold text-ink">{card.title}</p>
-      <p className="mt-1 text-[13px] leading-relaxed text-muted">{card.summary}</p>
-      <p className="mt-2 text-[11px] text-faint">
+      <p className="mt-2.5 text-sm font-bold leading-snug text-ink">{card.title}</p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{card.summary}</p>
+      <p className="mt-2.5 text-[11px] text-faint">
         {formatDay(card.createdAt)}
         {card.assetRefs.length > 0 && ` · ${card.assetRefs.length} 个关联资产`}
       </p>

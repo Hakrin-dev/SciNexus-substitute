@@ -10,7 +10,7 @@ import {
   Search,
   Users,
 } from "lucide-react";
-import { useScholars } from "@/lib/api/services";
+import { useScholarGraph } from "@/lib/api/services";
 import type { Scholar } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -18,28 +18,8 @@ import { cn } from "@/lib/utils";
 const VIEW_W = 740;
 const VIEW_H = 540;
 
-/** 研究方向连线:两学者 tags 交集即连边(label=共享方向, strength=共享方向数) */
-function buildScholarEdges(scholars: Scholar[]) {
-  const edges: { source: string; target: string; label: string; strength: number }[] = [];
-  for (let i = 0; i < scholars.length; i++) {
-    for (let j = i + 1; j < scholars.length; j++) {
-      const a = scholars[i];
-      const b = scholars[j];
-      const shared = a.tags.filter((tag) => b.tags.includes(tag));
-      if (shared.length === 0) continue;
-      edges.push({
-        source: a.id,
-        target: b.id,
-        label: shared.join("、"),
-        strength: shared.length,
-      });
-    }
-  }
-  return edges;
-}
-
 /** 力导向布局:共享方向作为弹簧引力,方向相近的学者自然聚拢(确定性迭代,无随机) */
-function computePositions(scholars: Scholar[], edges: ReturnType<typeof buildScholarEdges>) {
+function computePositions(scholars: Scholar[], edges: { source: string; target: string; strength: number }[]) {
   const n = scholars.length;
   if (n === 0) return {} as Record<string, { x: number; y: number }>;
 
@@ -149,18 +129,14 @@ export function ScholarNetwork() {
   const [selectedId, setSelectedId] = useState("kaiming-he");
   const [direction, setDirection] = useState("全部");
   const [query, setQuery] = useState("");
-  const { data: scholars = [] } = useScholars();
+  // 节点/边/方向均来自后端 /api/scholars/graph（后端按共享研究方向构图）
+  const { data: graph } = useScholarGraph();
+  const scholars = graph?.nodes ?? [];
+  const edges = graph?.edges ?? [];
+  const directionOptions = graph?.directions ?? [];
 
-  // 边:由共享研究方向推导
-  const edges = useMemo(() => buildScholarEdges(scholars), [scholars]);
   // 位置:力导向布局(随学者集合变化)
   const positions = useMemo(() => computePositions(scholars, edges), [scholars, edges]);
-  // 方向筛选列表:从学者 tags 动态聚合(保留「全部」)
-  const directionOptions = useMemo(() => {
-    const set = new Set<string>();
-    scholars.forEach((s) => s.tags.forEach((t) => set.add(t)));
-    return ["全部", ...Array.from(set)];
-  }, [scholars]);
 
   const selected = scholars.find((scholar) => scholar.id === selectedId) ?? scholars[0];
   const visibleIds = useMemo(() => {
@@ -200,7 +176,7 @@ export function ScholarNetwork() {
           </div>
           <p className="mt-6 text-[11px] font-medium tracking-wide text-faint">研究方向</p>
           <div className="mt-2 space-y-1">
-            {directionOptions.map((item) => (
+            {["全部", ...directionOptions].map((item) => (
               <button key={item} type="button" onClick={() => setDirection(item)} className={cn("flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs", direction === item ? "bg-primary-soft font-medium text-primary" : "text-muted hover:bg-panel")}>
                 {item}<span>{item === "全部" ? scholars.length : scholars.filter((scholar) => scholar.tags.includes(item)).length}</span>
               </button>

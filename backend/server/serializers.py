@@ -119,3 +119,71 @@ def serialize_library_item(lp: dict) -> dict:
         "tags": lp.get("tags") or [],
         "folder": lp.get("folder"),
     }
+
+
+# 学者头像色板（与前端 lib/data/scholars.ts 一致）
+_SCHOLAR_COLORS = ["#002FA7", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#06B6D4"]
+
+
+def _initials(name_cn: str, name_en: str) -> str:
+    """生成头像双字母缩写：优先拉丁字母名的首字母，其次中文名前两字。"""
+    def _ascii_parts(text: str) -> list[str]:
+        return [p for p in text.replace("·", " ").split() if p and p[0].isascii() and p[0].isalpha()]
+
+    en_parts = _ascii_parts(name_en)
+    if en_parts:
+        if len(en_parts) >= 2:
+            return (en_parts[0][0] + en_parts[-1][0]).upper()
+        return en_parts[0][:2].upper()
+    cn_parts = _ascii_parts(name_cn)
+    if cn_parts:
+        if len(cn_parts) >= 2:
+            return (cn_parts[0][0] + cn_parts[-1][0]).upper()
+        return cn_parts[0][:2].upper()
+    cn = (name_cn or "").strip()
+    return cn[:2].upper() if cn else "??"
+
+
+def serialize_scholar(s: dict, index: int = 0) -> dict:
+    """输出前端对齐的学者结构（数据字段 + 视觉字段 initials/avatarColor 派生）。"""
+    name_cn = s.get("nameCn") or s.get("name_cn") or ""
+    name_en = s.get("nameEn") or s.get("name_en") or ""
+    return {
+        "id": s.get("id") or "",
+        "nameCn": name_cn,
+        "nameEn": name_en,
+        "initials": _initials(name_cn, name_en),
+        "avatarColor": _SCHOLAR_COLORS[index % len(_SCHOLAR_COLORS)],
+        "role": s.get("role") or "",
+        "affiliation": s.get("affiliation") or "",
+        "bio": s.get("bio") or "",
+        "citations": s.get("citations") or "0",
+        "hIndex": s.get("hIndex") or 0,
+        "tags": list(s.get("tags") or []),
+        "followed": bool(s.get("followed")),
+    }
+
+
+def build_scholar_graph(scholars: list[dict]) -> dict:
+    """按共享研究方向构建学者图谱。
+
+    返回 {nodes, edges, directions}：
+    - nodes: 序列化后的学者（含视觉字段）
+    - edges: 共享 ≥1 个研究方向的学者对，label=共享方向，strength=共享方向数
+    - directions: 全部研究方向（去重，用于前端筛选）
+    """
+    nodes = [serialize_scholar(s, i) for i, s in enumerate(scholars)]
+    edges: list[dict] = []
+    for i in range(len(nodes)):
+        for j in range(i + 1, len(nodes)):
+            shared = [t for t in nodes[i]["tags"] if t in nodes[j]["tags"]]
+            if not shared:
+                continue
+            edges.append({
+                "source": nodes[i]["id"],
+                "target": nodes[j]["id"],
+                "label": "、".join(shared),
+                "strength": len(shared),
+            })
+    directions = list(dict.fromkeys(t for s in nodes for t in s["tags"]))
+    return {"nodes": nodes, "edges": edges, "directions": directions}

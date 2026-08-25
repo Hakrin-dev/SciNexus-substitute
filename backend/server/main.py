@@ -984,6 +984,12 @@ def get_scholars():
     """获取学者列表及研究方向筛选。"""
     return {"data": SCHOLARS, "directions": SCHOLAR_DIRECTIONS}
 
+@app.get("/api/scholars/graph")
+def get_scholars_graph():
+    """获取学者研究方向图谱：按共享研究方向连边（nodes/edges/directions）。"""
+    from server.serializers import build_scholar_graph
+    return {"data": build_scholar_graph(SCHOLARS)}
+
 
 @app.get("/api/scholars/{scholar_id}")
 def get_scholar_detail(scholar_id: str):

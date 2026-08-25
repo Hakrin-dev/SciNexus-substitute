@@ -127,6 +127,43 @@ export function useScholars() {
   });
 }
 
+/** 学者研究方向图谱（后端按共享方向构图；后端不可达时本地按相同规则兜底） */
+export interface ScholarGraphData {
+  nodes: Scholar[];
+  edges: { source: string; target: string; label: string; strength: number }[];
+  directions: string[];
+}
+
+function buildScholarGraphLocal(scholars: Scholar[]): ScholarGraphData {
+  const edges: ScholarGraphData["edges"] = [];
+  for (let i = 0; i < scholars.length; i++) {
+    for (let j = i + 1; j < scholars.length; j++) {
+      const shared = scholars[i].tags.filter((tag) => scholars[j].tags.includes(tag));
+      if (shared.length === 0) continue;
+      edges.push({ source: scholars[i].id, target: scholars[j].id, label: shared.join("、"), strength: shared.length });
+    }
+  }
+  const directions = Array.from(new Set(scholars.flatMap((s) => s.tags)));
+  return { nodes: scholars, edges, directions };
+}
+
+export function useScholarGraph() {
+  return useQuery({
+    queryKey: ["api", "scholars", "graph"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<ScholarGraphData>("/api/scholars/graph");
+        if (json.data?.nodes?.length) return json.data;
+        throw new Error("empty");
+      } catch {
+        return buildScholarGraphLocal(mockScholars);
+      }
+    },
+    placeholderData: buildScholarGraphLocal(mockScholars),
+    staleTime: 60_000,
+  });
+}
+
 /** 学者详情（无真实详情时回退原型演示数据） */
 export function useScholarDetail(id: string) {
   return useQuery<BackendScholarDetail>({

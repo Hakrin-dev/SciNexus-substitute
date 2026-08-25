@@ -4,10 +4,20 @@ import { recentResearch } from "@/lib/data/agent";
 import { cn } from "@/lib/utils";
 
 /** 近期研究栏 —— AI 研究助手页左侧 */
-export function ResearchNav() {
+export function ResearchNav({
+  onNewResearch,
+}: {
+  /** 点击「开启新研究」时触发（由页面负责重置对话状态） */
+  onNewResearch?: () => void;
+}) {
   return (
     <aside className="w-52 shrink-0">
-      <Button className="w-full rounded-xl">
+      <Button
+        className="w-full rounded-xl"
+        onClick={() => {
+          onNewResearch?.();
+        }}
+      >
         <Plus className="size-4" />
         开启新研究
       </Button>

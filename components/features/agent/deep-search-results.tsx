@@ -26,6 +26,7 @@ import {
   DEFAULT_MODEL,
   type ComposerMode,
   type ModelChoice,
+  type StyleChoice,
 } from "./composer";
 import type { AgentReference } from "@/types";
 
@@ -146,7 +147,12 @@ function WorkflowTrace({ workflow, active }: { workflow: Workflow | null; active
  * - 深度：/api/chat/stream 完整多智能体工作流（scout→synthesis→LLM 组合回答）
  * 切换模式影响下一句提问。
  */
-export function DeepSearchResults() {
+export function DeepSearchResults({
+  resetSignal = 0,
+}: {
+  /** 每次「开启新研究」递增，触发本组件清空会话状态 */
+  resetSignal?: number;
+}) {
   const params = useSearchParams();
   const query = (params.get("q") ?? "").trim();
 
@@ -154,10 +160,23 @@ export function DeepSearchResults() {
   const [value, setValue] = useState("");
   const [mode, setMode] = useState<Mode>("fast");
   const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
+  const [style, setStyle] = useState<StyleChoice | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const startedRef = useRef<string | null>(null);
   const turnsRef = useRef<Turn[]>([]);
+
+  // 「开启新研究」：清空会话状态，回到空对话态
+  useEffect(() => {
+    if (resetSignal === 0) return;
+    setTurns([]);
+    setValue("");
+    setMode("fast");
+    setConversationId(null);
+    setBusy(false);
+    startedRef.current = null;
+    turnsRef.current = [];
+  }, [resetSignal]);
 
   useEffect(() => {
     turnsRef.current = turns;
@@ -203,6 +222,7 @@ export function DeepSearchResults() {
             messages: history,
             model,
             mode: m,
+            style: style ?? undefined,
             conversation_id: conversationId ?? undefined,
             context: { topic: turnsRef.current[0]?.query ?? q },
           })) {
@@ -346,6 +366,8 @@ export function DeepSearchResults() {
           onModeChange={setMode}
           model={model}
           onModelChange={setModel}
+          style={style}
+          onStyleChange={setStyle}
           placeholder={
             busy
               ? "正在生成回答，请稍候…"

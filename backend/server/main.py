@@ -185,6 +185,7 @@ class ChatRequest(BaseModel):
     run_id: Optional[str] = None              # 单次任务运行 ID
     context: Optional[dict[str, Any]] = None  # 前序任务产出的结构化上下文
     mode: Optional[str] = None                # fast / deep
+    style: Optional[str] = None               # 回答风格：头脑风暴 / 简明扼要 / 全面细致 / 严谨质疑（注入 finalize 提示词）
 
 class TranslateRequest(BaseModel):
     """学术文本翻译请求"""
@@ -671,7 +672,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 model=req.model,
                 conversation_id=req.conversation_id,
                 run_id=req.run_id,
-                context=req.context,
+                context={**(req.context or {}), **({"style": req.style} if req.style else {})},
             )
             reply = result["reply"]
             return {
@@ -723,7 +724,7 @@ async def chat_stream(req: ChatRequest):
                 model=req.model,
                 conversation_id=req.conversation_id,
                 run_id=req.run_id,
-                context=req.context,
+                context={**(req.context or {}), **({"style": req.style} if req.style else {})},
             )
             reply = result["reply"]
             workflow = result["workflow"]

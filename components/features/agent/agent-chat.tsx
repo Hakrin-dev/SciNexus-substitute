@@ -10,6 +10,7 @@ import {
   DEFAULT_MODEL,
   type ComposerMode,
   type ModelChoice,
+  type StyleChoice,
 } from "./composer";
 import { MarkdownView } from "./markdown-view";
 
@@ -52,6 +53,8 @@ export function AgentChat() {
   /** 回答模式：fast=快速（scout 直检 + 简单回答，零 LLM）；deep=深度（完整多智能体工作流） */
   const [mode, setMode] = useState<ComposerMode>("fast");
   const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
+  /** 回答风格：头脑风暴 / 简明扼要 / 全面细致 / 严谨质疑（透传后端提示词） */
+  const [style, setStyle] = useState<StyleChoice | null>(null);
   /** compact 压缩点:仅把 compactFrom 之后的消息送入上下文(界面消息流不受影响) */
   const [compactFrom, setCompactFrom] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -81,6 +84,7 @@ export function AgentChat() {
         let acc = "";
         for await (const event of sendChat(q, history, undefined, model, activeConv ?? undefined, {
           topic: messages[0]?.content ?? q,
+          style: style ?? undefined,
         }, effectiveMode)) {
           if (event.type === "meta" && event.meta.conversation_id) {
             setActiveConv(event.meta.conversation_id);
@@ -201,6 +205,8 @@ export function AgentChat() {
       onModeChange={setMode}
       model={model}
       onModelChange={setModel}
+      style={style}
+      onStyleChange={setStyle}
       placeholder="帮我找一下关于扩散模型在机器人控制中的最新综述…"
       menuPlacement={messages.length === 0 ? "down" : "up"}
       headerRight={meters}

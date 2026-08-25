@@ -1,4 +1,6 @@
-import { Suspense } from "react";
+"use client";
+
+import { Suspense, useCallback, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ResearchNav } from "@/components/features/agent/research-nav";
 import { DeepSearchResults } from "@/components/features/agent/deep-search-results";
@@ -9,10 +11,16 @@ import { DeepSearchResults } from "@/components/features/agent/deep-search-resul
  * 展示真实检索结果（由 /agents/deep-research 迁移而来）。
  */
 export default function DeepSearchPage() {
+  // 「开启新研究」：递增信号，DeepSearchResults 据此清空会话状态
+  const [resetSignal, setResetSignal] = useState(0);
+  const handleNewResearch = useCallback(() => {
+    setResetSignal((n) => n + 1);
+  }, []);
+
   return (
     <AppShell>
       <div className="mx-auto flex max-w-[1180px] items-start gap-8 px-8 py-6">
-        <ResearchNav />
+        <ResearchNav onNewResearch={handleNewResearch} />
 
         <div className="min-w-0 flex-1 space-y-5">
           <Suspense
@@ -22,7 +30,7 @@ export default function DeepSearchPage() {
               </div>
             }
           >
-            <DeepSearchResults />
+            <DeepSearchResults resetSignal={resetSignal} />
           </Suspense>
         </div>
       </div>

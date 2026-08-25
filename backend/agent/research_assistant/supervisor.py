@@ -635,11 +635,54 @@ FINALIZE_SYSTEM_PROMPT = (
     "6. 不要用代码块围栏包裹整篇回答。"
 )
 
+# 回答风格 -> 追加到 FINALIZE_SYSTEM_PROMPT 的指令（前端 composer.tsx STYLES 对应）
+STYLE_PROMPTS: dict[str, str] = {
+    "头脑风暴": (
+        "【风格：头脑风暴】\n"
+        "1. 以发散式结构展开，先给出核心结论，再列出 3~5 个不同角度的思路、假设或候选方向；\n"
+        "2. 对每个方向用 1~2 句说明其依据（尽量引用下方检索到的论文）与潜在风险；\n"
+        "3. 结尾给出「最值得优先尝试」的 1~2 个方向并说明理由；\n"
+        "4. 用「方向一/方向二…」或「可能的切入点」小标题组织，鼓励探索性思考，避免过早收敛。"
+    ),
+    "简明扼要": (
+        "【风格：简明扼要】\n"
+        "1. 全文控制在 200 字以内（不含论文条目列表）；\n"
+        "2. 只用核心结论 + 关键证据，删除一切修饰性、铺垫性文字；\n"
+        "3. 尽量使用短句与要点式表达，每点一行；\n"
+        "4. 论文条目列表保留但只列最相关的 3~5 篇。"
+    ),
+    "全面细致": (
+        "【风格：全面细致】\n"
+        "1. 分节系统展开：背景 → 方法/进展 → 对比分析 → 局限 → 展望；\n"
+        "2. 对每条关键结论都补充支撑证据（引用论文标题/编号）与必要的数据细节；\n"
+        "3. 覆盖检索结果中的全部相关论文，不因篇幅省略重要内容；\n"
+        "4. 允许使用较长的段落与多级标题，务求信息完整、论证充分。"
+    ),
+    "严谨质疑": (
+        "【风格：严谨质疑】\n"
+        "1. 先给出结论，再以批判性视角审视：指出证据强度、方法假设、适用范围与潜在偏差；\n"
+        "2. 对检索结果中相互矛盾的论文或薄弱证据，明确标注「证据不足/待核实」；\n"
+        "3. 区分「已证实」「较可信」「存疑」三级，避免绝对化表述；\n"
+        "4. 结尾列出 1~3 个需要进一步验证的关键问题。"
+    ),
+}
 
-def _compose_final_answer(query: str, evidence_md: str, llm) -> str:
+
+def _resolve_style_prompt(context: dict | None) -> str:
+    """从会话 context 读取 style，返回对应风格提示词；未指定或未知风格返回空串。"""
+    if not context:
+        return ""
+    style = context.get("style")
+    return STYLE_PROMPTS.get(style or "", "")
+
+
+def _compose_final_answer(query: str, evidence_md: str, llm, style_prompt: str = "") -> str:
     """调用 LLM 把结构化工作结果组合成自然语言回答；失败抛异常由调用方回退模板。"""
+    system_prompt = FINALIZE_SYSTEM_PROMPT
+    if style_prompt:
+        system_prompt = f"{system_prompt}\n\n{style_prompt}"
     user_text = f"用户问题：{query}\n\n各智能体的工作结果（Markdown）：\n{evidence_md[:8000]}"
-    return llm.chat_text(FINALIZE_SYSTEM_PROMPT, user_text)
+    return llm.chat_text(system_prompt, user_text)
 
 
 def finalize_node(state: dict) -> dict:
@@ -651,6 +694,7 @@ def finalize_node(state: dict) -> dict:
     """
     wm = state.get("working_memory") or {}
     outputs = wm.get("agent_outputs") or {}
+    style_prompt = _resolve_style_prompt(state.get("context"))
 
     evidence: list[str] = []
     file_sections: list[str] = []
@@ -683,7 +727,7 @@ def finalize_node(state: dict) -> dict:
         try:
             llm = get_supervisor_llm()
             if not isinstance(llm, MockProvider):
-                composed = _compose_final_answer(state.get("user_query", ""), body, llm)
+                composed = _compose_final_answer(state.get("user_query", ""), body, llm, style_prompt)
                 if composed and len(composed.strip()) > 20:
                     reply = composed.strip()
         except Exception:

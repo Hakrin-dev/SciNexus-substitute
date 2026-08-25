@@ -10,6 +10,7 @@
 
 # production
 /build
+.omo/
 
 # misc
 .DS_Store

@@ -21,16 +21,54 @@ from server.serializers import serialize_paper  # noqa: E402
 
 
 def _resolve_model(model: str | None) -> str | None:
-    """把前端模型选项映射到后端环境变量，避免把真实模型名暴露给 UI。
+    """把前端模型选项映射到后端真实模型名，避免把真实模型名暴露给 UI。
 
-    "订阅"/"API接入" 为历史路由值；前端现传入具体模型名（演示），
-    未识别的值回退到默认 LLM_MODEL。
+    前端「模型」选择器展示厂商模型名（如 DeepSeek-V4、GPT-5.6 Sol），
+    这里映射到 OpenAI 兼容 API 的真实模型 id；未识别的值回退默认 LLM_MODEL。
+    映射表与前端 components/features/agent/composer.tsx 的 PROVIDERS 保持一致。
     """
+    if not model:
+        return os.getenv("LLM_MODEL")
+    # 历史路由值（旧版界面）：订阅 / API 接入
     if model == "订阅":
         return os.getenv("LLM_SUBSCRIPTION_MODEL") or os.getenv("LLM_MODEL")
     if model == "API接入":
         return os.getenv("LLM_API_MODEL") or os.getenv("LLM_MODEL")
-    return os.getenv("LLM_MODEL")
+
+    # 前端展示名 -> 真实模型 id（演示映射；按实际接入的 API 端点调整）
+    model_map = {
+        # ChatGPT
+        "GPT-5.6 Sol": "gpt-5.6",
+        "GPT-5.6 Terra": "gpt-5.6",
+        "GPT-5.6 Luna": "gpt-5.6",
+        "GPT-5.5": "gpt-5.5",
+        "GPT-5.5 Pro": "gpt-5.5",
+        # DeepSeek
+        "DeepSeek-V4": "deepseek-chat",
+        "DeepSeek-V4 Pro": "deepseek-chat",
+        "DeepSeek-R3": "deepseek-reasoner",
+        # Gemini
+        "Gemini 3.5 Pro": "gemini-3.5-pro",
+        "Gemini 3.5 Flash": "gemini-3.5-flash",
+        "Gemini 3.0": "gemini-3.0",
+        # GLM
+        "GLM-5": "glm-5",
+        "GLM-5 Air": "glm-5-air",
+        "GLM-4.6": "glm-4.6",
+        # Grok
+        "Grok 5": "grok-5",
+        "Grok 5 Heavy": "grok-5-heavy",
+        "Grok 4.2": "grok-4.2",
+        # Kimi
+        "Kimi K3": "moonshot-v1-k3",
+        "Kimi K3 Thinking": "moonshot-v1-k3-thinking",
+        "Kimi K2.5": "moonshot-v1-k2.5",
+        # Qwen
+        "Qwen4-Max": "qwen4-max",
+        "Qwen4-Plus": "qwen4-plus",
+        "Qwen4-Turbo": "qwen4-turbo",
+    }
+    return model_map.get(model) or os.getenv("LLM_MODEL")
 
 
 def _run_agent(user_query: str, task_type: str | None = None,

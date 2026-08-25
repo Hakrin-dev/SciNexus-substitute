@@ -31,6 +31,11 @@ from server.data.scholars import SCHOLARS, SCHOLAR_DIRECTIONS, SCHOLAR_DETAILS
 from server.data.institutions import INSTITUTIONS
 from server.data.projects import PROJECTS, get_project
 from server.data.graphs import PUBLIC_GRAPH, PRIVATE_GRAPH
+from server.data.workbench import (
+    WORKBENCH_OUTLINE, WORKBENCH_THREADS, WORKBENCH_CARDS,
+    WORKBENCH_ASSETS, WORKBENCH_ACTIVITY, WORKBENCH_OVERVIEW, WORKBENCH_AGENT_TASKS,
+)
+from server import auth as auth_module
 
 # ==================== Agent 网关（可选，默认启用） ====================
 # 通过 AGENT_ENABLED=false 关闭；agent 依赖缺失时自动回退到 mock
@@ -167,6 +172,7 @@ class SearchRequest(BaseModel):
     sort_by: Optional[str] = "relevance"    # 排序依据：relevance / citations / date
     task_type: Optional[str] = None           # 显式 Agent 任务类型
     conversation_id: Optional[str] = None     # 与后续深度任务共享的话题会话
+    top_k: Optional[int] = None               # 返回候选论文数量上限（默认由后端决定）
 
 class ChatRequest(BaseModel):
     """AI 对话请求"""
@@ -204,6 +210,63 @@ class FavRequest(BaseModel):
     paper_id: str                           # 论文唯一标识
     folder: Optional[str] = "默认"          # 所属文件夹
     tags: Optional[list[str]] = None        # 标签列表
+
+class LoginRequest(BaseModel):
+    """登录请求"""
+    username: str                           # 用户名或邮箱
+    password: str                           # 密码
+
+class RegisterRequest(BaseModel):
+    """注册请求"""
+    username: str                           # 用户名
+    password: str                           # 密码
+    email: Optional[str] = None             # 邮箱（可选）
+    displayName: Optional[str] = None       # 显示名（可选）
+
+class FolderCreateRequest(BaseModel):
+    """新建文献库文件夹请求"""
+    name: str                               # 文件夹名称
+
+class LibraryBatchDeleteRequest(BaseModel):
+    """文献库批量删除请求"""
+    ids: list[str]                          # 要删除的记录 ID 列表
+
+class ProjectCreateRequest(BaseModel):
+    """创建项目请求"""
+    name: str                               # 项目名称
+    tagline: Optional[str] = None           # 一句话简介
+    status: Optional[str] = "进行中"        # 进行中 / 已完成 / 已搁置
+    overview: Optional[list[str]] = None    # 项目概述段落
+    techStack: Optional[list[str]] = None   # 技术栈
+    milestones: Optional[list[dict]] = None # 里程碑列表
+    members: Optional[list[dict]] = None    # 成员列表
+    links: Optional[list[dict]] = None      # 链接列表
+
+class ProjectUpdateRequest(BaseModel):
+    """更新项目请求（字段均可选）"""
+    name: Optional[str] = None
+    tagline: Optional[str] = None
+    status: Optional[str] = None
+    progress: Optional[int] = None
+    overview: Optional[list[str]] = None
+    techStack: Optional[list[str]] = None
+    milestones: Optional[list[dict]] = None
+    members: Optional[list[dict]] = None
+    links: Optional[list[dict]] = None
+
+class ProposalRequest(BaseModel):
+    """开题报告/综述生成请求"""
+    type: Optional[str] = "review"          # proposal / review
+    topic: Optional[str] = None             # 主题
+    papers_count: Optional[int] = None      # 参考论文数
+
+def _auth_header_token(request: Request) -> Optional[str]:
+    """从 Authorization: Bearer <token> 提取 token。"""
+    auth = request.headers.get("authorization") or ""
+    parts = auth.split(" ")
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1].strip()
+    return (parts[0] or "").strip() or None
 
 def _chat_message(req: ChatRequest) -> str:
     """兼容前端 {message} 与模型式 {messages:[...]} 请求体。"""
@@ -279,6 +342,45 @@ def root():
             "notifications": "/api/notifications"
         }
     }
+
+# ==================== 认证（登录 / 注册 / 当前用户） ====================
+def _require_login(request: Request):
+    """从请求解析当前用户；未登录抛 401。"""
+    token = _auth_header_token(request)
+    user_id = auth_module.get_current_user_id(token)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="请先登录")
+    return user_id
+
+@app.post("/api/auth/login")
+def auth_login(req: LoginRequest):
+    """用户登录：返回 token 与用户信息。"""
+    result = auth_module.login(req.username, req.password)
+    if not result:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    return {"success": True, "data": result}
+
+@app.post("/api/auth/register")
+def auth_register(req: RegisterRequest):
+    """用户注册：成功返回 token 与用户信息，失败返回错误信息。"""
+    result = auth_module.register({
+        "username": req.username,
+        "password": req.password,
+        "email": req.email,
+        "displayName": req.displayName,
+    })
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return {"success": True, "data": result}
+
+@app.get("/api/auth/me")
+def auth_me(request: Request):
+    """获取当前登录用户信息（Bearer token）。"""
+    user_id = _require_login(request)
+    user = auth_module.get_user(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="未登录")
+    return {"success": True, "data": user}
 
 # ==================== 论文搜索 ====================
 @app.get("/api/papers")
@@ -419,6 +521,16 @@ def get_knowledge_graph():
     """获取私域知识图谱（我的发表 × 收藏论文 分层，PaperGraph 格式）。"""
     return {"data": PRIVATE_GRAPH}
 
+@app.get("/api/graph/public")
+def get_graph_public():
+    """获取公域知识图谱（某论文的引用关系，PaperGraph 格式）。"""
+    return {"data": PUBLIC_GRAPH}
+
+@app.get("/api/graph/private")
+def get_graph_private():
+    """获取私域知识图谱（我的发表 × 收藏论文 分层，PaperGraph 格式）。"""
+    return {"data": PRIVATE_GRAPH}
+
 # ==================== 语义搜索 ====================
 @app.post("/api/search")
 @limiter.limit("10/minute")
@@ -483,8 +595,20 @@ def _search_papers_impl(req: SearchRequest):
 
     return {
         "data": [serialize_paper(c) for c in candidates],
+        "summary": _quick_summary(req.query, candidates),
         "meta": workflow_meta
     }
+
+def _quick_summary(query: str, candidates: list) -> str:
+    """为快速检索生成简易回答（agent 不可用时的兜底摘要，供前端 formatQuickAnswer 使用）。"""
+    if not candidates:
+        return f"针对「{query}」，未检索到相关论文。建议更换关键词后重试。"
+    top = candidates[0]
+    return (
+        f"针对「{query}」，为你检索到 **{len(candidates)} 篇**候选论文。"
+        f"其中与主题最相关的是「{top['title']}」（{top.get('venue') or '未知出处'}，"
+        f"引用 {top.get('citations', 0)}），摘要与关键词匹配度最高，可作为切入点。"
+    )
 
 # ==================== AI 对话 ====================
 @app.get("/api/conversations")
@@ -541,7 +665,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         try:
             result = _agent_chat_with_meta(
                 message,
-                task_type=req.task_type or {"deep": "research_exploration", "idea": "research_ideation", "doubt": "concept_explanation"}.get(req.mode),
+                task_type=req.task_type or ("research_exploration" if req.mode == "deep" else None),
                 paper_id=req.paper_id,
                 history=_chat_history(req),
                 model=req.model,
@@ -571,9 +695,11 @@ def _chat_impl(req: ChatRequest, reason: str = ""):
     return {
         "reply": reply,
         "conversation_id": req.conversation_id or "new",
+        "run_id": None,
         "tokens": len(reply),
         "workflow": None,
         "generated_files": None,
+        "references": None,
     }
 
 @app.post("/api/chat/stream")
@@ -591,7 +717,7 @@ async def chat_stream(req: ChatRequest):
         try:
             result = _agent_chat_with_meta(
                 message,
-                task_type=req.task_type or {"deep": "research_exploration", "idea": "research_ideation", "doubt": "concept_explanation"}.get(req.mode),
+                task_type=req.task_type or ("research_exploration" if req.mode == "deep" else None),
                 paper_id=req.paper_id,
                 history=_chat_history(req),
                 model=req.model,
@@ -740,6 +866,48 @@ def get_journals(sort_by: str = Query("match")):
         result.sort(key=lambda j: j["matchPct"], reverse=True)
     return {"data": [serialize_venue(j) for j in result]}
 
+@app.get("/api/venues")
+def get_venues(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    keyword: Optional[str] = None,
+    kind: Optional[str] = None,
+    sort_by: str = Query("match"),
+):
+    """
+    获取投稿目标（会议/期刊）列表 —— 前端 /api/venues 契约（带分页/搜索/类型筛选）。
+    :param page:      页码
+    :param page_size: 每页条数
+    :param keyword:   名称/简称模糊搜索
+    :param kind:      conference / journal
+    :param sort_by:   match（匹配度）/ rate（录用率）/ deadline（截稿日期）
+    """
+    result = list(JOURNALS)
+    if keyword:
+        kw = keyword.lower()
+        result = [j for j in result if
+                  kw in (j.get("fullName") or j.get("full_name") or "").lower() or
+                  kw in (j.get("abbr") or j.get("name") or "").lower()]
+    if kind:
+        result = [j for j in result if j.get("kind") == kind]
+    if sort_by == "rate":
+        result.sort(key=lambda j: j.get("rate", 0) or 0, reverse=True)
+    elif sort_by == "deadline":
+        result.sort(key=lambda j: (j.get("deadline") is None, j.get("deadline") or ""))
+    else:
+        result.sort(key=lambda j: j.get("matchPct", 0) or 0, reverse=True)
+
+    total = len(result)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {
+        "data": [serialize_venue(j) for j in result[start:end]],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
+
 # 研究方向 → 代表性关键词（用于投稿方向匹配）
 _DOMAIN_KEYWORDS: dict[str, list[str]] = {
     "计算机视觉": ["vision", "image", "图像", "视觉", "detection", "检测", "segmentation", "分割",
@@ -827,6 +995,25 @@ def get_scholar_detail(scholar_id: str):
             return {"data": s}
     raise HTTPException(status_code=404, detail="学者未找到")
 
+# 关注状态（内存，重启清空；与文献库 mock 数据层一致）
+_FOLLOWED_SCHOLARS: set[str] = set()
+
+@app.post("/api/scholars/{scholar_id}/follow")
+def follow_scholar(scholar_id: str, request: Request):
+    """关注学者（需登录）。"""
+    _require_login(request)
+    if not any(s["id"] == scholar_id for s in SCHOLARS):
+        raise HTTPException(status_code=404, detail="学者不存在")
+    _FOLLOWED_SCHOLARS.add(scholar_id)
+    return {"data": {"followed": True}}
+
+@app.delete("/api/scholars/{scholar_id}/follow")
+def unfollow_scholar(scholar_id: str, request: Request):
+    """取消关注学者（需登录）。"""
+    _require_login(request)
+    _FOLLOWED_SCHOLARS.discard(scholar_id)
+    return {"data": {"followed": False}}
+
 
 # ==================== 机构 ====================
 @app.get("/api/institutions")
@@ -834,18 +1021,161 @@ def get_institutions():
     """获取研究机构列表。"""
     return {"data": INSTITUTIONS}
 
+# 收藏状态（内存，重启清空）
+_BOOKMARKED_INSTITUTIONS: set[str] = set()
+
+@app.post("/api/institutions/{inst_id}/bookmark")
+def bookmark_institution(inst_id: str, request: Request):
+    """收藏机构（需登录）。"""
+    _require_login(request)
+    if not any(i["id"] == inst_id for i in INSTITUTIONS):
+        raise HTTPException(status_code=404, detail="机构不存在")
+    _BOOKMARKED_INSTITUTIONS.add(inst_id)
+    return {"data": {"bookmarked": True}}
+
+@app.delete("/api/institutions/{inst_id}/bookmark")
+def unbookmark_institution(inst_id: str, request: Request):
+    """取消收藏机构（需登录）。"""
+    _require_login(request)
+    _BOOKMARKED_INSTITUTIONS.discard(inst_id)
+    return {"data": {"bookmarked": False}}
+
 
 # ==================== 项目 ====================
-@app.get("/api/projects")
-def get_projects():
-    """获取科研项目列表。"""
-    return {"data": PROJECTS}
+# 内存项目存储：以 mock 项目为种子，支持运行时 CRUD（重启清空）。
+_PROJECTS_STORE: list[dict] = [dict(p) for p in PROJECTS]
 
+def _gen_id(prefix: str = "proj_") -> str:
+    return prefix + uuid.uuid4().hex[:12]
+
+def _find_project(project_id: str) -> Optional[dict]:
+    for p in _PROJECTS_STORE:
+        if p["id"] == project_id:
+            return p
+    return None
+
+@app.get("/api/projects")
+def get_projects(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    status: Optional[str] = None,
+):
+    """获取科研项目列表（支持分页与状态筛选）。"""
+    result = list(_PROJECTS_STORE)
+    if status:
+        result = [p for p in result if p["status"] == status]
+    total = len(result)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {
+        "data": result[start:end],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
+
+@app.post("/api/projects")
+def create_project(req: ProjectCreateRequest, request: Request):
+    """创建新项目（需登录）。"""
+    _require_login(request)
+    if not req.name or not req.name.strip():
+        raise HTTPException(status_code=400, detail="项目名称不能为空")
+    project = {
+        "id": _gen_id(),
+        "name": req.name.strip(),
+        "tagline": req.tagline or "",
+        "status": req.status or "进行中",
+        "progress": 0,
+        "createdAt": time.strftime("%Y-%m-%d"),
+        "owner": "我",
+        "overview": req.overview or [],
+        "techStack": req.techStack or [],
+        "milestones": [dict(m) for m in (req.milestones or [])],
+        "members": [dict(m) for m in (req.members or [])],
+        "links": [dict(l) for l in (req.links or [])],
+    }
+    _PROJECTS_STORE.append(project)
+    return {"data": {"id": project["id"]}}
 
 @app.get("/api/projects/{project_id}")
 def get_project_detail(project_id: str):
     """获取项目详情；未命中回退第一个项目（与前端 getProject 行为一致）。"""
     return {"data": get_project(project_id)}
+
+@app.put("/api/projects/{project_id}")
+def update_project(project_id: str, req: ProjectUpdateRequest, request: Request):
+    """更新项目信息（需登录）。"""
+    _require_login(request)
+    project = _find_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    updates = {
+        "name": req.name,
+        "tagline": req.tagline,
+        "status": req.status,
+        "progress": req.progress,
+        "overview": req.overview,
+        "techStack": req.techStack,
+        "milestones": [dict(m) for m in req.milestones] if req.milestones is not None else None,
+        "members": [dict(m) for m in req.members] if req.members is not None else None,
+        "links": [dict(l) for l in req.links] if req.links is not None else None,
+    }
+    for key, value in updates.items():
+        if value is not None:
+            project[key] = value
+    if req.progress is not None:
+        project["progress"] = max(0, min(100, req.progress))
+    return {"data": {"updated": True}}
+
+@app.delete("/api/projects/{project_id}")
+def delete_project(project_id: str, request: Request):
+    """删除项目（需登录）。"""
+    _require_login(request)
+    global _PROJECTS_STORE
+    before = len(_PROJECTS_STORE)
+    _PROJECTS_STORE = [p for p in _PROJECTS_STORE if p["id"] != project_id]
+    if len(_PROJECTS_STORE) == before:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return {"data": {"deleted": True}}
+
+# ---- 课题工作台子资源（样例数据，任意项目 id 复用同一套骨架）----
+
+@app.get("/api/projects/{project_id}/outline")
+def get_project_outline(project_id: str):
+    """课题工作台：研究大纲树（Q/H/E/C 层级）。"""
+    _find_project(project_id) or get_project(project_id)  # 校验存在性（未命中回退样例）
+    return {"data": WORKBENCH_OUTLINE}
+
+@app.get("/api/projects/{project_id}/threads")
+def get_project_threads(project_id: str):
+    """课题工作台：研究线程列表。"""
+    return {"data": WORKBENCH_THREADS}
+
+@app.get("/api/projects/{project_id}/thread-cards")
+def get_project_thread_cards(project_id: str):
+    """课题工作台：全部线程卡片（按线程过滤由组件完成）。"""
+    return {"data": WORKBENCH_CARDS}
+
+@app.get("/api/projects/{project_id}/assets")
+def get_project_assets(project_id: str):
+    """课题工作台：工作台资产（多维表格行）。"""
+    return {"data": WORKBENCH_ASSETS}
+
+@app.get("/api/projects/{project_id}/activity")
+def get_project_activity(project_id: str):
+    """课题工作台：活动日志。"""
+    return {"data": WORKBENCH_ACTIVITY}
+
+@app.get("/api/projects/{project_id}/overview")
+def get_project_overview(project_id: str):
+    """课题工作台：概览聚合（焦点/阻塞项/建议）。"""
+    return {"data": WORKBENCH_OVERVIEW}
+
+@app.get("/api/projects/{project_id}/tasks")
+def get_project_tasks(project_id: str):
+    """课题工作台：Agent 任务状态（底部状态栏）。"""
+    return {"data": WORKBENCH_AGENT_TASKS}
 
 # ==================== 个人文献库 ====================
 @app.get("/api/library")
@@ -954,6 +1284,54 @@ async def batch_delete_library(ids: list[str]):
     logger.info(f"Batch delete: removed {removed} papers")
     return {"message": f"已删除 {removed} 篇文献", "removed": removed}
 
+@app.delete("/api/library")
+async def batch_delete_library_body(req: LibraryBatchDeleteRequest):
+    """
+    批量删除文献库记录（前端 DELETE /api/library + body {ids} 契约）。
+    :param req: 含 ids 数组的请求体
+    :return:    删除结果及删除数量
+    """
+    global LIBRARY_PAPERS
+    ids = req.ids or []
+    if not ids:
+        raise HTTPException(status_code=400, detail="请选择要删除的条目")
+    before = len(LIBRARY_PAPERS)
+    LIBRARY_PAPERS = [p for p in LIBRARY_PAPERS if p["id"] not in ids]
+    removed = before - len(LIBRARY_PAPERS)
+    logger.info(f"Batch delete (DELETE /api/library): removed {removed} papers")
+    return {"message": f"已删除 {removed} 篇文献", "removed": removed}
+
+# 文献库文件夹（内存，重启清空）
+_LIBRARY_FOLDERS: list[dict] = []
+
+def _sync_library_folders():
+    """从 LIBRARY_PAPERS 聚合现有文件夹，保证 count 准确。"""
+    from collections import Counter
+    counts = Counter(p.get("folder", "默认") for p in LIBRARY_PAPERS)
+    names = {f["name"] for f in _LIBRARY_FOLDERS}
+    for name, count in counts.items():
+        if name not in names:
+            _LIBRARY_FOLDERS.append({"name": name, "count": count, "active": False})
+    for f in _LIBRARY_FOLDERS:
+        f["count"] = counts.get(f["name"], 0)
+    return _LIBRARY_FOLDERS
+
+@app.get("/api/library/folders")
+def get_library_folders():
+    """获取文献库文件夹列表（含各自文献数与激活态）。"""
+    folders = _sync_library_folders()
+    return {"data": [{"name": f["name"], "count": f["count"], "active": bool(f["active"])} for f in folders]}
+
+@app.post("/api/library/folders")
+def create_library_folder(req: FolderCreateRequest):
+    """新建文献库文件夹。"""
+    name = (req.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="文件夹名称不能为空")
+    if not any(f["name"] == name for f in _LIBRARY_FOLDERS):
+        _LIBRARY_FOLDERS.append({"name": name, "count": 0, "active": False})
+    return {"data": {"name": name}}
+
 @app.put("/api/library/{paper_id}/progress")
 def update_reading_progress(paper_id: str, progress: int = 0):
     """
@@ -1030,6 +1408,56 @@ def remove_favorite(paper_id: str):
     global FAVORITES_CACHE
     FAVORITES_CACHE = [f for f in FAVORITES_CACHE if f["paper_id"] != paper_id]
     return {"message": "已取消收藏"}
+
+# ==================== 开题报告 / 综述生成 ====================
+@app.post("/api/proposal/generate")
+def proposal_generate(req: ProposalRequest):
+    """
+    生成开题报告 / 文献综述初稿（演示用静态内容 + 动态变量填充，契约对齐前端 app/api/proposal/generate）。
+    :param req: {type: 'proposal'|'review', topic?, papers_count?}
+    """
+    type_ = req.type or "review"
+    if type_ not in ("proposal", "review"):
+        raise HTTPException(status_code=400, detail="type 必须为 proposal 或 review")
+    topic = (req.topic or "").strip() or "扩散模型在机器人策略学习中的研究进展"
+    count = req.papers_count or 28
+
+    if type_ == "proposal":
+        content = (
+            f"# 开题报告:{topic}\n\n"
+            "## 一、研究背景与意义\n大语言模型驱动的科研智能体正在改变文献调研、假设生成与实验设计的工作方式。然而现有系统普遍存在检索碎片化、知识组织缺乏结构、长程任务规划能力弱三个问题，难以支撑完整的科研工作流。\n\n"
+            "## 二、国内外研究现状\n1. 检索增强生成(RAG)已广泛应用于问答系统；\n2. 多智能体协作框架(如 AutoGen、MetaGPT)在软件工程任务上验证有效；\n3. 私域知识图谱与向量检索的混合索引是当前知识组织的主流方向。\n\n"
+            "## 三、研究内容\n1. 科研任务的多智能体角色建模与任务分解机制；\n2. 基于私域知识图谱的文献知识组织与检索增强方法；\n3. 长程科研任务的规划-执行-反思闭环架构；\n4. 原型系统实现与评估。\n\n"
+            "## 四、技术路线\n文献调研 → 架构设计 → 关键模块实现 → 系统集成 → 对比实验 → 论文撰写。\n\n"
+            "## 五、预期成果\n1. 发表 CCF-A 类会议论文 1~2 篇；\n2. 开源原型系统一套；\n3. 构建面向文献调研任务的评测基准一个。\n\n"
+            f"(演示初稿,基于项目检索的 {count} 篇文献生成,请在导师指导下修改完善)"
+        )
+    else:
+        content = (
+            f"# 文献综述:{topic}\n\n"
+            "## 1. 引言\n相关技术自引入其所在领域后,近年被广泛推广应用。本综述基于 "
+            f"{count} 篇代表性文献,梳理该方向的发展脉络、核心方法与开放问题。\n\n"
+            "## 2. 发展脉络\n### 2.1 范式确立\n早期奠基性工作提出了核心思想,为后续研究奠定了基础,在多个公开基准上取得了显著提升。\n\n"
+            "### 2.2 表征扩展\n后续工作通过引入多模态信息与场景约束,把方法扩展到更复杂的任务设定,显著降低了对数据量的需求。\n\n"
+            "### 2.3 规模化与通用化\n近期工作将模型规模推至十亿参数并验证跨领域迁移能力,并探索状态空间模型等加速方向。\n\n"
+            "## 3. 关键技术分析\n- **核心模块设计**:在表达能力与计算效率间取得平衡,是核心超参;\n"
+            "- **条件注入机制**:FiLM 调制相比特征拼接在长序列训练中更稳定;\n"
+            "- **推理效率**:采样步数是工业部署的主要瓶颈,加速方法是当前热点。\n\n"
+            "## 4. 开放问题\n1. 实时性:高频场景下的延迟压缩;\n2. 安全性:生成随机性与确定性的矛盾;\n"
+            "3. 数据效率:跨领域数据的统一表征与质量筛选。\n\n"
+            "## 5. 小结\n该方向已从学术原型进入工业验证阶段,与基础模型的融合是下一步最值得关注的方向。\n\n"
+            "(演示初稿,请核对引用后使用)"
+        )
+
+    return {
+        "data": {
+            "type": type_,
+            "topic": topic,
+            "content": content,
+            "papers_count": count,
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+    }
 
 # ==================== 平台统计 ====================
 @app.get("/api/stats")
@@ -1112,6 +1540,15 @@ def _generate_checklist(query: str):
     ]
 
 # ==================== 启动入口 ====================
+@app.on_event("startup")
+def _startup_seed():
+    """启动时预置演示用户（demo / demo123456），便于前端登录联调。"""
+    try:
+        auth_module.seed_demo_user()
+        logger.info("演示用户已就绪: demo / demo123456")
+    except Exception as exc:  # pragma: no cover
+        logger.warning(f"演示用户播种失败: {exc}")
+
 if __name__ == "__main__":
     import uvicorn
     logger.info("=" * 50)

@@ -130,7 +130,7 @@ export interface PaperDetail {
   introduction: string;
 }
 
-export interface 相关Paper {
+export interface RelatedPaper {
   title: string;
   meta: string;
 }

@@ -72,3 +72,4 @@ backend/__pycache__/
 /data/*.db-wal
 /data/*.db-shm
 
+demo.html

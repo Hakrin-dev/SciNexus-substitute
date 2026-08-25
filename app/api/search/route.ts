@@ -14,7 +14,7 @@
  * }
  */
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSeed, fail, parseBody } from "@/lib/server/utils";
+import { ensureSeed, fail, parseBody, genId } from "@/lib/server/utils";
 import { getDB, jsonParse, mapPaper } from "@/lib/server/db";
 import { chatText } from "@/lib/server/llm";
 
@@ -29,6 +29,8 @@ interface SearchReq {
   sort_by?: string;
   task_type?: string;
   top_k?: number;
+  /** 快速→深度会话串联:沿用调用方传入的会话 id,缺省则新建 */
+  conversation_id?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -103,17 +105,20 @@ export async function POST(req: NextRequest) {
     const data = candidates.slice(0, topK);
     const elapsed = (Date.now() - start) / 1000;
     const summary = await quickSummary(body.query, data);
+    const conversationId = body.conversation_id || genId("conv_");
 
     return NextResponse.json({
       success: true,
       data,
       summary,
+      conversation_id: conversationId,
       meta: {
         query: body.query,
         count: data.length,
         search_time: elapsed,
         mode: body.mode || "keyword",
         task_type: body.task_type || "paper_search",
+        conversation_id: conversationId,
         agents: ["supervisor", "scout"],
         sub_queries: subQueries,
         checklist,

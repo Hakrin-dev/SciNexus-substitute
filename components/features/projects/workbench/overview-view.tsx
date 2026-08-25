@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import {
   ArrowRight,
   BookMarked,
@@ -80,16 +79,14 @@ export function OverviewView({ project, overview, onJump }: Props) {
       {/* 指标瓦片 */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {metrics.map((metric, index) => (
-          <motion.div
+          <div
             key={metric.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
-            className="min-w-0 rounded-xl border border-line/70 bg-panel px-4 py-3"
+            className="animate-in fade-in slide-in-from-bottom-2 fill-mode-both min-w-0 rounded-xl border border-line/70 bg-panel px-4 py-3 duration-300"
+            style={{ animationDelay: `${index * 50}ms` }}
           >
             <p className="text-lg font-bold tracking-tight text-ink">{metric.value}</p>
             <p className="mt-0.5 truncate text-[11px] text-faint">{metric.label}</p>
-          </motion.div>
+          </div>
         ))}
       </section>
 

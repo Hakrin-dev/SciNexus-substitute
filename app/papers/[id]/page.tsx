@@ -1,79 +1,51 @@
-"use client";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { ensureSeed } from "@/lib/server/utils";
+import { getDB } from "@/lib/server/db";
+import { PaperReaderView } from "./paper-reader-view";
 
-import { useParams } from "next/navigation";
-import { PaperTopbar } from "@/components/features/paper/paper-topbar";
-import { PaperLeftSidebar } from "@/components/features/paper/paper-left-sidebar";
-import { PaperRightPanel } from "@/components/features/paper/right-panel";
-import { PaperZoom } from "@/components/features/paper/paper-zoom";
-import { usePaperDetail } from "@/lib/api/services";
+interface Props {
+  params: Promise<{ id: string }>;
+}
+
+/** 服务端查论文基础信息(用于元数据与 404 判定;查询失败不阻塞渲染) */
+function getPaperRow(id: string): { title: string; abstract: string; authors: string } | null {
+  try {
+    ensureSeed();
+    const db = getDB();
+    const row = db
+      .prepare("SELECT title, abstract, authors FROM papers WHERE id = ?")
+      .get(id) as { title: string; abstract: string; authors: string } | undefined;
+    if (!row) return null;
+    return {
+      title: row.title ?? "",
+      abstract: row.abstract ?? "",
+      authors: row.authors ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const paper = getPaperRow(id);
+  if (!paper) {
+    // 在流式开始前触发 404(此处调用可携带正确的 HTTP 状态码)
+    notFound();
+  }
+  return {
+    title: `${paper!.title} | 研枢 SciNexus`,
+    description: paper!.abstract.slice(0, 160),
+    openGraph: { title: paper!.title, description: paper!.abstract.slice(0, 160) },
+  };
+}
 
 /**
- * 论文详情页 `/papers/[id]` —— 对应「深知-论文详情页.svg」
- * 沉浸式阅读器布局(不使用全局侧边栏)；数据来自后端 /api/papers/{id}，失败回退 mock。
+ * 论文详情页 `/papers/[id]` —— Server 壳:
+ * 负责 metadata / 404 判定,阅读器交互体在 PaperReaderView(客户端)。
  */
-export default function PaperDetailPage() {
-  const params = useParams<{ id: string }>();
-  const id = params.id ?? "";
-  const { data: paper } = usePaperDetail(id);
-
-  if (!paper) return null;
-
-  return (
-    <div className="flex h-screen flex-col bg-background">
-      <PaperTopbar paperId={paper.id} title={paper.title} likes={paper.likes} />
-
-      <div className="flex min-h-0 flex-1">
-        <PaperLeftSidebar
-          toc={paper.toc}
-          current={paper.page.current}
-          total={paper.page.total}
-        />
-
-        {/* 正文:整页等比缩放,宽度随侧栏展开/收起填满可用空间 */}
-        <main className="min-w-0 flex-1 overflow-y-auto px-8 py-8">
-          <PaperZoom>
-            <article className="rounded-2xl bg-card p-10 shadow-card">
-            <h1 className="text-center text-[22px] font-bold leading-snug text-ink">
-              {paper.title}
-            </h1>
-            <p className="mt-4 text-center text-sm leading-relaxed text-muted">
-              {paper.authors.join(", ")}
-            </p>
-            <p className="mt-1.5 text-center text-xs text-faint">
-              {paper.affiliation}
-            </p>
-
-            <hr className="mx-auto mt-6 w-16 border-line" />
-
-            <h2
-              id="abstract"
-              className="mt-8 text-[17px] font-bold text-ink"
-            >
-              Abstract
-            </h2>
-            <p className="mt-3 text-justify text-[15px] leading-7 text-ink-2">
-              {paper.abstract}
-            </p>
-
-            <h2 id="intro" className="mt-8 text-[17px] font-bold text-ink">
-              1. Introduction
-            </h2>
-            <p className="mt-3 text-justify text-[15px] leading-7 text-ink-2">
-              {paper.introduction}
-            </p>
-
-            <figure className="mt-6">
-              <figcaption className="py-2 text-center text-xs text-faint">
-                Figure 1
-              </figcaption>
-              <div className="h-72 rounded-xl bg-panel" />
-            </figure>
-            </article>
-          </PaperZoom>
-        </main>
-
-        <PaperRightPanel />
-      </div>
-    </div>
-  );
+export default async function PaperDetailPage({ params }: Props) {
+  const { id } = await params;
+  return <PaperReaderView id={id} />;
 }

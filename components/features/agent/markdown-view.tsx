@@ -22,6 +22,12 @@ type Block =
 const CODE_SPAN_RE = /(`[^`\n]+`)/g;
 const RICH_SPAN_RE = /(\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^)\s]+\)|\*[^*\n]+\*)/g;
 const LINK_RE = /^\[([^\]]+)\]\(([^)\s]+)\)$/;
+/** 链接协议白名单:AI 输出内容不可信,拦截 javascript:/data: 等危险协议 */
+const SAFE_HREF_RE = /^(https?:|mailto:)/i;
+
+function safeHref(href: string): string {
+  return SAFE_HREF_RE.test(href.trim()) ? href.trim() : "#";
+}
 
 function renderRichText(text: string, keyBase: string): ReactNode[] {
   const segs = text.split(RICH_SPAN_RE);
@@ -47,7 +53,7 @@ function renderRichText(text: string, keyBase: string): ReactNode[] {
       return (
         <a
           key={key}
-          href={link[2]}
+          href={safeHref(link[2])}
           target="_blank"
           rel="noreferrer"
           className="text-primary underline underline-offset-2"

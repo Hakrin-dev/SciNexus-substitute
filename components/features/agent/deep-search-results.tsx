@@ -165,6 +165,11 @@ export function DeepSearchResults({
   const [busy, setBusy] = useState(false);
   const startedRef = useRef<string | null>(null);
   const turnsRef = useRef<Turn[]>([]);
+  /** 当前流式请求中止控制器(卸载/停止生成时断流) */
+  const abortRef = useRef<AbortController | null>(null);
+
+  // 卸载时中止进行中的流
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   // 「开启新研究」：清空会话状态，回到空对话态
   useEffect(() => {
@@ -198,6 +203,8 @@ export function DeepSearchResults({
         { query: q, mode: m, answer: "", papers: null, summary: "", workflow: null, refs: null, busy: true },
       ]);
       setBusy(true);
+      const ac = new AbortController();
+      abortRef.current = ac;
       try {
         if (m === "fast") {
           const { papers, summary, conversationId: returnedConversationId } = await quickSearchPapers(q, conversationId ?? undefined);
@@ -217,6 +224,7 @@ export function DeepSearchResults({
               { role: "assistant" as const, content: t.answer },
             ]);
           let acc = "";
+          let lastFlush = 0;
           for await (const event of streamChat("/api/chat/stream", {
             message: q,
             messages: history,
@@ -225,7 +233,7 @@ export function DeepSearchResults({
             style: style ?? undefined,
             conversation_id: conversationId ?? undefined,
             context: { topic: turnsRef.current[0]?.query ?? q },
-          })) {
+          }, ac.signal)) {
             if (event.type === "meta") {
               if (event.meta.conversation_id) setConversationId(event.meta.conversation_id);
               updateLast({
@@ -234,17 +242,27 @@ export function DeepSearchResults({
               });
             } else if (event.type === "delta") {
               acc += event.text;
-              if (acc) updateLast({ answer: acc });
+              // 节流刷新(~60ms)
+              const now = Date.now();
+              if (now - lastFlush >= 60) {
+                lastFlush = now;
+                if (acc) updateLast({ answer: acc });
+              }
             }
           }
-          if (!acc) {
-            updateLast({ answer: "（agent 未产生回复，请检查后端 LLM 配置）" });
+          if (acc) {
+            updateLast({ answer: acc, busy: false });
+          } else if (!ac.signal.aborted) {
+            updateLast({ answer: "（agent 未产生回复，请检查后端 LLM 配置）", busy: false });
           }
-          updateLast({ busy: false });
         }
       } catch {
-        updateLast({ answer: MOCK_REPLY, busy: false });
+        // 用户主动停止:保留已生成部分
+        if (!ac.signal.aborted) {
+          updateLast({ answer: MOCK_REPLY, busy: false });
+        }
       } finally {
+        if (abortRef.current === ac) abortRef.current = null;
         setBusy(false);
       }
     },

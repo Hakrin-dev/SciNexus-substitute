@@ -1,4 +1,4 @@
-import type { PaperDetail, 相关Paper } from "@/types";
+import type { PaperDetail, RelatedPaper } from "@/types";
 
 /** 论文阅读器 —— 内容提取自「深知-论文详情页.svg」(RDT-1B) */
 export const paperDetail: PaperDetail = {
@@ -32,7 +32,7 @@ export const paperDetail: PaperDetail = {
     "Recent advances in generative modeling have unlocked new capabilities in language and vision, yet robotics still relies heavily on task-specific imitation learning. We argue that the lack of large-scale, diverse robot data — not model architecture — is the primary bottleneck. RDT tackles this by training a 1.2B-parameter transformer-based diffusion model on the DROID corpus, then transferring to downstream robots via lightweight fine-tuning (≈ 2 GPU-hours).",
 };
 
-export const similarPapers: 相关Paper[] = [
+export const similarPapers: RelatedPaper[] = [
   {
     title:
       "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",

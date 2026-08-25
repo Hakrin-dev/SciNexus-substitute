@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CARD_KIND_META, CARD_STATUS_META } from "./workbench-meta";
@@ -45,12 +44,10 @@ export function ThreadView({ threads, cards, selection, onSelect }: Props) {
             <ol className="relative mt-6 space-y-3 pl-7">
               <span className="absolute bottom-4 left-[11px] top-4 w-px bg-line" aria-hidden />
               {threadCards.map((card, index) => (
-                <motion.li
+                <li
                   key={card.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.25) }}
-                  className="relative"
+                  className="animate-in fade-in slide-in-from-bottom-2 fill-mode-both relative duration-300"
+                  style={{ animationDelay: `${Math.min(index * 50, 250)}ms` }}
                 >
                   <span
                     aria-hidden
@@ -70,7 +67,7 @@ export function ThreadView({ threads, cards, selection, onSelect }: Props) {
                     selected={selection?.kind === "card" && selection.id === card.id}
                     onSelect={onSelect}
                   />
-                </motion.li>
+                </li>
               ))}
             </ol>
           </section>

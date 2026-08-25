@@ -37,7 +37,7 @@ interface AuthState {
   demoLogin: () => void;
 }
 
-export const useAuthStore = create<AuthState>()((set, get) => ({
+export const useAuthStore = create<AuthState>()((set) => ({
   loading: false,
   token: typeof window !== "undefined" ? getToken() : null,
   user: null,
@@ -58,9 +58,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         loading: false,
       });
       return { ok: true };
-    } catch (e: any) {
+    } catch (e) {
       set({ loading: false });
-      return { ok: false, error: e.message || "登录失败" };
+      return { ok: false, error: e instanceof Error ? e.message : "登录失败" };
     }
   },
 
@@ -79,9 +79,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         loading: false,
       });
       return { ok: true };
-    } catch (e: any) {
+    } catch (e) {
       set({ loading: false });
-      return { ok: false, error: e.message || "注册失败" };
+      return { ok: false, error: e instanceof Error ? e.message : "注册失败" };
     }
   },
 

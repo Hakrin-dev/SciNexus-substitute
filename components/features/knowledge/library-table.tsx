@@ -21,6 +21,8 @@ export function LibraryTable() {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const { data: libraryItems = [] } = useLibraryItems();
+  // 服务端按 added_at DESC 排序,首条即最近加入(addedAt 为「7月25日」式展示文案)
+  const lastUpdated = libraryItems[0]?.addedAt;
 
   const venues = ["全部会议", ...new Set(libraryItems.map((item) => item.venue.split(" ")[0]))];
   const years = ["全部年份", ...new Set(libraryItems.map((item) => item.venue.match(/\d{4}/)?.[0] ?? "其他"))];
@@ -41,7 +43,7 @@ export function LibraryTable() {
         <div>
           <h1 className="text-xl font-bold text-ink">在读</h1>
           <p className="mt-1 text-xs text-faint">
-            12 篇文献 · 上次更新 7 月 25 日
+            {libraryItems.length} 篇文献{lastUpdated ? ` · 上次更新 ${lastUpdated}` : ""}
           </p>
         </div>
         <Button className="rounded-xl" onClick={() => fileInput.current?.click()}>

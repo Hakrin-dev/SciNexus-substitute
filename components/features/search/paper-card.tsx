@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowRight, Bookmark, Plus, ThumbsUp, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,17 +11,16 @@ const VENUE_VARIANT = { violet: "violet", amber: "amber", green: "green" } as co
 
 /** 论文卡片 —— 对应主发现页 SVG 的 Feed 卡片 */
 export function PaperCard({ paper, index }: { paper: FeedPaper; index: number }) {
-  const { likedPapers, bookmarkedPapers, toggleLike, toggleBookmark } =
-    useUserPreferences();
-  const liked = !!likedPapers[paper.id];
-  const bookmarked = !!bookmarkedPapers[paper.id];
+  // 细粒度选择器:只订阅本卡片相关状态,避免任一卡片点赞触发全列表重渲染
+  const liked = useUserPreferences((s) => !!s.likedPapers[paper.id]);
+  const bookmarked = useUserPreferences((s) => !!s.bookmarkedPapers[paper.id]);
+  const toggleLike = useUserPreferences((s) => s.toggleLike);
+  const toggleBookmark = useUserPreferences((s) => s.toggleBookmark);
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.08 }}
-      className="rounded-2xl bg-card p-6 shadow-card"
+    <article
+      className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both rounded-2xl bg-card p-6 shadow-card duration-[350ms]"
+      style={{ animationDelay: `${Math.min(index * 50, 350)}ms` }}
     >
       <div className="flex gap-6">
         <div className="min-w-0 flex-1">
@@ -109,6 +107,6 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
           </div>
         </div>
       </div>
-    </motion.article>
+    </article>
   );
 }

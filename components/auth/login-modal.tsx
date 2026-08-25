@@ -12,8 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/stores/auth";
 
 /**
- * 登录弹窗(纯演示,不做真实登录/注册逻辑)
- * 三个 Tab:账密登录 / 免密登录(验证码 + GitHub/Google 关联登录) / 注册
+ * 登录弹窗
+ * 账密登录 / 注册走真实后端(/api/auth/*);免密登录与第三方登录后端未支持,
+ * 保留为演示入口(demoLogin)。
  */
 
 interface LoginModalProps {
@@ -33,13 +34,25 @@ function Field({
   );
 }
 
+function ErrorText({ children }: { children?: string }) {
+  if (!children) return null;
+  return <p className="text-xs text-red-600 dark:text-red-400">{children}</p>;
+}
+
 export function LoginModal({ open, onClose }: LoginModalProps) {
+  const login = useAuthStore((s) => s.login);
+  const register = useAuthStore((s) => s.register);
   const demoLogin = useAuthStore((s) => s.demoLogin);
-  /** 演示:点击登录即视为登录成功 */
-  const handleLogin = () => {
-    demoLogin();
-    onClose();
-  };
+  const loading = useAuthStore((s) => s.loading);
+
+  const [account, setAccount] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [loginError, setLoginError] = React.useState<string>();
+
+  const [regName, setRegName] = React.useState("");
+  const [regEmail, setRegEmail] = React.useState("");
+  const [regPassword, setRegPassword] = React.useState("");
+  const [regError, setRegError] = React.useState<string>();
 
   React.useEffect(() => {
     if (!open) return;
@@ -49,6 +62,51 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  /** 账密登录:真实接口 */
+  const handleLogin = async () => {
+    setLoginError(undefined);
+    if (!account.trim() || !password) {
+      setLoginError("请输入账号和密码");
+      return;
+    }
+    const result = await login(account.trim(), password);
+    if (result.ok) {
+      onClose();
+    } else {
+      setLoginError(result.error);
+    }
+  };
+
+  /** 注册:真实接口 */
+  const handleRegister = async () => {
+    setRegError(undefined);
+    if (regName.trim().length < 2) {
+      setRegError("用户名至少 2 个字符");
+      return;
+    }
+    if (regPassword.length < 6) {
+      setRegError("密码至少 6 位");
+      return;
+    }
+    const result = await register({
+      username: regName.trim(),
+      password: regPassword,
+      email: regEmail.trim() || undefined,
+      displayName: regName.trim(),
+    });
+    if (result.ok) {
+      onClose();
+    } else {
+      setRegError(result.error);
+    }
+  };
+
+  /** 免密/第三方登录:后端未支持,演示态直接进入 */
+  const handleDemo = () => {
+    demoLogin();
+    onClose();
+  };
 
   if (!open) return null;
 
@@ -85,8 +143,24 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
           </TabsList>
 
           <TabsContent value="password" className="mt-5 flex flex-col gap-4">
-            <Field label="账号/用户名" placeholder="请输入账号或用户名" />
-            <Field label="密码" type="password" placeholder="请输入密码" />
+            <Field
+              label="账号/用户名"
+              placeholder="请输入账号或用户名"
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
+              autoComplete="username"
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            />
+            <Field
+              label="密码"
+              type="password"
+              placeholder="请输入密码"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            />
+            <ErrorText>{loginError}</ErrorText>
             <div className="-mt-1.5 flex justify-end">
               <Link
                 href="/reset-password"
@@ -96,8 +170,8 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
                 忘记密码?
               </Link>
             </div>
-            <Button className="w-full" onClick={handleLogin}>
-              登录
+            <Button className="w-full" onClick={handleLogin} disabled={loading}>
+              {loading ? "登录中…" : "登录"}
             </Button>
           </TabsContent>
 
@@ -112,8 +186,8 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
                 </Button>
               </div>
             </div>
-            <Button className="mt-1 w-full" onClick={handleLogin}>
-              登录
+            <Button className="mt-1 w-full" onClick={handleDemo} disabled={loading}>
+              登录(演示)
             </Button>
 
             {/* 分割线 + 第三方关联登录 */}
@@ -126,7 +200,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
               <Button
                 variant="outline"
                 type="button"
-                onClick={handleLogin}
+                onClick={handleDemo}
                 className="w-full"
               >
                 <Image
@@ -141,7 +215,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
               <Button
                 variant="outline"
                 type="button"
-                onClick={handleLogin}
+                onClick={handleDemo}
                 className="w-full"
               >
                 <Image
@@ -157,19 +231,31 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
           </TabsContent>
 
           <TabsContent value="register" className="mt-5 flex flex-col gap-4">
-            <Field label="用户名" placeholder="请输入用户名" />
-            <Field label="账号" placeholder="请输入邮箱或手机号" />
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[13px] font-medium text-ink-2">验证码</span>
-              <div className="flex gap-2">
-                <Input placeholder="请输入验证码" className="flex-1" />
-                <Button variant="outline" type="button" className="shrink-0">
-                  获取验证码
-                </Button>
-              </div>
-            </div>
-            <Button className="mt-1 w-full" onClick={onClose}>
-              注册
+            <Field
+              label="用户名"
+              placeholder="请输入用户名(至少 2 个字符)"
+              value={regName}
+              onChange={(e) => setRegName(e.target.value)}
+            />
+            <Field
+              label="邮箱(可选)"
+              placeholder="请输入邮箱"
+              type="email"
+              value={regEmail}
+              onChange={(e) => setRegEmail(e.target.value)}
+            />
+            <Field
+              label="密码"
+              type="password"
+              placeholder="请输入密码(至少 6 位)"
+              value={regPassword}
+              onChange={(e) => setRegPassword(e.target.value)}
+              autoComplete="new-password"
+              onKeyDown={(e) => e.key === "Enter" && handleRegister()}
+            />
+            <ErrorText>{regError}</ErrorText>
+            <Button className="w-full" onClick={handleRegister} disabled={loading}>
+              注册并登录
             </Button>
           </TabsContent>
         </Tabs>

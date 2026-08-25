@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AppSidebar } from "./app-sidebar";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
+import { MockDataBadge } from "./mock-data-badge";
 import { useSidebarStore } from "@/stores/sidebar";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       <AppSidebar />
+      <MockDataBadge />
       {/* 移动端顶栏 */}
       <header className="sticky top-0 z-20 flex h-14 items-center border-b border-line bg-card px-4 lg:hidden">
         <Logo />

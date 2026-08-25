@@ -37,6 +37,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const years = yearlyRows.map((r) => r.year);
     const values = yearlyRows.map((r) => r.value);
 
+    // 第二段简介由学者真实数据派生(此前是人人相同的固定模板句)
+    const introTags = jsonParse<string[]>(scholar.tags_json, []);
+    const bioSecond =
+      `现任 ${scholar.affiliation || "独立研究者"}${scholar.role ? ` ${scholar.role}` : ""}` +
+      (introTags.length ? `，研究方向聚焦 ${introTags.slice(0, 3).join("、")}` : "") +
+      `；在库收录论文 ${pubs.length} 篇，总被引 ${(scholar.citations ?? 0).toLocaleString()} 次（h-index ${scholar.h_index ?? "-"}）。`;
+
     const data = {
       id: scholar.id,
       nameCn: scholar.name_cn,
@@ -47,8 +54,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       affiliation: scholar.affiliation,
       location: scholar.location,
       email: scholar.email,
-      bio: [scholar.bio, "此前曾在多家顶级研究机构任职，发表多篇高影响力论文。"],
-      introTags: jsonParse<string[]>(scholar.tags_json, []),
+      bio: [scholar.bio, bioSecond],
+      introTags: introTags,
       metrics: {
         totalCitations: scholar.citations,
         hIndex: scholar.h_index,

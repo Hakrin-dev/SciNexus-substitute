@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import { FollowButton } from "./follow-button";
 import type { Scholar } from "@/types";
 
@@ -10,12 +9,10 @@ export function ScholarCard({ scholar, index }: { scholar: Scholar; index: numbe
   const router = useRouter();
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.06 }}
+    <article
       onClick={() => router.push(`/scholars/${scholar.id}`)}
-      className="cursor-pointer rounded-2xl bg-card p-5 shadow-card transition-shadow hover:shadow-pop"
+      className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both cursor-pointer rounded-2xl bg-card p-5 shadow-card transition-shadow hover:shadow-pop duration-[350ms]"
+      style={{ animationDelay: `${Math.min(index * 40, 280)}ms` }}
     >
       <div className="flex gap-4">
         <span
@@ -56,6 +53,6 @@ export function ScholarCard({ scholar, index }: { scholar: Scholar; index: numbe
           </div>
         </div>
       </div>
-    </motion.article>
+    </article>
   );
 }

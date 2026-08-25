@@ -234,7 +234,7 @@ export function KnowledgeDashboard() {
       </section>
 
       <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Metric value="93" label="文献资产" />
+        <Metric value={String(libraryItems.length)} label="文献资产" />
         <Metric value={String(scholars.length)} label="关注学者" />
         <Metric value={String(institutions.length)} label="研究机构" />
       </section>
@@ -262,7 +262,7 @@ export function KnowledgeDashboard() {
             <div className="min-w-0">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-ink-2">最近加入</p>
-                <span className="text-[11px] text-faint">共 93 篇</span>
+                <span className="text-[11px] text-faint">共 {libraryItems.length} 篇</span>
               </div>
               <div className="mt-2 divide-y divide-line">
                 {libraryItems.map((item, index) => (

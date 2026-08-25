@@ -7,11 +7,12 @@
  *   const { data } = await api.papers.list({ page: 1 });
  */
 
-// 后端基础地址：默认使用 FastAPI，可通过 NEXT_PUBLIC_API_URL 覆盖
+// 后端基础地址:默认同源(空字符串 → 相对路径 /api/*,命中 Next.js 自带 Route Handlers);
+// 可通过 NEXT_PUBLIC_API_URL 或运行时 window.__API_BASE__ 覆盖为外部 FastAPI 服务
 export const API_BASE =
   (typeof window !== "undefined"
-    ? (window as any).__API_BASE__ || process.env.NEXT_PUBLIC_API_URL
-    : process.env.NEXT_PUBLIC_API_URL) || "http://localhost:8000";
+    ? window.__API_BASE__ || process.env.NEXT_PUBLIC_API_URL
+    : process.env.NEXT_PUBLIC_API_URL) || "";
 
 // 存储 token 的 key（与 stores/auth.ts 保持一致，可替换为 Cookie/HttpOnly）
 const TOKEN_KEY = "yanshu_token";
@@ -261,7 +262,7 @@ export const client = {
       tags?: string[];
     }) => request<any>("POST", "/api/library", { body }),
     remove: (ids: string[]) =>
-      request<any>("DELETE", "/api/library", { body: { ids } }),
+      request<any>("POST", "/api/library/batch-delete", { body: { ids } }),
     updateProgress: (id: string, progress: number) =>
       request<any>("PUT", `/api/library/${id}/progress`, {
         body: { progress },
@@ -367,42 +368,51 @@ export async function* streamChat(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
 
-    let idx: number;
-    while ((idx = buffer.indexOf("\n\n")) >= 0) {
-      const raw = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
+      let idx: number;
+      // 兼容 \n\n 与 \r\n\r\n 分隔(SSE 规范允许 CRLF)
+      while ((idx = buffer.search(/\r?\n\r?\n/)) >= 0) {
+        const sepLen = buffer.slice(idx).match(/^(\r?\n){2}/)?.[0].length ?? 2;
+        const raw = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + sepLen);
 
-      let event = "message";
-      let data = "";
-      for (const line of raw.split("\n")) {
-        if (line.startsWith("event:")) event = line.slice(6).trim();
-        else if (line.startsWith("data:")) data += line.slice(5);
-      }
-      if (!data) continue;
-
-      if (event === "done") {
-        yield { type: "done" };
-        return;
-      }
-      try {
-        const json = JSON.parse(data) as {
-          choices?: { delta?: { content?: string } }[];
-        };
-        if (event === "meta") {
-          yield { type: "meta", meta: json as never };
-          continue;
+        let event = "message";
+        const dataLines: string[] = [];
+        for (const line of raw.split(/\r?\n/)) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5));
         }
-        const text = json?.choices?.[0]?.delta?.content ?? "";
-        if (text) yield { type: "delta", text };
-      } catch {
-        // 忽略无法解析的分片
+        if (!dataLines.length) continue;
+        // SSE 规范:多个 data 行以 \n 连接
+        const data = dataLines.join("\n");
+
+        if (event === "done") {
+          yield { type: "done" };
+          return;
+        }
+        try {
+          const json = JSON.parse(data) as {
+            choices?: { delta?: { content?: string } }[];
+          };
+          if (event === "meta") {
+            yield { type: "meta", meta: json as never };
+            continue;
+          }
+          const text = json?.choices?.[0]?.delta?.content ?? "";
+          if (text) yield { type: "delta", text };
+        } catch {
+          // 忽略无法解析的分片
+        }
       }
     }
+    yield { type: "done" };
+  } finally {
+    // 消费方提前退出(break/abort/组件卸载)时断开底层连接,避免空转耗流
+    reader.cancel().catch(() => {});
   }
-  yield { type: "done" };
 }

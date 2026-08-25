@@ -1,8 +1,6 @@
 /**
- * GET    /api/library   - 获取文献库列表（支持 folder / tag / status 筛选）
- * POST   /api/library   - 添加论文到文献库
- * DELETE /api/library   - 批量删除
- * Body (DELETE): { ids: string[] }
+ * GET  /api/library   - 获取文献库列表（支持 folder / tag / status 筛选）
+ * POST /api/library   - 添加论文到文献库
  */
 import { NextRequest } from "next/server";
 import {
@@ -19,6 +17,13 @@ import { requireAuth } from "@/lib/server/auth";
 import { genId } from "@/lib/server/utils";
 
 export const runtime = "nodejs";
+
+/** sqlite "2026-07-25 14:33:21" → 「7月25日」(与前端 mock 展示约定一致) */
+function formatAddedAt(raw?: string | null): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw ?? "");
+  if (m) return `${Number(m[2])}月${Number(m[3])}日`;
+  return raw ?? "";
+}
 
 export async function GET(req: NextRequest) {
   ensureSeed();
@@ -78,7 +83,7 @@ export async function GET(req: NextRequest) {
       venue: r.venue,
       arxiv: r.arxiv,
       authors: r.authors,
-      addedAt: r.added_at,
+      addedAt: formatAddedAt(r.added_at),
       pdfTone: r.pdf_tone,
       folder: r.folder,
       tags: jsonParse<string[]>(r.tags_json, []),
@@ -134,31 +139,5 @@ export async function POST(req: NextRequest) {
     return ok({ id });
   } catch (e: any) {
     return fail(e.message || "添加到文献库失败");
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  ensureSeed();
-  try {
-    const user = requireAuth(req);
-    if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-    const userId = user.id;
-    const body = await parseBody<{ ids: string[] }>(req);
-    if (!body.ids?.length) return fail("请选择要删除的条目");
-    const db = getDB();
-    const stmt = db.prepare(
-      "DELETE FROM library_items WHERE id = ? AND user_id = ?"
-    );
-    let removed = 0;
-    const tx = db.transaction(() => {
-      for (const id of body.ids) {
-        const r = stmt.run(id, userId);
-        removed += r.changes;
-      }
-    });
-    tx();
-    return ok({ removed, message: `已删除 ${removed} 篇文献` });
-  } catch (e: any) {
-    return fail(e.message || "删除失败");
   }
 }

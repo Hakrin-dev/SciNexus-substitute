@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
@@ -185,12 +184,9 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
           className="sticky top-20 hidden self-start lg:block"
         />
 
-        <motion.main
+        <main
           key={studioOpen ? "studio" : view}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="min-w-0 space-y-5"
+          className="animate-in fade-in slide-in-from-bottom-2 min-w-0 space-y-5 duration-300"
         >
           {studioOpen ? (
             <ProposalStudio projectName={project.name} onExit={() => setStudioOpen(false)} />
@@ -224,7 +220,7 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
               {view === "log" && <LogView entries={activity} />}
             </>
           )}
-        </motion.main>
+        </main>
 
         {/* 桌面端:助手栏作为栅格列(可折叠) */}
         {sidebarOpen && (

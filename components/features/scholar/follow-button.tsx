@@ -15,8 +15,8 @@ export function FollowButton({
   defaultFollowing?: boolean;
   className?: string;
 }) {
-  const { followedScholars, toggleFollow } = useUserPreferences();
-  const following = followedScholars[scholarId] ?? defaultFollowing;
+  const following = useUserPreferences((s) => s.followedScholars[scholarId] ?? defaultFollowing);
+  const toggleFollow = useUserPreferences((s) => s.toggleFollow);
 
   return (
     <Button

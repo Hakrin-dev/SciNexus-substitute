@@ -12,10 +12,10 @@ import { cn } from "@/lib/utils";
 
 /** 阅读器顶栏 —— Paper / AI Blog 切换 + 标题 + 操作 */
 export function PaperTopbar({ paperId, title, likes }: { paperId: string; title: string; likes: number }) {
-  const { likedPapers, bookmarkedPapers, toggleLike, toggleBookmark } =
-    useUserPreferences();
-  const liked = !!likedPapers[paperId];
-  const bookmarked = !!bookmarkedPapers[paperId];
+  const liked = useUserPreferences((s) => !!s.likedPapers[paperId]);
+  const bookmarked = useUserPreferences((s) => !!s.bookmarkedPapers[paperId]);
+  const toggleLike = useUserPreferences((s) => s.toggleLike);
+  const toggleBookmark = useUserPreferences((s) => s.toggleBookmark);
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-6 border-b border-line bg-card px-5">

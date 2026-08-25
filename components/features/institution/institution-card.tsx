@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Award, Bookmark, BookmarkCheck, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUserPreferences } from "@/stores/user-preferences";
@@ -20,17 +19,16 @@ export function InstitutionCard({
   institution: Institution;
   index: number;
 }) {
-  const { bookmarkedInstitutions, toggleInstitutionBookmark } =
-    useUserPreferences();
   const bookmarked =
-    bookmarkedInstitutions[institution.id] ?? institution.bookmarked ?? false;
+    useUserPreferences(
+      (s) => s.bookmarkedInstitutions[institution.id] ?? institution.bookmarked ?? false,
+    );
+  const toggleInstitutionBookmark = useUserPreferences((s) => s.toggleInstitutionBookmark);
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.06 }}
-      className="rounded-2xl bg-card p-8 shadow-card transition-shadow hover:shadow-pop"
+    <article
+      className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both rounded-2xl bg-card p-8 shadow-card transition-shadow hover:shadow-pop duration-[350ms]"
+      style={{ animationDelay: `${Math.min(index * 40, 280)}ms` }}
     >
       <div className="flex gap-6">
         <span
@@ -109,6 +107,6 @@ export function InstitutionCard({
           </p>
         </div>
       </div>
-    </motion.article>
+    </article>
   );
 }

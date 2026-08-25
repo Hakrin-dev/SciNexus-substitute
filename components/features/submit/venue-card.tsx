@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import {
   BookOpen,
   Calendar,
@@ -27,11 +26,9 @@ export function VenueCard({ venue, index }: { venue: Venue; index: number }) {
   const isConference = venue.kind === "conference";
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.06 }}
-      className="relative overflow-hidden rounded-2xl bg-card shadow-card"
+    <article
+      className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both relative overflow-hidden rounded-2xl bg-card shadow-card duration-[350ms]"
+      style={{ animationDelay: `${Math.min(index * 40, 280)}ms` }}
     >
       {/* 左侧状态色条 */}
       <span
@@ -102,6 +99,6 @@ export function VenueCard({ venue, index }: { venue: Venue; index: number }) {
           />
         )}
       </div>
-    </motion.article>
+    </article>
   );
 }

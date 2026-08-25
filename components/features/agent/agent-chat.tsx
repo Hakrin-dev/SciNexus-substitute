@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { MessageSquarePlus } from "lucide-react";
+import { memo, useEffect, useRef, useState } from "react";
+import { CircleStop, MessageSquarePlus } from "lucide-react";
 import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
 import { sendChat, quickSearchPapers, formatQuickAnswer } from "@/lib/api/services";
@@ -15,9 +15,38 @@ import {
 import { MarkdownView } from "./markdown-view";
 
 interface Message {
+  /** 自增 id,作列表 key(避免用 index,流式更新时保持身份稳定) */
+  id: number;
   role: "user" | "assistant";
   content: string;
 }
+
+/** 单条消息行(memo 化:流式 delta 只重渲染最后一条,历史消息不参与 reconcile) */
+const MessageRow = memo(function MessageRow({ msg }: { msg: Message }) {
+  if (msg.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <p className="max-w-[80%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-relaxed text-white">
+          {msg.content}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft">
+        <PromptCircle className="size-4 text-primary" />
+      </span>
+      <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-card px-4 py-2.5 shadow-card">
+        {msg.content ? (
+          <MarkdownView content={msg.content} />
+        ) : (
+          <span className="text-sm text-faint">思考中…</span>
+        )}
+      </div>
+    </div>
+  );
+});
 
 /** 空状态的建议问题(对应 ChatGPT 首页的建议卡片) */
 const SUGGESTIONS = [
@@ -58,10 +87,30 @@ export function AgentChat() {
   /** compact 压缩点:仅把 compactFrom 之后的消息送入上下文(界面消息流不受影响) */
   const [compactFrom, setCompactFrom] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+  /** 消息自增 id */
+  const nextIdRef = useRef(1);
+  /** 当前流式请求的中止控制器(停止生成 / 组件卸载时断流) */
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // 卸载时中止进行中的流,避免对已卸载组件继续 setState
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  /** 更新最后一条消息内容 */
+  const setLastContent = (content: string) => {
+    setMessages((prev) => {
+      if (!prev.length) return prev;
+      const next = prev.slice();
+      next[next.length - 1] = { ...next[next.length - 1], content };
+      return next;
+    });
+  };
+
+  /** 停止生成 */
+  const stopStreaming = () => abortRef.current?.abort();
 
   const send = async (text?: string, forceMode?: ComposerMode) => {
     const q = (text ?? value).trim();
@@ -72,17 +121,21 @@ export function AgentChat() {
       role: m.role,
       content: m.content,
     }));
+    const assistantId = nextIdRef.current++;
     setMessages((prev) => [
       ...prev,
-      { role: "user", content: q },
-      { role: "assistant", content: "" },
+      { id: nextIdRef.current++, role: "user", content: q },
+      { id: assistantId, role: "assistant", content: "" },
     ]);
     setStreaming(true);
+    const ac = new AbortController();
+    abortRef.current = ac;
     try {
       if (effectiveMode !== "fast") {
         // 深度模式：完整多智能体工作流（Supervisor → scout/synthesis/... → LLM 组合回答）
         let acc = "";
-        for await (const event of sendChat(q, history, undefined, model, activeConv ?? undefined, {
+        let lastFlush = 0;
+        for await (const event of sendChat(q, history, ac.signal, model, activeConv ?? undefined, {
           topic: messages[0]?.content ?? q,
           style: style ?? undefined,
         }, effectiveMode)) {
@@ -91,44 +144,33 @@ export function AgentChat() {
           }
           if (event.type === "delta") {
             acc += event.text;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = { role: "assistant", content: acc };
-              return next;
-            });
+            // 节流刷新(~60ms),避免逐 token setState 打满 React 渲染
+            const now = Date.now();
+            if (now - lastFlush >= 60) {
+              lastFlush = now;
+              setLastContent(acc);
+            }
           }
         }
+        // 收尾补一次最终全文
+        if (acc) setLastContent(acc);
         if (!acc) {
-          setMessages((prev) => {
-            const next = [...prev];
-            next[next.length - 1] = {
-              role: "assistant",
-              content: "（agent 未产生回复，请检查后端 LLM 配置）",
-            };
-            return next;
-          });
+          setLastContent("（agent 未产生回复，请检查后端 LLM 配置）");
         }
       } else {
         // 快速模式：只走 scout 本地直检（三路 RRF + 可选交叉编码器精排），
         // 前端展示后端「简易回答」summary + 论文清单
         const { papers, summary, conversationId } = await quickSearchPapers(q, activeConv ?? undefined);
         if (conversationId) setActiveConv(conversationId);
-        setMessages((prev) => {
-          const next = [...prev];
-          next[next.length - 1] = {
-            role: "assistant",
-            content: formatQuickAnswer(q, papers, summary),
-          };
-          return next;
-        });
+        setLastContent(formatQuickAnswer(q, papers, summary));
       }
     } catch {
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = { role: "assistant", content: MOCK_REPLY };
-        return next;
-      });
+      // 用户主动停止:保留已生成部分,不显示兜底文案
+      if (!ac.signal.aborted) {
+        setLastContent(MOCK_REPLY);
+      }
     } finally {
+      if (abortRef.current === ac) abortRef.current = null;
       setStreaming(false);
     }
   };
@@ -288,32 +330,25 @@ export function AgentChat() {
       <div className="flex h-screen min-w-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
-            {messages.map((msg, i) =>
-              msg.role === "user" ? (
-                <div key={i} className="flex justify-end">
-                  <p className="max-w-[80%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-relaxed text-white">
-                    {msg.content}
-                  </p>
-                </div>
-              ) : (
-                <div key={i} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft">
-                    <PromptCircle className="size-4 text-primary" />
-                  </span>
-                  <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-card px-4 py-2.5 shadow-card">
-                    {msg.content ? (
-                      <MarkdownView content={msg.content} />
-                    ) : (
-                      <span className="text-sm text-faint">思考中…</span>
-                    )}
-                  </div>
-                </div>
-              ),
-            )}
+            {messages.map((msg) => (
+              <MessageRow key={msg.id} msg={msg} />
+            ))}
             <div ref={bottomRef} />
           </div>
         </div>
         <div className="px-6 pb-5">
+          {streaming && (
+            <div className="mx-auto mb-2 flex max-w-5xl justify-center">
+              <button
+                type="button"
+                onClick={stopStreaming}
+                className="flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] text-muted shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                <CircleStop className="size-3.5" />
+                停止生成
+              </button>
+            </div>
+          )}
           <div className="mx-auto max-w-5xl">{composer}</div>
         </div>
       </div>

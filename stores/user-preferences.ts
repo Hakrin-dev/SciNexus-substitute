@@ -56,6 +56,6 @@ export const useUserPreferences = create<UserPreferencesState>()(
           },
         })),
     }),
-    { name: "scinexus-user-preferences" },
+    { name: "scinexus-user-preferences", skipHydration: true },
   ),
 );

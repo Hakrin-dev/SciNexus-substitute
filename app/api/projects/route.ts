@@ -44,6 +44,24 @@ export async function GET(req: NextRequest) {
     params.push(pageSize, (page - 1) * pageSize);
 
     const rows = db.prepare(sql).all(...params) as any[];
+
+    // 里程碑批量联查(列表项与详情同构,前端 attachment-menu 等消费 milestones 字段)
+    const ids = rows.map((r) => r.id);
+    const msByProject = new Map<string, { title: string; detail: string; status: string }[]>();
+    if (ids.length) {
+      const placeholders = ids.map(() => "?").join(",");
+      const msRows = db
+        .prepare(
+          `SELECT * FROM project_milestones WHERE project_id IN (${placeholders}) ORDER BY sort_order, id`
+        )
+        .all(...ids) as any[];
+      for (const m of msRows) {
+        const list = msByProject.get(m.project_id) || [];
+        list.push({ title: m.title, detail: m.detail, status: m.status });
+        msByProject.set(m.project_id, list);
+      }
+    }
+
     const data = rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -56,6 +74,7 @@ export async function GET(req: NextRequest) {
       techStack: jsonParse<string[]>(r.tech_stack_json, []),
       members: jsonParse(r.members_json, []),
       links: jsonParse(r.links_json, []),
+      milestones: msByProject.get(r.id) || [],
     }));
 
     return okPaginated(data, page, pageSize, total);

@@ -3,6 +3,9 @@
  * API 可用时返回真实数据；请求失败（后端未启动等）自动回退到 lib/data 的 mock，
  * 并用 placeholderData 保证首屏不闪烁。
  *
+ * 回退是**显式**的：mock 数据经 tagMock 打上符号标记，全局 <MockDataBadge>
+ * 据此提示「演示数据」；开发环境同时在 console.warn 记录降级原因。
+ *
  * 后端为 Next.js Route Handlers（同源 /api/*），返回统一 { success, data, ... } 结构；
  * 新版后端已在服务端完成视觉字段派生（venueTone / initials / avatarColor 等），
  * 故此处直接消费 data，仅对阅读器详情做归一化。
@@ -41,6 +44,31 @@ import { paperDetail as mockPaperDetail } from "@/lib/data/paper-detail";
 import type { Project } from "@/lib/data/projects";
 import type { FeedPaper, LibraryItem, PaperGraph, Scholar, Venue } from "@/types";
 
+/* ── mock 兜底显式化 ─────────────────────────────────────────── */
+
+/** mock 回退数据的符号标记(不参与 JSON/渲染,仅供 <MockDataBadge> 检测) */
+export const MOCK_TAG = Symbol("scinexus.mock");
+
+/** 给回退数据打上演示标记 */
+export function tagMock<T>(data: T): T {
+  try {
+    if (data && typeof data === "object") {
+      (data as Record<symbol, unknown>)[MOCK_TAG] = true;
+    }
+  } catch {
+    // 不可扩展对象忽略标记
+  }
+  return data;
+}
+
+/** 统一降级入口:开发环境告警 + 打标记后返回 mock */
+function mockFallback<T>(source: string, err: unknown, fallback: T): T {
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(`[scinexus] ${source} 请求失败，已回退演示数据:`, err);
+  }
+  return tagMock(fallback);
+}
+
 /** 主发现页 Feed 流 */
 export function useFeedPapers() {
   return useQuery({
@@ -49,8 +77,8 @@ export function useFeedPapers() {
       try {
         const json = await apiGet<FeedPaper[]>("/api/papers", { page: 1, page_size: 50 });
         return json.data ?? [];
-      } catch {
-        return feedPapers;
+      } catch (err) {
+        return mockFallback("/api/papers", err, feedPapers);
       }
     },
     placeholderData: feedPapers,
@@ -66,8 +94,8 @@ export function useVenues() {
       try {
         const json = await apiGet<Venue[]>("/api/venues");
         return json.data ?? [];
-      } catch {
-        return venues;
+      } catch (err) {
+        return mockFallback("/api/venues", err, venues);
       }
     },
     placeholderData: venues,
@@ -101,8 +129,8 @@ export function useLibraryItems() {
       try {
         const json = await apiGet<LibraryItem[]>("/api/library");
         return json.data ?? [];
-      } catch {
-        return libraryItems;
+      } catch (err) {
+        return mockFallback("/api/library", err, libraryItems);
       }
     },
     placeholderData: libraryItems,
@@ -118,8 +146,8 @@ export function useScholars() {
       try {
         const json = await apiGet<Scholar[]>("/api/scholars");
         return json.data ?? [];
-      } catch {
-        return mockScholars;
+      } catch (err) {
+        return mockFallback("/api/scholars", err, mockScholars);
       }
     },
     placeholderData: mockScholars,
@@ -175,9 +203,10 @@ export function useScholarDetail(id: string) {
         if (d && Array.isArray(d.bio) && d.metrics) {
           return d;
         }
-        return mockScholarDetail;
-      } catch {
-        return mockScholarDetail;
+        // 后端缺详情(如未收录学者),回退演示数据
+        return mockFallback(`/api/scholars/${id}`, "missing detail shape", mockScholarDetail);
+      } catch (err) {
+        return mockFallback(`/api/scholars/${id}`, err, mockScholarDetail);
       }
     },
     placeholderData: mockScholarDetail,
@@ -193,8 +222,8 @@ export function useInstitutions() {
       try {
         const json = await apiGet<any[]>("/api/institutions");
         return json.data ?? [];
-      } catch {
-        return mockInstitutions;
+      } catch (err) {
+        return mockFallback("/api/institutions", err, mockInstitutions);
       }
     },
     placeholderData: mockInstitutions,
@@ -210,8 +239,8 @@ export function useProjects() {
       try {
         const json = await apiGet<Project[]>("/api/projects");
         return json.data ?? [];
-      } catch {
-        return mockProjects;
+      } catch (err) {
+        return mockFallback("/api/projects", err, mockProjects);
       }
     },
     placeholderData: mockProjects,
@@ -227,8 +256,8 @@ export function useProject(id: string) {
       try {
         const json = await apiGet<Project>(`/api/projects/${id}`);
         return json.data;
-      } catch {
-        return mockGetProject(id);
+      } catch (err) {
+        return mockFallback(`/api/projects/${id}`, err, mockGetProject(id));
       }
     },
     placeholderData: mockGetProject(id),
@@ -246,8 +275,8 @@ export function useProjectOutline(id: string) {
       try {
         const json = await apiGet<OutlineNode[]>(`/api/projects/${id}/outline`);
         return json.data ?? wbOutline;
-      } catch {
-        return wbOutline;
+      } catch (err) {
+        return mockFallback(`/api/projects/${id}/outline`, err, wbOutline);
       }
     },
     placeholderData: wbOutline,
@@ -263,8 +292,8 @@ export function useProjectThreads(id: string) {
       try {
         const json = await apiGet<ResearchThread[]>(`/api/projects/${id}/threads`);
         return json.data ?? wbThreads;
-      } catch {
-        return wbThreads;
+      } catch (err) {
+        return mockFallback(`/api/projects/${id}/threads`, err, wbThreads);
       }
     },
     placeholderData: wbThreads,
@@ -280,8 +309,8 @@ export function useThreadCards(id: string) {
       try {
         const json = await apiGet<ThreadCard[]>(`/api/projects/${id}/thread-cards`);
         return json.data ?? wbCards;
-      } catch {
-        return wbCards;
+      } catch (err) {
+        return mockFallback(`/api/projects/${id}/thread-cards`, err, wbCards);
       }
     },
     placeholderData: wbCards,
@@ -297,8 +326,8 @@ export function useWorkbenchAssets(id: string) {
       try {
         const json = await apiGet<WorkbenchAsset[]>(`/api/projects/${id}/assets`);
         return json.data ?? wbAssets;
-      } catch {
-        return wbAssets;
+      } catch (err) {
+        return mockFallback(`/api/projects/${id}/assets`, err, wbAssets);
       }
     },
     placeholderData: wbAssets,
@@ -314,8 +343,8 @@ export function useWorkbenchActivity(id: string) {
       try {
         const json = await apiGet<ActivityEntry[]>(`/api/projects/${id}/activity`);
         return json.data ?? wbActivity;
-      } catch {
-        return wbActivity;
+      } catch (err) {
+        return mockFallback(`/api/projects/${id}/activity`, err, wbActivity);
       }
     },
     placeholderData: wbActivity,
@@ -331,8 +360,8 @@ export function useWorkbenchOverview(id: string) {
       try {
         const json = await apiGet<WorkbenchOverview>(`/api/projects/${id}/overview`);
         return json.data ?? wbOverview;
-      } catch {
-        return wbOverview;
+      } catch (err) {
+        return mockFallback(`/api/projects/${id}/overview`, err, wbOverview);
       }
     },
     placeholderData: wbOverview,
@@ -348,8 +377,8 @@ export function useAgentTasks(id: string) {
       try {
         const json = await apiGet<AgentTask[]>(`/api/projects/${id}/tasks`);
         return json.data ?? wbAgentTasks;
-      } catch {
-        return wbAgentTasks;
+      } catch (err) {
+        return mockFallback(`/api/projects/${id}/tasks`, err, wbAgentTasks);
       }
     },
     placeholderData: wbAgentTasks,
@@ -363,13 +392,16 @@ export function usePaperDetail(id: string) {
     queryKey: ["api", "paper", id],
     queryFn: async () => {
       try {
-        const json = await apiGet<any>(`/api/papers/${id}`);
-        const fulltext = await apiGet<{ chunks?: { page: number; text: string }[] }>(
-          `/api/papers/${id}/fulltext`,
-        ).catch(() => null);
+        // 详情与全文并行拉取(此前串行,TTFB 翻倍)
+        const [json, fulltext] = await Promise.all([
+          apiGet<any>(`/api/papers/${id}`),
+          apiGet<{ chunks?: { page: number; text: string }[] }>(
+            `/api/papers/${id}/fulltext`,
+          ).catch(() => null),
+        ]);
         return toPaperDetail(json.data, id, fulltext?.data ?? null);
-      } catch {
-        return { ...mockPaperDetail, id };
+      } catch (err) {
+        return mockFallback(`/api/papers/${id}`, err, { ...mockPaperDetail, id });
       }
     },
     placeholderData: { ...mockPaperDetail, id },
@@ -385,8 +417,8 @@ export function usePublicGraph() {
       try {
         const json = await apiGet<PaperGraph>("/api/graph/public");
         return json.data;
-      } catch {
-        return mockPublicGraph;
+      } catch (err) {
+        return mockFallback("/api/graph/public", err, mockPublicGraph);
       }
     },
     placeholderData: mockPublicGraph,
@@ -402,8 +434,8 @@ export function usePrivateGraph() {
       try {
         const json = await apiGet<PaperGraph>("/api/graph/private");
         return json.data;
-      } catch {
-        return mockPrivateGraph;
+      } catch (err) {
+        return mockFallback("/api/graph/private", err, mockPrivateGraph);
       }
     },
     placeholderData: mockPrivateGraph,
@@ -433,16 +465,20 @@ export async function searchPapers(query: string) {
   try {
     const json = await apiPost<FeedPaper[]>("/api/search", { query });
     return json.data ?? [];
-  } catch {
-    return feedPapers.filter((p) =>
-      `${p.title} ${p.abstract}`.toLowerCase().includes(query.toLowerCase()),
+  } catch (err) {
+    return mockFallback(
+      "/api/search",
+      err,
+      feedPapers.filter((p) =>
+        `${p.title} ${p.abstract}`.toLowerCase().includes(query.toLowerCase()),
+      ),
     );
   }
 }
 
-/** 学者基础信息快捷查找（详情页头部用） */
-export function findScholar(scholars: Scholar[], id: string): Scholar {
-  return scholars.find((s) => s.id === id) ?? scholars[0];
+/** 学者基础信息快捷查找（详情页头部用）；未命中返回 undefined,由页面渲染 404 */
+export function findScholar(scholars: Scholar[], id: string): Scholar | undefined {
+  return scholars.find((s) => s.id === id);
 }
 
 /** 快速模式检索结果 */
@@ -492,8 +528,12 @@ export async function quickSearchPapers(
         ? response.conversation_id
         : typeof json.meta?.conversation_id === "string" ? json.meta.conversation_id : undefined,
     };
-  } catch {
+  } catch (err) {
     const fallback = await searchPapers(query);
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[scinexus] /api/search 快速检索失败，已回退演示数据:", err);
+    }
+    tagMock(fallback);
     return {
       papers: fallback.map((p) => ({
         id: p.id,

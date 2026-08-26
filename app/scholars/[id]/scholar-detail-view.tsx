@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,6 +16,7 @@ import { FollowButton } from "@/components/features/scholar/follow-button";
 import { CitationChart } from "@/components/features/scholar/citation-chart";
 import { PublicationList } from "@/components/features/scholar/publication-list";
 import { useScholarDetail, useScholars } from "@/lib/api/services";
+import { useRecentViews } from "@/stores/recent-views";
 import { cn } from "@/lib/utils";
 
 const LINK_ICONS = [Globe, Globe, Github, Mail];
@@ -28,6 +30,22 @@ export function ScholarDetailView({ id }: { id: string }) {
   const { data: scholars = [] } = useScholars();
   const { data: detail } = useScholarDetail(id);
   const scholar = scholars.find((s) => s.id === id);
+  const record = useRecentViews((s) => s.record);
+
+  // 浏览记录埋点(本地持久化)
+  const scholarId = scholar?.id;
+  const scholarTitle = scholar ? `${scholar.nameCn} · ${scholar.nameEn}` : "";
+  const scholarAffiliation = scholar?.affiliation;
+  useEffect(() => {
+    if (scholarId && scholarTitle) {
+      record({
+        kind: "scholar",
+        id: scholarId,
+        title: scholarTitle,
+        subtitle: scholarAffiliation,
+      });
+    }
+  }, [scholarId, scholarTitle, scholarAffiliation, record]);
 
   if (!detail || !scholar) return null;
 

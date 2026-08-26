@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import { PaperTopbar } from "@/components/features/paper/paper-topbar";
 import { PaperLeftSidebar } from "@/components/features/paper/paper-left-sidebar";
 import { PaperRightPanel } from "@/components/features/paper/right-panel";
 import { PaperZoom } from "@/components/features/paper/paper-zoom";
 import { usePaperDetail } from "@/lib/api/services";
+import { useRecentViews } from "@/stores/recent-views";
 
 /**
  * 论文阅读器 `/papers/[id]` 的客户端交互体 —— 对应「深知-论文详情页.svg」
@@ -13,6 +15,14 @@ import { usePaperDetail } from "@/lib/api/services";
  */
 export function PaperReaderView({ id }: { id: string }) {
   const { data: paper } = usePaperDetail(id);
+  const record = useRecentViews((s) => s.record);
+
+  // 浏览记录埋点(本地持久化)
+  useEffect(() => {
+    if (paper?.title) {
+      record({ kind: "paper", id: paper.id, title: paper.title, subtitle: paper.affiliation });
+    }
+  }, [paper?.id, paper?.title, paper?.affiliation, record]);
 
   if (!paper) return null;
 

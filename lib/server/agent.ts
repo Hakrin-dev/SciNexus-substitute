@@ -227,12 +227,22 @@ const FINALIZE_SYSTEM_PROMPT =
   "使用中文、Markdown 排版；开头先给 2~4 句总体结论，再分节展开；论文条目保留「编号. **标题**（作者, 年份）」格式；" +
   "严禁输出内部调试信息，严禁虚构数据。";
 
+/** 回答风格的提示词片段(与前端 composer STYLES 对应) */
+const STYLE_PROMPTS: Record<string, string> = {
+  头脑风暴: "回答风格要求：头脑风暴——给出 3 个以上不同角度的思路或方案，逐条标注其优势与风险，鼓励发散思考。",
+  简明扼要: "回答风格要求：简明扼要——全文控制在 5 句话以内，只保留最核心的结论与关键依据。",
+  全面细致: "回答风格要求：全面细致——分节充分展开，覆盖背景、方法、代表性工作对比与当前局限。",
+  严谨质疑: "回答风格要求：严谨质疑——明确指出证据局限与潜在反例，审慎下结论并标明不确定性。",
+};
+
 export async function runAgent(
   userQuery: string,
   taskType?: string | null,
   _paperId?: string | null,
   _history?: { role: string; content: string }[],
   model?: ModelChoice,
+  /** 回答风格(头脑风暴/简明扼要/全面细致/严谨质疑),拼入 system 提示词 */
+  style?: string | null,
 ): Promise<AgentResult> {
   const explicit = taskType && INTENT_TABLE[taskType] ? taskType : null;
   const intent = explicit
@@ -288,7 +298,8 @@ export async function runAgent(
       : "";
     const history = _history?.slice(-8) ?? [];
     const composed = await chatText(
-      FINALIZE_SYSTEM_PROMPT,
+      FINALIZE_SYSTEM_PROMPT +
+        (style && STYLE_PROMPTS[style] ? `\n${STYLE_PROMPTS[style]}` : ""),
       `${history.length ? `对话历史：\n${history.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\n` : ""}` +
         `用户问题：${userQuery}${evidence}`,
       model,

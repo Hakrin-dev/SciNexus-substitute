@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQueryClient, type QueryCache } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { MOCK_TAG } from "@/lib/api/services";
 
 /**
@@ -15,22 +15,32 @@ export function MockDataBadge() {
 
   useEffect(() => {
     const cache = queryClient.getQueryCache();
+    // 缓存事件可能在其它组件渲染期间同步派发,这里延迟到下一帧再 setState,
+    // 避免「Cannot update a component while rendering a different component」
+    let raf = 0;
     const scan = () => {
-      setVisible(
-        cache
-          .getAll()
-          .some(
-            (q) =>
-              q.getObserversCount() > 0 &&
-              q.state.data !== undefined &&
-              typeof q.state.data === "object" &&
-              q.state.data !== null &&
-              MOCK_TAG in (q.state.data as object),
-          ),
-      );
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        setVisible(
+          cache
+            .getAll()
+            .some(
+              (q) =>
+                q.getObserversCount() > 0 &&
+                q.state.data !== undefined &&
+                typeof q.state.data === "object" &&
+                q.state.data !== null &&
+                MOCK_TAG in (q.state.data as object),
+            ),
+        );
+      });
     };
     scan();
-    return cache.subscribe(scan as Parameters<QueryCache["subscribe"]>[0]);
+    const unsubscribe = cache.subscribe(scan);
+    return () => {
+      cancelAnimationFrame(raf);
+      unsubscribe();
+    };
   }, [queryClient]);
 
   if (!visible) return null;

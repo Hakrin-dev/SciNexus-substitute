@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { QueryProvider } from "@/providers/query-provider";
 import { StoreHydration } from "@/providers/store-hydration";
+import { Toaster } from "@/components/layout/toaster";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <QueryProvider>
           <StoreHydration />
           {children}
+          <Toaster />
         </QueryProvider>
       </body>
     </html>

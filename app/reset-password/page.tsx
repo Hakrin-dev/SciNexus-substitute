@@ -2,14 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CircleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/layout/logo";
+import { toast } from "@/stores/toast";
 
 /**
- * 找回密码页 `/reset-password` —— 独立整页(无侧边栏),纯演示无真实逻辑
- * 从登录弹窗「忘记密码?」进入
+ * 找回密码页 `/reset-password` —— 独立整页(无侧边栏)
+ * 演示环境暂不支持自助找回:给出诚实提示 + 操作反馈,不再是无响应的死表单。
  */
 
 function Field({
@@ -25,6 +26,18 @@ function Field({
 }
 
 export default function ResetPasswordPage() {
+  const [username, setUsername] = React.useState("");
+  const [account, setAccount] = React.useState("");
+
+  /** 演示环境:不假装发送验证码/重置,给出明确反馈 */
+  const handleReset = () => {
+    if (!username.trim() || !account.trim()) {
+      toast.error("请先填写用户名和账号");
+      return;
+    }
+    toast.info("演示环境暂不支持自助找回，请使用演示账号登录");
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-card">
@@ -36,30 +49,35 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
-        <div className="mt-6 flex flex-col gap-4">
-          <Field label="用户名" placeholder="请输入用户名" />
-          <Field label="账号" placeholder="请输入邮箱或手机号" />
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-medium text-ink-2">验证码</span>
-            <div className="flex gap-2">
-              <Input placeholder="请输入验证码" className="flex-1" />
-              <Button variant="outline" type="button" className="shrink-0">
-                获取验证码
-              </Button>
-            </div>
-          </div>
-          <Field label="新密码" type="password" placeholder="请输入新密码" />
+        <div className="mt-5 flex items-start gap-2 rounded-xl bg-chip px-3 py-2.5 text-xs leading-relaxed text-muted">
+          <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-faint" />
+          <span>
+            当前为演示环境，暂不支持邮件/短信验证码。
+            可使用演示账号 <span className="font-medium text-ink-2">hankairun / yanshu123</span> 登录体验完整功能。
+          </span>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-4">
           <Field
-            label="请再次输入确认新密码"
-            type="password"
-            placeholder="请再次输入新密码"
+            label="用户名"
+            placeholder="请输入用户名"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
           />
-          <Button className="mt-1 w-full">重置密码</Button>
+          <Field
+            label="账号"
+            placeholder="请输入邮箱或手机号"
+            value={account}
+            onChange={(e) => setAccount(e.target.value)}
+          />
+          <Button className="mt-1 w-full" onClick={handleReset}>
+            重置密码
+          </Button>
         </div>
 
         <div className="mt-4 flex justify-center">
           <Link
-            href="/"
+            href="/?login=1"
             className="flex items-center gap-1 text-[13px] text-muted transition-colors hover:text-primary"
           >
             <ArrowLeft className="size-3.5" />

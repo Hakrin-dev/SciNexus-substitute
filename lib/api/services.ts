@@ -409,13 +409,16 @@ export function usePaperDetail(id: string) {
   });
 }
 
-/** 公域知识图谱（某论文的引用关系） */
-export function usePublicGraph() {
+/** 公域知识图谱（某论文的引用关系;传 paperId 时以该论文为中心构图） */
+export function usePublicGraph(paperId?: string) {
   return useQuery({
-    queryKey: ["api", "graph", "public"],
+    queryKey: ["api", "graph", "public", paperId ?? "default"],
     queryFn: async () => {
       try {
-        const json = await apiGet<PaperGraph>("/api/graph/public");
+        const json = await apiGet<PaperGraph>(
+          "/api/graph/public",
+          paperId ? { paper_id: paperId } : undefined,
+        );
         return json.data;
       } catch (err) {
         return mockFallback("/api/graph/public", err, mockPublicGraph);
@@ -458,6 +461,47 @@ export async function* sendChat(
     { message, messages: history, model, mode, conversation_id: conversationId, context },
     signal,
   );
+}
+
+/* ── 对话历史(真实接口) ──────────────────────────────────────── */
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAt: string;
+}
+
+/** 对话历史列表(需登录;未登录/失败返回空列表,由 UI 呈现登录引导) */
+export function useConversations() {
+  return useQuery({
+    queryKey: ["api", "conversations"],
+    queryFn: async () => {
+      try {
+        const json = await apiGet<ConversationSummary[]>("/api/conversations");
+        return json.data ?? [];
+      } catch (err) {
+        return mockFallback("/api/conversations", err, [] as ConversationSummary[]);
+      }
+    },
+    staleTime: 15_000,
+  });
+}
+
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** 拉取单个会话的消息列表(用于点击历史对话回填画布) */
+export async function fetchConversationMessages(id: string): Promise<ConversationMessage[]> {
+  const json = await apiGet<{
+    messages?: { role: string; content: string }[];
+  }>(`/api/conversations/${id}`);
+  return (json.data?.messages ?? []).map((m) => ({
+    role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+    content: m.content,
+  }));
 }
 
 /** 论文检索（/api/search，带 relevance） */

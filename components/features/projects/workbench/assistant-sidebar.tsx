@@ -313,7 +313,9 @@ function QuickActions() {
       {actions.map(({ icon: Icon, label }) => (
         <button
           key={label}
-          className="flex h-6.5 cursor-pointer items-center gap-1 rounded-full bg-chip px-2.5 text-[11px] text-muted transition-colors hover:bg-primary-soft hover:text-primary"
+          disabled
+          title={`${label}：即将上线`}
+          className="flex h-6.5 cursor-not-allowed items-center gap-1 rounded-full bg-chip px-2.5 text-[11px] text-faint"
         >
           <Icon className="size-3" strokeWidth={1.8} />
           {label}

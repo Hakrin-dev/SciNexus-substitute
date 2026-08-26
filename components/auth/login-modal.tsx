@@ -102,9 +102,9 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
     }
   };
 
-  /** 免密/第三方登录:后端未支持,演示态直接进入 */
-  const handleDemo = () => {
-    demoLogin();
+  /** 免密/第三方登录:后端未支持,演示态进入(优先尝试真实演示账号拿 token) */
+  const handleDemo = async () => {
+    await demoLogin();
     onClose();
   };
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
+  CircleStop,
   Loader2,
   Share,
   Sparkles,
@@ -12,8 +13,11 @@ import {
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SoonButton } from "@/components/ui/soon-button";
+import { LoginModal } from "@/components/auth/login-modal";
 import { cn } from "@/lib/utils";
-import { streamChat } from "@/lib/api/client";
+import { copyText } from "@/stores/toast";
+import { streamChat, ApiError } from "@/lib/api/client";
 import {
   formatQuickAnswer,
   quickSearchPapers,
@@ -66,7 +70,7 @@ interface Turn {
 }
 
 const MOCK_REPLY =
-  "后端服务暂时不可用，已回退本地演示模式。请启动后端（backend 目录 uvicorn）后重试。";
+  "回答生成失败，请稍后重试。若持续失败，可能是网络或模型服务暂不可用。";
 
 const DEFAULT_STEPS: WorkflowStep[] = [
   { agent: "scout", action: "", status: "running" },
@@ -104,6 +108,18 @@ function WorkflowTrace({ workflow, active }: { workflow: Workflow | null; active
       : DEFAULT_STEPS.map((s) => ({ ...s, status: active ? s.status : "pending" }));
   const currentRunning = steps.some((s) => s.status === "running");
 
+  // 真实耗时秒表(工作流步骤由后端一次性下发,不做假实时进度)
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const start = Date.now();
+    const timer = setInterval(
+      () => setElapsed(Math.floor((Date.now() - start) / 1000)),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, [active]);
+
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl bg-panel px-3.5 py-2.5 text-xs">
       <span className="text-faint">智能体工作流</span>
@@ -134,7 +150,7 @@ function WorkflowTrace({ workflow, active }: { workflow: Workflow | null; active
       ))}
       {active && (
         <span className="text-faint">
-          {currentRunning ? "正在执行…" : "正在检索论文并综合回答…"}
+          已运行 {elapsed}s · 通常需要 10~30s
         </span>
       )}
     </div>
@@ -163,6 +179,8 @@ export function DeepSearchResults({
   const [style, setStyle] = useState<StyleChoice | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** 深度模式 401 时的内嵌登录弹窗 */
+  const [showLogin, setShowLogin] = useState(false);
   const startedRef = useRef<string | null>(null);
   const turnsRef = useRef<Turn[]>([]);
   /** 当前流式请求中止控制器(卸载/停止生成时断流) */
@@ -253,13 +271,21 @@ export function DeepSearchResults({
           if (acc) {
             updateLast({ answer: acc, busy: false });
           } else if (!ac.signal.aborted) {
-            updateLast({ answer: "（agent 未产生回复，请检查后端 LLM 配置）", busy: false });
+            updateLast({ answer: "（本轮未生成回答，请重试或换一种问法）", busy: false });
           }
         }
-      } catch {
+      } catch (e) {
         // 用户主动停止:保留已生成部分
         if (!ac.signal.aborted) {
-          updateLast({ answer: MOCK_REPLY, busy: false });
+          if (e instanceof ApiError && e.status === 401) {
+            updateLast({
+              answer: "深度研究需要登录后使用，请先登录。",
+              busy: false,
+            });
+            setShowLogin(true);
+          } else {
+            updateLast({ answer: MOCK_REPLY, busy: false });
+          }
         }
       } finally {
         if (abortRef.current === ac) abortRef.current = null;
@@ -269,13 +295,14 @@ export function DeepSearchResults({
     [busy, updateLast],
   );
 
-  // 发现页入口：默认快速模式检索
+  // 发现页入口:尊重 URL mode 参数(默认快速),避免「入口叫深度、落地跑快速」的错位
+  const urlMode = (params.get("mode") === "deep" ? "deep" : "fast") as Mode;
   useEffect(() => {
     if (query && startedRef.current !== query) {
       startedRef.current = query;
-      void runTurn(query, "fast");
+      void runTurn(query, urlMode);
     }
-  }, [query, runTurn]);
+  }, [query, runTurn, urlMode]);
 
   const send = (forceMode?: Mode) => {
     const q = value.trim();
@@ -294,11 +321,16 @@ export function DeepSearchResults({
         </h1>
         <span className="text-xs text-faint">深度研究 · {mode === "deep" ? "深度模式" : "快速模式"}</span>
         <div className="ml-auto flex gap-2">
-          <Button variant="dark" size="sm" className="rounded-lg">
+          <SoonButton tip="Pro 模式：即将上线" variant="dark" size="sm" className="rounded-lg">
             <Star className="size-3.5 fill-brand-violet text-brand-violet" />
             Pro 模式
-          </Button>
-          <Button variant="outline" size="sm" className="rounded-lg">
+          </SoonButton>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => void copyText(window.location.href, "分享链接已复制")}
+          >
             <Share className="size-3.5" />
             分享
           </Button>
@@ -375,6 +407,18 @@ export function DeepSearchResults({
 
       {/* 追问输入框（模式切换对下一句生效） */}
       <div className="sticky bottom-4">
+        {busy && (
+          <div className="mb-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => abortRef.current?.abort()}
+              className="flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] text-muted shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+            >
+              <CircleStop className="size-3.5" />
+              停止生成
+            </button>
+          </div>
+        )}
         <ComposerShell
           value={value}
           onChange={setValue}
@@ -399,6 +443,7 @@ export function DeepSearchResults({
           快速=本地检索+简易回答（秒级）· 深度=完整多智能体工作流（10~30s）
         </p>
       </div>
+      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} />
     </div>
   );
 }

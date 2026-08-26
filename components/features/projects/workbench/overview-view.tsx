@@ -179,10 +179,18 @@ export function OverviewView({ project, overview, onJump }: Props) {
                 description={`负责人 ${project.owner} · 创建于 ${project.createdAt}`}
               />
             <div className="flex gap-2">
-              <button className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
+              <button
+                disabled
+                title="编辑：即将上线"
+                className="flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-xs font-medium text-faint shadow-card"
+              >
                 编辑
               </button>
-              <button className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-xs font-medium text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary">
+              <button
+                disabled
+                title="项目设置：即将上线"
+                className="flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-xs font-medium text-faint shadow-card"
+              >
                 项目设置
               </button>
             </div>

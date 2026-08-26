@@ -1,10 +1,21 @@
 "use client";
 
 import { memo, useEffect, useRef, useState } from "react";
-import { CircleStop, MessageSquarePlus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { CircleStop, LogIn, MessageSquarePlus } from "lucide-react";
 import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
-import { sendChat, quickSearchPapers, formatQuickAnswer } from "@/lib/api/services";
+import { ApiError } from "@/lib/api/client";
+import {
+  sendChat,
+  quickSearchPapers,
+  formatQuickAnswer,
+  useConversations,
+  fetchConversationMessages,
+} from "@/lib/api/services";
+import { useAuthStore } from "@/stores/auth";
+import { toast } from "@/stores/toast";
+import { LoginModal } from "@/components/auth/login-modal";
 import {
   ComposerShell,
   DEFAULT_MODEL,
@@ -56,17 +67,9 @@ const SUGGESTIONS = [
   "帮我起草一份关于操作泛化性的研究计划",
 ];
 
-/** 演示用历史对话 */
-const HISTORY = [
-  "长上下文 Transformer 调研",
-  "NeurIPS 2026 投稿筛选",
-  "扩散模型效率优化",
-  "操作泛化性研究计划",
-];
-
-/** 后端不可用时的兜底回复（诚实说明，不伪造学术内容） */
+/** 回答失败时的兜底文案(诚实说明,不带运维话术) */
 const MOCK_REPLY =
-  "后端服务暂时不可用，已回退本地演示模式。启动后端后（backend 目录运行 uvicorn），我将通过 /api/chat/stream 生成带来源引用的回答。";
+  "回答生成失败，请稍后重试。若持续失败，可能是网络或模型服务暂不可用。";
 
 /** 演示用最大上下文字符数(粗略按 1 token ≈ 2 字符,折合约 16k token) */
 const MAX_CONTEXT_CHARS = 32000;
@@ -91,6 +94,36 @@ export function AgentChat() {
   const nextIdRef = useRef(1);
   /** 当前流式请求的中止控制器(停止生成 / 组件卸载时断流) */
   const abortRef = useRef<AbortController | null>(null);
+
+  const user = useAuthStore((s) => s.user);
+  const { data: conversations = [], refetch: refetchConversations } = useConversations();
+  /** 深度模式 401 时的内嵌登录弹窗 */
+  const [showLogin, setShowLogin] = useState(false);
+
+  /** 打开历史对话:拉取消息回填画布 */
+  const openConversation = async (convId: string) => {
+    if (streaming) return;
+    setActiveConv(convId);
+    try {
+      const msgs = await fetchConversationMessages(convId);
+      setMessages(msgs.map((m) => ({ id: nextIdRef.current++, ...m })));
+      setCompactFrom(0);
+    } catch {
+      toast.error("加载对话失败，请稍后重试");
+    }
+  };
+
+  // 深链支持:/agents?conv=xxx(从 deep-search 近期研究栏等入口跳转)
+  const searchParams = useSearchParams();
+  const openedConvRef = useRef<string | null>(null);
+  useEffect(() => {
+    const conv = searchParams.get("conv");
+    if (conv && user && openedConvRef.current !== conv && !streaming) {
+      openedConvRef.current = conv;
+      void openConversation(conv);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -130,6 +163,7 @@ export function AgentChat() {
     setStreaming(true);
     const ac = new AbortController();
     abortRef.current = ac;
+    let convTouched: string | null = null;
     try {
       if (effectiveMode !== "fast") {
         // 深度模式：完整多智能体工作流（Supervisor → scout/synthesis/... → LLM 组合回答）
@@ -140,6 +174,7 @@ export function AgentChat() {
           style: style ?? undefined,
         }, effectiveMode)) {
           if (event.type === "meta" && event.meta.conversation_id) {
+            convTouched = event.meta.conversation_id;
             setActiveConv(event.meta.conversation_id);
           }
           if (event.type === "delta") {
@@ -155,27 +190,36 @@ export function AgentChat() {
         // 收尾补一次最终全文
         if (acc) setLastContent(acc);
         if (!acc) {
-          setLastContent("（agent 未产生回复，请检查后端 LLM 配置）");
+          setLastContent("（本轮未生成回答，请重试或换一种问法）");
         }
       } else {
         // 快速模式：只走 scout 本地直检（三路 RRF + 可选交叉编码器精排），
         // 前端展示后端「简易回答」summary + 论文清单
         const { papers, summary, conversationId } = await quickSearchPapers(q, activeConv ?? undefined);
-        if (conversationId) setActiveConv(conversationId);
+        if (conversationId) {
+          convTouched = conversationId;
+          setActiveConv(conversationId);
+        }
         setLastContent(formatQuickAnswer(q, papers, summary));
       }
-    } catch {
-      // 用户主动停止:保留已生成部分,不显示兜底文案
-      if (!ac.signal.aborted) {
+    } catch (e) {
+      if (ac.signal.aborted) {
+        // 用户主动停止:保留已生成部分
+      } else if (e instanceof ApiError && e.status === 401) {
+        setLastContent("深度研究需要登录后使用，请先登录。");
+        setShowLogin(true);
+      } else {
         setLastContent(MOCK_REPLY);
       }
     } finally {
       if (abortRef.current === ac) abortRef.current = null;
       setStreaming(false);
+      // 新会话落库后刷新历史列表(快速模式同样会写会话)
+      if (convTouched && user) void refetchConversations();
     }
   };
 
-  /** 对话态输入框右上仪表:细进度条(已完成回合/总回合)+ 细圆环(上下文占比,点击 compact) */
+  /** 任务进度条:发送键左下;compact 圆环:输入框右上 */
   const totalTurns = messages.filter((m) => m.role === "user").length;
   const doneTurns = messages.filter(
     (m) => m.role === "assistant" && m.content,
@@ -188,32 +232,35 @@ export function AgentChat() {
   /** 圆环周长(r=8) */
   const RING_C = 50.27;
 
-  const meters =
+  const progressBar =
     messages.length > 0 ? (
-      <div className="flex items-center gap-2.5">
+      <div
+        role="progressbar"
+        aria-valuenow={Math.round(progress * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        title={`任务进度:${doneTurns}/${totalTurns} 步`}
+        className="h-1 w-24 overflow-hidden rounded-full bg-chip"
+      >
         <div
-          role="progressbar"
-          aria-valuenow={Math.round(progress * 100)}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          title={`任务进度:${doneTurns}/${totalTurns} 步`}
-          className="h-1 w-24 overflow-hidden rounded-full bg-chip"
-        >
-          <div
-            className="h-full rounded-full bg-primary transition-all duration-500"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
-        <button
-          type="button"
-          aria-label="压缩上下文"
-          title={`上下文占用约 ${Math.round(contextRatio * 100)}%(点击 compact 压缩)`}
-          onClick={() =>
-            setCompactFrom(Math.max(0, messages.length - COMPACT_KEEP))
-          }
-          className="flex cursor-pointer items-center justify-center"
-        >
-          <svg viewBox="0 0 20 20" className="size-5 -rotate-90">
+          className="h-full rounded-full bg-primary transition-all duration-500"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+    ) : null;
+
+  const compactRing =
+    messages.length > 0 ? (
+      <button
+        type="button"
+        aria-label="压缩上下文"
+        title={`上下文占用约 ${Math.round(contextRatio * 100)}%(点击 compact 压缩)`}
+        onClick={() =>
+          setCompactFrom(Math.max(0, messages.length - COMPACT_KEEP))
+        }
+        className="flex cursor-pointer items-center justify-center"
+      >
+        <svg viewBox="0 0 20 20" className="size-6 -rotate-90">
             <circle
               cx="10"
               cy="10"
@@ -234,7 +281,6 @@ export function AgentChat() {
             />
           </svg>
         </button>
-      </div>
     ) : null;
 
   const composer = (
@@ -251,11 +297,12 @@ export function AgentChat() {
       onStyleChange={setStyle}
       placeholder="帮我找一下关于扩散模型在机器人控制中的最新综述…"
       menuPlacement={messages.length === 0 ? "down" : "up"}
-      headerRight={meters}
+      headerRight={compactRing}
+      sendLeft={progressBar}
     />
   );
 
-  /** 左侧对话历史栏:顶端「新对话」,下面为历史列表(演示) */
+  /** 左侧对话历史栏:顶端「新对话」,下面为真实历史(需登录,数据来自 /api/conversations) */
   const historyPanel = (
     <aside className="flex h-screen w-56 shrink-0 flex-col border-r border-line bg-sidebar p-3">
       <button
@@ -275,83 +322,115 @@ export function AgentChat() {
         历史对话
       </p>
       <div className="scrollbar-subtle flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-        {HISTORY.map((title) => (
-          <button
-            key={title}
-            type="button"
-            aria-current={activeConv === title ? "page" : undefined}
-            onClick={() => setActiveConv(title)}
-            className={cn(
-              "flex h-9 shrink-0 cursor-pointer items-center rounded-lg px-3 text-left text-sm transition-colors",
-              activeConv === title
-                ? "bg-card font-medium text-primary shadow-sm"
-                : "text-muted hover:bg-card hover:text-ink-2",
-            )}
-          >
-            <span className="truncate">{title}</span>
-          </button>
-        ))}
+        {!user ? (
+          <div className="flex flex-col items-center gap-2 rounded-xl bg-card/60 px-3 py-4 text-center">
+            <LogIn className="size-4 text-faint" />
+            <p className="text-[12px] leading-relaxed text-muted">
+              登录后可同步
+              <br />
+              对话历史
+            </p>
+          </div>
+        ) : conversations.length === 0 ? (
+          <p className="px-3 py-4 text-center text-[12px] leading-relaxed text-faint">
+            还没有对话记录
+            <br />
+            发起第一条提问吧
+          </p>
+        ) : (
+          conversations.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              aria-current={activeConv === c.id ? "page" : undefined}
+              onClick={() => void openConversation(c.id)}
+              title={c.preview}
+              className={cn(
+                "flex shrink-0 cursor-pointer flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors",
+                activeConv === c.id
+                  ? "bg-card font-medium shadow-sm"
+                  : "hover:bg-card/60",
+              )}
+            >
+              <span
+                className={cn(
+                  "truncate text-[13px]",
+                  activeConv === c.id ? "text-primary" : "text-ink-2",
+                )}
+              >
+                {c.title}
+              </span>
+              <span className="truncate text-[11px] text-faint">{c.preview}</span>
+            </button>
+          ))
+        )}
       </div>
     </aside>
   );
 
   if (messages.length === 0) {
     return (
-      <div className="flex">
-        {historyPanel}
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col items-center justify-center gap-6 px-6">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-primary-soft">
-            <PromptCircle className="size-6 text-primary" />
-          </span>
-          <h1 className="text-xl font-semibold text-ink">
-            有什么我可以帮你研究的?
-          </h1>
-          <div className="w-full max-w-4xl">{composer}</div>
-          <div className="flex max-w-4xl flex-wrap items-center justify-center gap-2">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => send(s)}
-                className="cursor-pointer rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] text-muted transition-colors hover:border-primary/40 hover:text-primary"
-              >
-                {s}
-              </button>
-            ))}
+      <>
+        <div className="flex">
+          {historyPanel}
+          <div className="flex min-h-screen min-w-0 flex-1 flex-col items-center justify-center gap-6 px-6">
+            <span className="flex size-12 items-center justify-center rounded-2xl bg-primary-soft">
+              <PromptCircle className="size-6 text-primary" />
+            </span>
+            <h1 className="text-xl font-semibold text-ink">
+              有什么我可以帮你研究的?
+            </h1>
+            <div className="w-full max-w-4xl">{composer}</div>
+            <div className="flex max-w-4xl flex-wrap items-center justify-center gap-2">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => send(s)}
+                  className="cursor-pointer rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] text-muted transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+        <LoginModal open={showLogin} onClose={() => setShowLogin(false)} />
+      </>
     );
   }
 
   return (
-    <div className="flex">
-      {historyPanel}
-      <div className="flex h-screen min-w-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
-            {messages.map((msg) => (
-              <MessageRow key={msg.id} msg={msg} />
-            ))}
-            <div ref={bottomRef} />
+    <>
+      <div className="flex">
+        {historyPanel}
+        <div className="flex h-screen min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
+              {messages.map((msg) => (
+                <MessageRow key={msg.id} msg={msg} />
+              ))}
+              <div ref={bottomRef} />
+            </div>
+          </div>
+          <div className="px-6 pb-5">
+            {streaming && (
+              <div className="mx-auto mb-2 flex max-w-5xl justify-center">
+                <button
+                  type="button"
+                  onClick={stopStreaming}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] text-muted shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  <CircleStop className="size-3.5" />
+                  停止生成
+                </button>
+              </div>
+            )}
+            <div className="mx-auto max-w-5xl">{composer}</div>
           </div>
         </div>
-        <div className="px-6 pb-5">
-          {streaming && (
-            <div className="mx-auto mb-2 flex max-w-5xl justify-center">
-              <button
-                type="button"
-                onClick={stopStreaming}
-                className="flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] text-muted shadow-sm transition-colors hover:border-primary/40 hover:text-primary"
-              >
-                <CircleStop className="size-3.5" />
-                停止生成
-              </button>
-            </div>
-          )}
-          <div className="mx-auto max-w-5xl">{composer}</div>
-        </div>
       </div>
-    </div>
+      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} />
+    </>
   );
 }

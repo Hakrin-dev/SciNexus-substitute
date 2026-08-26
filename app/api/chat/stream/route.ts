@@ -18,6 +18,9 @@ interface ChatReq {
   task_type?: string;
   paper_id?: string;
   model?: string;
+  /** 回答风格(头脑风暴/简明扼要/全面细致/严谨质疑) */
+  style?: string;
+  context?: { style?: string; [key: string]: unknown };
 }
 
 export async function POST(req: NextRequest) {
@@ -31,7 +34,8 @@ export async function POST(req: NextRequest) {
   const history = body.messages?.filter(
     (item) => (item.role === "user" || item.role === "assistant") && item.content,
   ).slice(-24) ?? [];
-  const result = await runAgent(msg || "你好", body.task_type, body.paper_id, history, body.model);
+  const style = body.style ?? body.context?.style ?? null;
+  const result = await runAgent(msg || "你好", body.task_type, body.paper_id, history, body.model, style);
   const { reply, workflow, references, generatedFiles } = result;
 
   const conversationId = body.conversation_id || genId("conv_");

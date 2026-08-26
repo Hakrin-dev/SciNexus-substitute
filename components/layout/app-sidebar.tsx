@@ -95,13 +95,10 @@ const HISTORY_NAV: NavItem[] = [
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const pathname = usePathname();
-  const setCollapsed = useSidebarStore((s) => s.setCollapsed);
   const active = item.matchPrefix
     ? pathname.startsWith(item.matchPrefix)
     : pathname === item.href;
   const Icon = item.icon;
-  /** 折叠规则:普通栏目(发现 / AI 助手 / 投稿 / 历史)点击后一律折叠侧边栏 */
-  const collapseAlways = () => setCollapsed(true);
 
   const inner = (
     <>
@@ -156,7 +153,6 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       href={item.href}
       title={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
-      onClick={collapseAlways}
       className={cn(
         "flex h-10 shrink-0 items-center rounded-xl transition-colors",
         "gap-3 px-3",
@@ -371,12 +367,29 @@ function LogoutPopup({ onClose }: { onClose: () => void }) {
 }
 
 /** 全局侧边栏 —— 对应 SVG 原型 240px 左侧栏(背景 #EEF1F8),可折叠为 64px 图标栏 */
+/** 导航区滚动位置(App Router 每次导航会重挂载侧边栏,用它跨挂载恢复,避免点击后跳回顶部) */
+let savedNavScrollTop = 0;
+
 export function AppSidebar() {
   const collapsed = useSidebarStore((s) => s.collapsed);
   const toggleCollapsed = useSidebarStore((s) => s.toggleCollapsed);
   const userName = useAuthStore((s) => s.userName);
   const [loginOpen, setLoginOpen] = React.useState(false);
   const [logoutOpen, setLogoutOpen] = React.useState(false);
+  const navScrollRef = React.useRef<HTMLElement | null>(null);
+
+  // 重挂载时在提交阶段(paint 前)恢复滚动位置,避免先画 0 位再跳转的闪烁
+
+  // 支持 /?login=1 直开登录弹窗(忘记密码页「返回登录」等入口)
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("login") !== "1") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("login");
+    window.history.replaceState({}, "", url.toString());
+    // 延迟到下一帧打开,避免在 effect 内同步 setState
+    const timer = window.setTimeout(() => setLoginOpen(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const { data: projects = [] } = useProjects();
   const projectSubNav = projects.map((p) => ({
     href: `/projects/${p.id}`,
@@ -424,7 +437,17 @@ export function AppSidebar() {
         </div>
       )}
 
-      <nav className="scrollbar-subtle mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto">
+      <nav
+        ref={(el) => {
+          navScrollRef.current = el;
+          // ref 回调在提交阶段执行(paint 前),滚动恢复对用户无感
+          if (el && savedNavScrollTop > 0) el.scrollTop = savedNavScrollTop;
+        }}
+        onScroll={(e) => {
+          savedNavScrollTop = e.currentTarget.scrollTop;
+        }}
+        className="scrollbar-subtle mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto"
+      >
         {!collapsed && (
           <p className="shrink-0 px-3 pb-1.5 pt-2 text-[11px] font-medium tracking-wide text-faint">
             研究
@@ -451,8 +474,9 @@ export function AppSidebar() {
           footer={
             <button
               type="button"
-              title="新建项目(演示)"
-              className="flex h-9 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm text-faint transition-colors hover:bg-card hover:text-ink-2"
+              disabled
+              title="新建项目:即将上线"
+              className="flex h-9 cursor-not-allowed items-center gap-2 rounded-lg px-3 text-sm text-faint"
             >
               <Plus className="size-3.5" />
               新建项目

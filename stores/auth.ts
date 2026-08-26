@@ -33,11 +33,11 @@ interface AuthState {
   logout: () => void;
   /** 拉取当前用户（页面初始化调用） */
   restore: () => Promise<void>;
-  /** 演示登录（直接写死） */
-  demoLogin: () => void;
+  /** 演示登录（优先真实接口,失败退回纯前端演示态） */
+  demoLogin: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>()((set) => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   loading: false,
   token: typeof window !== "undefined" ? getToken() : null,
   user: null,
@@ -113,8 +113,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
   },
 
-  demoLogin: () => {
-    // 兼容旧的演示登录
+  /** 演示登录:优先走真实接口拿 token(后续 requireAuth 接口可用),后端不可用时退回纯前端演示态 */
+  demoLogin: async () => {
+    const result = await get().login("hankairun", "yanshu123");
+    if (result.ok) return;
     set({
       user: {
         id: "user_demo",

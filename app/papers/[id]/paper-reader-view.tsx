@@ -70,7 +70,7 @@ export function PaperReaderView({ id }: { id: string }) {
           </PaperZoom>
         </main>
 
-        <PaperRightPanel />
+        <PaperRightPanel paperId={paper.id} />
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLibraryItems } from "@/lib/api/services";
+import { useUserPreferences } from "@/stores/user-preferences";
 import { cn } from "@/lib/utils";
 
 const PDF_TONES = {
@@ -21,6 +22,8 @@ export function LibraryTable() {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const { data: libraryItems = [] } = useLibraryItems();
+  // 发现页收藏的论文(本地偏好)在读表中打角标,打通「发现 → 沉淀」
+  const bookmarkedPapers = useUserPreferences((s) => s.bookmarkedPapers);
   // 服务端按 added_at DESC 排序,首条即最近加入(addedAt 为「7月25日」式展示文案)
   const lastUpdated = libraryItems[0]?.addedAt;
 
@@ -96,6 +99,7 @@ export function LibraryTable() {
         {filtered.map((item, index) => (
           <div
             key={item.recordId ?? `${item.id}-${index}`}
+            onClick={() => router.push(`/papers/${item.id}`)}
             className="grid cursor-pointer grid-cols-[minmax(0,1fr)_220px_90px] items-center gap-4 rounded-xl px-5 py-3 transition-colors hover:bg-card"
           >
             <div className="flex min-w-0 items-center gap-3">
@@ -109,8 +113,13 @@ export function LibraryTable() {
                 PDF
               </span>
               <div className="min-w-0">
-                <p className="truncate text-[15px] font-semibold text-ink">
-                  {item.title}
+                <p className="flex items-center gap-1.5 truncate text-[15px] font-semibold text-ink">
+                  <span className="truncate">{item.title}</span>
+                  {bookmarkedPapers[item.id] && (
+                    <span className="shrink-0 rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      已收藏
+                    </span>
+                  )}
                 </p>
                 <p className="mt-0.5 text-xs text-faint">
                   {item.venue} · {item.arxiv}

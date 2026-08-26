@@ -3,6 +3,7 @@
 import { Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUserPreferences } from "@/stores/user-preferences";
+import { toast } from "@/stores/toast";
 import { cn } from "@/lib/utils";
 
 /** 关注按钮 —— Zustand 持久化关注状态(原型中 已关注/关注 两态) */
@@ -25,6 +26,7 @@ export function FollowButton({
       onClick={(e) => {
         e.stopPropagation();
         toggleFollow(scholarId, defaultFollowing);
+        if (!following) toast.success("已关注");
       }}
       className={cn("rounded-full px-3.5", className)}
     >

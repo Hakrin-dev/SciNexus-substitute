@@ -3,6 +3,8 @@
 import * as React from "react";
 import { ArrowRight, Bookmark, BookmarkCheck } from "lucide-react";
 import { agentReferences } from "@/lib/data/agent";
+import { client, ApiError } from "@/lib/api/client";
+import { toast } from "@/stores/toast";
 import { CiteMenu } from "./cite-menu";
 import { cn } from "@/lib/utils";
 import type { AgentReference } from "@/types";
@@ -23,10 +25,32 @@ export function ReferenceGrid({
   refs?: AgentReference[];
 } = {}) {
   const items = refs ?? agentReferences;
-  /** 已存入知识库的文献 id(演示:本地状态) */
+  /** 已存入知识库的文献(以标题去重) */
   const [saved, setSaved] = React.useState<Record<number, boolean>>({});
-  const toggleSaved = (id: number) =>
-    setSaved((prev) => ({ ...prev, [id]: !prev[id] }));
+  const [saving, setSaving] = React.useState<Record<number, boolean>>({});
+
+  /** 存入知识库:调真实 /api/library(需登录);未登录给出明确引导 */
+  const saveToLibrary = async (ref: AgentReference) => {
+    if (saved[ref.id]) return;
+    setSaving((p) => ({ ...p, [ref.id]: true }));
+    try {
+      await client.library.add({
+        title: ref.title,
+        venue: ref.venue,
+        authors: ref.author,
+      });
+      setSaved((prev) => ({ ...prev, [ref.id]: true }));
+      toast.success("已存入知识库");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        toast.error("请先登录后再存入知识库");
+      } else {
+        toast.error("存入失败，请稍后重试");
+      }
+    } finally {
+      setSaving((p) => ({ ...p, [ref.id]: false }));
+    }
+  };
 
   return (
     <section className="rounded-2xl bg-card p-6 shadow-card">
@@ -38,7 +62,9 @@ export function ReferenceGrid({
           <CiteMenu refs={items} />
           <button
             type="button"
-            className="flex cursor-pointer items-center gap-1 text-xs font-medium text-primary hover:underline"
+            disabled
+            title="查看全部：即将上线"
+            className="flex cursor-not-allowed items-center gap-1 text-xs font-medium text-faint"
           >
             查看全部
             <ArrowRight className="size-3" />
@@ -51,7 +77,7 @@ export function ReferenceGrid({
           <article
             key={ref.id}
             className={cn(
-              "cursor-pointer rounded-xl border border-line p-3.5 transition-colors hover:border-primary/40",
+              "rounded-xl border border-line p-3.5 transition-colors hover:border-primary/40",
               ref.recommended && "border-brand-blue/40 bg-brand-blue-soft",
             )}
           >
@@ -77,8 +103,9 @@ export function ReferenceGrid({
                 <button
                   type="button"
                   aria-pressed={!!saved[ref.id]}
+                  disabled={!!saving[ref.id]}
                   title={saved[ref.id] ? "已存入知识库" : "存入知识库"}
-                  onClick={() => toggleSaved(ref.id)}
+                  onClick={() => void saveToLibrary(ref)}
                   className={cn(
                     "cursor-pointer transition-colors",
                     saved[ref.id]

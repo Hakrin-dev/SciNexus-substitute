@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { AtSign, Highlighter, Network, Plus, StickyNote } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useFeedPapers } from "@/lib/api/services";
 import {
   additionalLinks,
   relatedAuthors,
@@ -11,7 +13,31 @@ import {
 import { cn } from "@/lib/utils";
 
 /** 右侧面板 —— Assistant / 笔记 / 相关(对应原型热区面板切换) */
-export function PaperRightPanel() {
+export function PaperRightPanel({ paperId }: { paperId?: string }) {
+  const { data: feedPapers = [] } = useFeedPapers();
+
+  // 相似论文:当前论文之外、同方向(tag)优先,库内真实数据;无匹配时回退演示列表
+  const related = useMemo(() => {
+    if (!paperId) return similarPapers.map((p) => ({ title: p.title, meta: p.meta, href: `/papers/${paperId ?? ""}` }));
+    const current = feedPapers.find((p) => p.id === paperId);
+    const tags = new Set(current?.tags ?? []);
+    const scored = feedPapers
+      .filter((p) => p.id !== paperId)
+      .map((p) => ({
+        title: p.title,
+        meta: `${p.venue} · ${p.date}`.replace(/ · $/, ""),
+        href: `/papers/${p.id}`,
+        score:
+          p.tags.filter((t) => tags.has(t)).length * 2 +
+          (current && p.venue === current.venue ? 1 : 0),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6);
+    return scored.length
+      ? scored
+      : similarPapers.map((p) => ({ title: p.title, meta: p.meta, href: "/papers/rdt-1b" }));
+  }, [paperId, feedPapers]);
+
   return (
     <aside className="hidden w-80 shrink-0 flex-col border-l border-line bg-card lg:flex">
       <Tabs defaultValue="assistant" className="flex h-full flex-col">
@@ -109,10 +135,10 @@ export function PaperRightPanel() {
               相似论文
             </h3>
             <div className="mt-2.5 space-y-2">
-              {similarPapers.map((paper) => (
+              {related.map((paper) => (
                 <Link
                   key={paper.title}
-                  href="/papers/rdt-1b"
+                  href={paper.href}
                   className="block rounded-lg bg-panel p-3 transition-colors hover:bg-primary-soft"
                 >
                   <p className="text-xs font-medium leading-relaxed text-ink-2">

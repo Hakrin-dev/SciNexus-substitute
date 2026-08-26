@@ -3,6 +3,7 @@
 import { Award, Bookmark, BookmarkCheck, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUserPreferences } from "@/stores/user-preferences";
+import { toast } from "@/stores/toast";
 import type { Institution } from "@/types";
 
 const TYPE_TONES: Record<Institution["type"], string> = {
@@ -48,9 +49,10 @@ export function InstitutionCard({
               variant={bookmarked ? "soft" : "outline"}
               size="sm"
               aria-pressed={bookmarked}
-              onClick={() =>
-                toggleInstitutionBookmark(institution.id, institution.bookmarked)
-              }
+              onClick={() => {
+                toggleInstitutionBookmark(institution.id, institution.bookmarked);
+                if (!bookmarked) toast.success("已收藏机构");
+              }}
               className="rounded-full px-3.5"
             >
               {bookmarked ? (

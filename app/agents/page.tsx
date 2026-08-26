@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { AgentChat } from "@/components/features/agent/agent-chat";
 
@@ -5,7 +6,9 @@ import { AgentChat } from "@/components/features/agent/agent-chat";
 export default function AgentsPage() {
   return (
     <AppShell>
-      <AgentChat />
+      <Suspense fallback={null}>
+        <AgentChat />
+      </Suspense>
     </AppShell>
   );
 }

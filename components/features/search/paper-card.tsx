@@ -5,6 +5,7 @@ import { ArrowRight, Bookmark, Plus, ThumbsUp, TrendingUp, Users } from "lucide-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUserPreferences } from "@/stores/user-preferences";
+import { toast } from "@/stores/toast";
 import type { FeedPaper } from "@/types";
 
 const VENUE_VARIANT = { violet: "violet", amber: "amber", green: "green" } as const;
@@ -68,7 +69,11 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => toggleLike(paper.id)}
+                aria-label={liked ? "取消点赞" : "点赞"}
+                onClick={() => {
+                  toggleLike(paper.id);
+                  if (!liked) toast.success("已点赞");
+                }}
                 className={
                   "flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors " +
                   (liked ? "text-primary" : "text-muted hover:bg-chip")
@@ -80,7 +85,10 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => toggleBookmark(paper.id)}
+                onClick={() => {
+                  toggleBookmark(paper.id);
+                  if (!bookmarked) toast.success("已收藏,可在「知识库 · 在读」中查看");
+                }}
                 className={bookmarked ? "text-primary" : undefined}
               >
                 <Bookmark className="size-4" fill={bookmarked ? "currentColor" : "none"} />

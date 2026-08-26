@@ -17,7 +17,8 @@ export function SearchHero({
   const send = () => {
     const q = value.trim();
     if (!q) return;
-    router.push(`/agents/deep-search?q=${encodeURIComponent(q)}`);
+    // 默认快速检索(秒级);深度工作流可在落地页切换
+    router.push(`/agents/deep-search?q=${encodeURIComponent(q)}&mode=fast`);
   };
 
   const searchPapers = () => {

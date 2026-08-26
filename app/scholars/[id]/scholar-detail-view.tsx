@@ -88,7 +88,7 @@ export function ScholarDetailView({ id }: { id: string }) {
           </div>
           <div className="flex shrink-0 gap-2.5">
             <FollowButton scholarId={scholar.id} defaultFollowing={scholar.followed} />
-            <Button variant="dark" size="sm" className="rounded-full px-4">
+            <Button variant="dark" size="sm" className="rounded-full px-4" disabled title="认领此主页：即将上线">
               <UserRoundCheck className="size-3.5" />
               认领此主页
             </Button>

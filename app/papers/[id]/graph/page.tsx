@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 export default function PaperGraphPage() {
   const params = useParams<{ id: string }>();
   const id = params.id ?? "";
-  const { data: graph } = usePublicGraph();
+  const { data: graph } = usePublicGraph(id);
 
   if (!graph) return null;
 

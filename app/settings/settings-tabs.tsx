@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
+import { AgentPanel, ApiKeysPanel, UsagePanel } from "./panels-demo";
 
 /** 设置页 Tab(顺序与侧边栏浮动标签栏一致) */
 export const SETTINGS_TABS = [
@@ -380,15 +381,6 @@ function NotificationsPanel() {
   );
 }
 
-/** 演示占位面板 */
-function Placeholder({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl bg-card p-8 text-sm text-muted shadow-card">
-      {text}
-    </div>
-  );
-}
-
 /** 设置页 Tab 容器,受控于 URL ?tab= 参数 */
 export function SettingsTabs() {
   const router = useRouter();
@@ -416,13 +408,13 @@ export function SettingsTabs() {
         <ProfilePanel />
       </TabsContent>
       <TabsContent value="usage" className="mt-6">
-        <Placeholder text="用量统计(演示占位)" />
+        <UsagePanel />
       </TabsContent>
       <TabsContent value="agent" className="mt-6">
-        <Placeholder text="Agent 设置(演示占位)" />
+        <AgentPanel />
       </TabsContent>
       <TabsContent value="api" className="mt-6">
-        <Placeholder text="API 密钥管理(演示占位)" />
+        <ApiKeysPanel />
       </TabsContent>
       <TabsContent value="notifications" className="mt-6">
         <NotificationsPanel />

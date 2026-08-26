@@ -170,8 +170,8 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
   const ref = useCloseOnOutside(open, () => setOpen(false));
 
   const ITEMS = [
-    { label: "插件", icon: Plug },
-    { label: "技能", icon: SkillScroll },
+    { label: "插件", icon: Plug, href: "/tools/plugins" },
+    { label: "技能", icon: SkillScroll, href: "/tools/skills" },
   ];
 
   return (
@@ -199,16 +199,16 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
           )}
         >
           {ITEMS.map((item) => (
-            <button
+            <a
               key={item.label}
-              type="button"
-              title={`${item.label}:即将上线`}
+              href={item.href}
+              title={`管理${item.label}`}
               onClick={() => setOpen(false)}
               className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
             >
               <item.icon className="size-4 text-muted" strokeWidth={1.8} />
               {item.label}
-            </button>
+            </a>
           ))}
           {/* 联网搜索:点击切换启用/关闭,启用时背景变亮 */}
           <button

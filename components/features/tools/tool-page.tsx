@@ -1,15 +1,19 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 
-/** 工具库子页骨架:logo 徽标 + 标题 + 占位卡片(侧边栏副标题不显示 logo,仅在页面呈现) */
+/** 工具库子页骨架:logo 徽标 + 标题 + 内容区(children 优先,缺省为占位卡) */
 export function ToolPage({
   title,
+  subtitle,
   icon: Icon,
   placeholder,
+  children,
 }: {
   title: string;
+  subtitle?: string;
   icon: ComponentType<{ className?: string }>;
   placeholder: string;
+  children?: ReactNode;
 }) {
   return (
     <AppShell>
@@ -18,11 +22,18 @@ export function ToolPage({
           <span className="flex size-10 items-center justify-center rounded-xl bg-primary-soft">
             <Icon className="size-5 text-primary" />
           </span>
-          <h1 className="text-xl font-bold text-ink">{title}</h1>
+          <div>
+            <h1 className="text-xl font-bold text-ink">{title}</h1>
+            {subtitle && <p className="mt-0.5 text-xs text-faint">{subtitle}</p>}
+          </div>
         </div>
-        <div className="mt-6 rounded-2xl bg-card p-8 text-sm text-muted shadow-card">
-          {placeholder}
-        </div>
+        {children ? (
+          <div className="mt-6">{children}</div>
+        ) : (
+          <div className="mt-6 rounded-2xl bg-card p-8 text-sm text-muted shadow-card">
+            {placeholder}
+          </div>
+        )}
       </div>
     </AppShell>
   );

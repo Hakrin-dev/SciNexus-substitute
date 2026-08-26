@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { SubmitBrowser } from "./submit-browser";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -121,6 +123,25 @@ export function SubmitHome() {
       </div>
 
       <div className="mt-5">
+        {/* AI 匹配入口卡 */}
+        <Link
+          href="/submit/match"
+          className="group flex items-center gap-4 rounded-2xl border border-primary/30 bg-primary-soft px-5 py-4 transition-colors hover:border-primary/60"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card shadow-sm">
+            <Sparkles className="size-5 text-primary" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold text-ink group-hover:text-primary">
+              AI 匹配我的稿件
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-muted">
+              粘贴标题与摘要，获取 Top5 会议 / 期刊推荐与匹配理由
+            </span>
+          </span>
+          <ArrowRight className="size-4 shrink-0 text-faint transition-colors group-hover:text-primary" />
+        </Link>
+
         <SubmitBrowser kind={kind} />
       </div>
     </>

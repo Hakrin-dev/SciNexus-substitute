@@ -61,8 +61,8 @@ const RESEARCH_NAV: NavItem[] = [
 /** 「知识库」的副标题 */
 const KNOWLEDGE_SUB_NAV: SubNavItem[] = [
   { href: "/knowledge/papers", label: "论文" },
-  { href: "/knowledge/notes", label: "笔记", disabled: true },
-  { href: "/knowledge/memory", label: "记忆", disabled: true },
+  { href: "/knowledge/notes", label: "笔记" },
+  { href: "/knowledge/memory", label: "记忆" },
 ];
 
 /** 「工具库」的副标题 */
@@ -88,8 +88,8 @@ const DATABASE_NAV: NavItem = {
 
 /** 「投稿历史」即原投稿页的 History 视图(/submit/history) */
 const HISTORY_NAV: NavItem[] = [
-  { href: "/history", label: "浏览记录", icon: History, disabled: true },
-  { href: "/my-projects", label: "归档项目", icon: Archive, disabled: true },
+  { href: "/history", label: "浏览记录", icon: History },
+  { href: "/my-projects", label: "归档项目", icon: Archive },
   { href: "/submit/history", label: "投稿历史", icon: Send, matchPrefix: "/submit/history" },
 ];
 

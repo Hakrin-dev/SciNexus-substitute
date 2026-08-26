@@ -56,8 +56,13 @@ export async function POST(req: NextRequest) {
         "INSERT INTO conversation_messages (conversation_id, role, content) VALUES (?, 'user', ?)"
       ).run(conversationId, msg || "");
       db.prepare(
-        "INSERT INTO conversation_messages (conversation_id, role, content, workflow_json) VALUES (?, 'assistant', ?, ?)"
-      ).run(conversationId, reply, jsonStringify(workflow));
+        "INSERT INTO conversation_messages (conversation_id, role, content, workflow_json, references_json) VALUES (?, 'assistant', ?, ?, ?)"
+      ).run(
+        conversationId,
+        reply,
+        jsonStringify(workflow),
+        references?.length ? jsonStringify(references) : null
+      );
     } catch {}
   })();
 

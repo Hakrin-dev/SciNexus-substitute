@@ -2,20 +2,28 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CircleStop, LogIn, MessageSquarePlus } from "lucide-react";
+import { CircleStop, LogIn, MessageSquarePlus, Share2 } from "lucide-react";
 import { PromptCircle } from "@/components/icons/prompt-circle";
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api/client";
 import {
   sendChat,
   quickSearchPapers,
-  formatQuickAnswer,
+  formatPaperList,
   useConversations,
   fetchConversationMessages,
 } from "@/lib/api/services";
 import { useAuthStore } from "@/stores/auth";
-import { toast } from "@/stores/toast";
+import { copyText, toast } from "@/stores/toast";
 import { LoginModal } from "@/components/auth/login-modal";
+import { ReferenceGrid } from "./reference-grid";
+import {
+  WorkflowTrace,
+  toRefsFromPapers,
+  toRefsFromChat,
+  type ChatReference,
+  type Workflow,
+} from "./workflow-trace";
 import {
   ComposerShell,
   DEFAULT_MODEL,
@@ -25,11 +33,29 @@ import {
 } from "./composer";
 import { MarkdownView } from "./markdown-view";
 
+/** 单轮回答的结构化附件(深度轮=工作流+参考卡;快速轮=论文卡) */
+interface TurnData {
+  mode: ComposerMode;
+  workflow?: Workflow;
+  refs?: ChatReference[];
+  papers?: {
+    id: string;
+    title: string;
+    authors: string;
+    venue: string;
+    ccf: string;
+    year: number | null;
+    citations: number;
+  }[];
+}
+
 interface Message {
   /** 自增 id,作列表 key(避免用 index,流式更新时保持身份稳定) */
   id: number;
   role: "user" | "assistant";
   content: string;
+  /** assistant 消息可携带结构化回答块 */
+  turn?: TurnData;
 }
 
 /** 单条消息行(memo 化:流式 delta 只重渲染最后一条,历史消息不参与 reconcile) */
@@ -43,18 +69,30 @@ const MessageRow = memo(function MessageRow({ msg }: { msg: Message }) {
       </div>
     );
   }
+
+  // 结构化回答块:工作流条 + 参考来源卡
+  const refs = msg.turn?.refs?.length
+    ? toRefsFromChat(msg.turn.refs)
+    : msg.turn?.papers?.length
+      ? toRefsFromPapers(msg.turn.papers)
+      : null;
+
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft">
-        <PromptCircle className="size-4 text-primary" />
-      </span>
-      <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-card px-4 py-2.5 shadow-card">
-        {msg.content ? (
-          <MarkdownView content={msg.content} />
-        ) : (
-          <span className="text-sm text-faint">思考中…</span>
-        )}
+    <div className="space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-soft">
+          <PromptCircle className="size-4 text-primary" />
+        </span>
+        <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-card px-4 py-2.5 shadow-card">
+          {msg.content ? (
+            <MarkdownView content={msg.content} />
+          ) : (
+            <span className="text-sm text-faint">思考中…</span>
+          )}
+        </div>
       </div>
+      {msg.turn?.workflow && <WorkflowTrace workflow={msg.turn.workflow} />}
+      {refs && <ReferenceGrid refs={refs} />}
     </div>
   );
 });
@@ -100,20 +138,34 @@ export function AgentChat() {
   /** 深度模式 401 时的内嵌登录弹窗 */
   const [showLogin, setShowLogin] = useState(false);
 
-  /** 打开历史对话:拉取消息回填画布 */
+  /** 打开历史对话:拉取消息回填画布(assistant 消息还原结构化回答块) */
   const openConversation = async (convId: string) => {
     if (streaming) return;
     setActiveConv(convId);
     try {
       const msgs = await fetchConversationMessages(convId);
-      setMessages(msgs.map((m) => ({ id: nextIdRef.current++, ...m })));
+      setMessages(
+        msgs.map((m) => ({
+          id: nextIdRef.current++,
+          role: m.role,
+          content: m.content,
+          turn:
+            m.role === "assistant" && (m.workflow || m.references)
+              ? {
+                  mode: "deep" as const,
+                  workflow: (m.workflow as Workflow | undefined) ?? undefined,
+                  refs: (m.references as ChatReference[] | undefined) ?? undefined,
+                }
+              : undefined,
+        })),
+      );
       setCompactFrom(0);
     } catch {
       toast.error("加载对话失败，请稍后重试");
     }
   };
 
-  // 深链支持:/agents?conv=xxx(从 deep-search 近期研究栏等入口跳转)
+  // 深链支持:/agents?conv=xxx(从历史列表等入口跳转)
   const searchParams = useSearchParams();
   const openedConvRef = useRef<string | null>(null);
   useEffect(() => {
@@ -138,6 +190,16 @@ export function AgentChat() {
       if (!prev.length) return prev;
       const next = prev.slice();
       next[next.length - 1] = { ...next[next.length - 1], content };
+      return next;
+    });
+  };
+
+  /** 为最后一条(assistant)消息附加结构化回答块 */
+  const setLastTurn = (turn: TurnData) => {
+    setMessages((prev) => {
+      if (!prev.length) return prev;
+      const next = prev.slice();
+      next[next.length - 1] = { ...next[next.length - 1], turn };
       return next;
     });
   };
@@ -169,13 +231,19 @@ export function AgentChat() {
         // 深度模式：完整多智能体工作流（Supervisor → scout/synthesis/... → LLM 组合回答）
         let acc = "";
         let lastFlush = 0;
+        let wf: Workflow | undefined;
+        let refs: ChatReference[] | undefined;
         for await (const event of sendChat(q, history, ac.signal, model, activeConv ?? undefined, {
           topic: messages[0]?.content ?? q,
           style: style ?? undefined,
         }, effectiveMode)) {
-          if (event.type === "meta" && event.meta.conversation_id) {
-            convTouched = event.meta.conversation_id;
-            setActiveConv(event.meta.conversation_id);
+          if (event.type === "meta") {
+            if (event.meta.conversation_id) {
+              convTouched = event.meta.conversation_id;
+              setActiveConv(event.meta.conversation_id);
+            }
+            wf = (event.meta.workflow as Workflow | null) ?? undefined;
+            refs = (event.meta.references as ChatReference[] | null) ?? undefined;
           }
           if (event.type === "delta") {
             acc += event.text;
@@ -187,20 +255,23 @@ export function AgentChat() {
             }
           }
         }
-        // 收尾补一次最终全文
+        // 收尾补一次最终全文 + 结构化回答块
         if (acc) setLastContent(acc);
         if (!acc) {
           setLastContent("（本轮未生成回答，请重试或换一种问法）");
         }
+        setLastTurn({ mode: "deep", workflow: wf, refs });
       } else {
-        // 快速模式：只走 scout 本地直检（三路 RRF + 可选交叉编码器精排），
-        // 前端展示后端「简易回答」summary + 论文清单
+        // 快速模式：scout 本地直检;正文只放后端「简易回答」摘要,论文以参考卡呈现
         const { papers, summary, conversationId } = await quickSearchPapers(q, activeConv ?? undefined);
         if (conversationId) {
           convTouched = conversationId;
           setActiveConv(conversationId);
         }
-        setLastContent(formatQuickAnswer(q, papers, summary));
+        setLastContent(
+          summary.trim() || formatPaperList(q, papers),
+        );
+        setLastTurn({ mode: "fast", papers });
       }
     } catch (e) {
       if (ac.signal.aborted) {
@@ -218,6 +289,17 @@ export function AgentChat() {
       if (convTouched && user) void refetchConversations();
     }
   };
+
+  // URL 自动首跑:/agents?q=xxx&mode=fast|deep(发现页搜索入口;原 deep-search 行为并入)
+  const autoRunRef = useRef<string | null>(null);
+  useEffect(() => {
+    const q = searchParams.get("q")?.trim();
+    if (!q || autoRunRef.current === q || streaming || messages.length > 0) return;
+    autoRunRef.current = q;
+    const m: ComposerMode = searchParams.get("mode") === "deep" ? "deep" : "fast";
+    void send(q, m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   /** 任务进度条:发送键左下;compact 圆环:输入框右上 */
   const totalTurns = messages.filter((m) => m.role === "user").length;
@@ -405,6 +487,27 @@ export function AgentChat() {
       <div className="flex">
         {historyPanel}
         <div className="flex h-screen min-w-0 flex-1 flex-col">
+          {/* 会话头:首问作标题 + 分享 */}
+          <div className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-card px-6">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+              {messages.find((m) => m.role === "user")?.content ?? "对话"}
+            </span>
+            <button
+              type="button"
+              title="分享对话链接"
+              onClick={() =>
+                copyText(
+                  activeConv
+                    ? `${window.location.origin}/agents?conv=${encodeURIComponent(activeConv)}`
+                    : window.location.href,
+                  "分享链接已复制",
+                )
+              }
+              className="cursor-pointer rounded-lg p-2 text-muted transition-colors hover:bg-chip hover:text-ink"
+            >
+              <Share2 className="size-4" />
+            </button>
+          </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
               {messages.map((msg) => (

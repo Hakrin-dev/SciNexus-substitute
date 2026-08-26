@@ -12,9 +12,10 @@
  */
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { apiGet, apiPost, streamChat, type ChatStreamEvent } from "./client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiGet, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
 import { toPaperDetail, type BackendScholarDetail } from "./adapters";
+import { toast } from "@/stores/toast";
 import { feedPapers } from "@/lib/data/papers";
 import { venues } from "@/lib/data/venues";
 import { libraryItems } from "@/lib/data/library";
@@ -42,7 +43,7 @@ import type {
 import { privateGraph as mockPrivateGraph, publicGraph as mockPublicGraph } from "@/lib/data/knowledge-graph";
 import { paperDetail as mockPaperDetail } from "@/lib/data/paper-detail";
 import type { Project } from "@/lib/data/projects";
-import type { FeedPaper, LibraryItem, PaperGraph, Scholar, Venue } from "@/types";
+import type { FeedPaper, LibraryItem, MatchedVenue, PaperGraph, Scholar, Venue } from "@/types";
 
 /* ── mock 兜底显式化 ─────────────────────────────────────────── */
 
@@ -104,21 +105,27 @@ export function useVenues() {
 }
 
 /** 投稿方向匹配 */
+/**
+ * 投稿方向匹配:标题/摘要/关键词 → Top5 会议/期刊推荐。
+ * useLlm 为真时后端走 LLM 语义匹配(未配置或失败自动回退关键词),
+ * 实际使用的模式以返回的 mode 为准。失败抛出,由调用方呈现错误。
+ */
 export async function matchVenues(
   title: string,
   abstract: string,
   keywords: string[],
-  useLlm = false,
-) {
-  try {
-    const json = await apiPost<Venue[]>(
-      "/api/submission/match",
-      { title, abstract, keywords, use_llm: useLlm },
-    );
-    return { data: json.data ?? [], mode: "keyword" };
-  } catch {
-    return null;
-  }
+  useLlm = true,
+): Promise<{ data: MatchedVenue[]; mode: "llm" | "keyword" }> {
+  const json = await apiPost<MatchedVenue[]>("/api/submission/match", {
+    title,
+    abstract,
+    keywords,
+    use_llm: useLlm,
+  });
+  return {
+    data: json.data ?? [],
+    mode: json.mode === "llm" ? "llm" : "keyword",
+  };
 }
 
 /** 知识库文献列表 */
@@ -386,6 +393,45 @@ export function useAgentTasks(id: string) {
   });
 }
 
+/**
+ * 线程卡片状态流转(todo→doing→done)—— 工作台本期唯一的写路径。
+ * 乐观更新本地缓存;成功后刷新活动日志(后端会写入一条日志)。
+ */
+export function useUpdateThreadCardStatus(projectId: string) {
+  const queryClient = useQueryClient();
+  const cardsKey = ["api", "project", projectId, "thread-cards"];
+  return useMutation({
+    mutationFn: async ({
+      cardId,
+      status,
+    }: {
+      cardId: string;
+      status: ThreadCard["status"];
+    }) => {
+      await apiPut(`/api/projects/${projectId}/thread-cards/${cardId}`, { status });
+      return { cardId, status };
+    },
+    onMutate: async ({ cardId, status }) => {
+      await queryClient.cancelQueries({ queryKey: cardsKey });
+      const prev = queryClient.getQueryData<ThreadCard[]>(cardsKey);
+      queryClient.setQueryData<ThreadCard[]>(cardsKey, (old) =>
+        old?.map((c) => (c.id === cardId ? { ...c, status } : c)),
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(cardsKey, ctx.prev);
+      toast.error("状态更新失败，请稍后重试");
+    },
+    onSuccess: () => {
+      toast.success("已更新卡片状态");
+      void queryClient.invalidateQueries({
+        queryKey: ["api", "project", projectId, "activity"],
+      });
+    },
+  });
+}
+
 /** 论文详情（+ 全文回退 intro / 页码） */
 export function usePaperDetail(id: string) {
   return useQuery({
@@ -488,19 +534,29 @@ export function useConversations() {
   });
 }
 
+/** 历史消息(含深度轮的结构化数据,用于回放报告块) */
 export interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
+  workflow?: unknown;
+  references?: unknown;
 }
 
 /** 拉取单个会话的消息列表(用于点击历史对话回填画布) */
 export async function fetchConversationMessages(id: string): Promise<ConversationMessage[]> {
   const json = await apiGet<{
-    messages?: { role: string; content: string }[];
+    messages?: {
+      role: string;
+      content: string;
+      workflow?: unknown;
+      references?: unknown;
+    }[];
   }>(`/api/conversations/${id}`);
   return (json.data?.messages ?? []).map((m) => ({
     role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
     content: m.content,
+    workflow: m.workflow ?? undefined,
+    references: m.references ?? undefined,
   }));
 }
 
@@ -594,18 +650,6 @@ export async function quickSearchPapers(
       summary: "",
     };
   }
-}
-
-/** 快速模式的回答文本：优先后端 summary，再附论文清单 */
-export function formatQuickAnswer(
-  query: string,
-  papers: QuickPaper[],
-  summary?: string,
-): string {
-  const list = formatPaperList(query, papers);
-  const head = (summary ?? "").trim();
-  if (head) return `${head}\n\n---\n\n${list}`;
-  return list;
 }
 
 /** 简易回答模板（后端 summary 不可用时的兜底头部 + 论文清单） */

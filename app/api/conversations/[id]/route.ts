@@ -40,6 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           content: m.content,
           createdAt: m.created_at,
           workflow: m.workflow_json ? jsonParse(m.workflow_json, null) : null,
+          references: m.references_json ? jsonParse(m.references_json, null) : null,
         })),
       },
     });

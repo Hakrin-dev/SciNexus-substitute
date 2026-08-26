@@ -38,6 +38,13 @@ export interface Venue {
 
 export type VenueMetaIcon = "folder" | "pin" | "cal" | "chart" | "quote";
 
+/** 投稿匹配结果条目 = Venue 视觉字段 + 匹配字段(/api/submission/match) */
+export interface MatchedVenue extends Venue {
+  matchPct: number;
+  matchClass: "high" | "mid" | "low";
+  matchReason: string;
+}
+
 export type VenueBadgeName =
   | "CCF A"
   | "CCF B"
@@ -107,14 +114,6 @@ export interface AgentReference {
   citations: string;
   tone: "violet" | "green" | "amber" | "gray";
   recommended?: boolean;
-}
-
-export interface RecentResearch {
-  id: string;
-  title: string;
-  time: string;
-  refs: number;
-  active?: boolean;
 }
 
 /** 论文详情(阅读器) */

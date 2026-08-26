@@ -1,11 +1,4 @@
-import type { AgentReference, RecentResearch } from "@/types";
-
-export const recentResearch: RecentResearch[] = [
-  { id: "r1", title: "扩散模型综述", time: "刚刚", refs: 18, active: true },
-  { id: "r2", title: "具身智能中的世界模型", time: "昨天", refs: 24 },
-  { id: "r3", title: "Mamba 与状态空间模型", time: "2 天前", refs: 31 },
-  { id: "r4", title: "稀疏注意力机制对比", time: "上周", refs: 9 },
-];
+import type { AgentReference } from "@/types";
 
 export const agentReferences: AgentReference[] = [
   {

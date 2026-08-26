@@ -11,8 +11,10 @@ import { hashPassword } from "./password";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// 数据库文件存放位置：项目根目录 /data/yanshu.db
-const DATA_DIR = path.resolve(__dirname, "../../..", "data");
+// 数据库文件存放位置:<cwd>/data/yanshu.db
+// 以 process.cwd() 为基准(next start / next dev / standalone 均以项目根为工作目录),
+// 避免打包后 __dirname 指向 .next 深层目录导致路径漂移到项目外。
+const DATA_DIR = path.resolve(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "yanshu.db");
 
 if (!fs.existsSync(DATA_DIR)) {
@@ -200,6 +202,91 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    -- ── 课题工作台(六视图持久化;ID 为字符串弱引用体系,跨表引用原样保留)──
+    -- 研究大纲树(parent_id 自引用物化嵌套)
+    CREATE TABLE IF NOT EXISTS wb_outline_nodes (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      parent_id TEXT,
+      kind TEXT CHECK(kind IN ('question','hypothesis','evidence','conclusion','note')),
+      title TEXT,
+      status TEXT CHECK(status IN ('open','supported','contested','done')),
+      detail TEXT,
+      ai_note TEXT,
+      sort INTEGER DEFAULT 0,
+      asset_refs_json TEXT DEFAULT '[]',
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_wb_outline_project ON wb_outline_nodes(project_id);
+
+    -- 研究线程
+    CREATE TABLE IF NOT EXISTS wb_threads (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      question_node_id TEXT,
+      title TEXT,
+      stage TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_wb_threads_project ON wb_threads(project_id);
+
+    -- 线程卡片流
+    CREATE TABLE IF NOT EXISTS wb_thread_cards (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      thread_id TEXT NOT NULL,
+      kind TEXT CHECK(kind IN ('question','literature','hypothesis','experiment','result','analysis','conclusion','next','hint')),
+      title TEXT,
+      summary TEXT,
+      status TEXT CHECK(status IN ('todo','doing','done')),
+      node_ref TEXT,
+      ai_generated INTEGER DEFAULT 0,
+      created_at TEXT,
+      asset_refs_json TEXT DEFAULT '[]',
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_wb_cards_thread ON wb_thread_cards(thread_id, created_at);
+
+    -- 工作台资产
+    CREATE TABLE IF NOT EXISTS wb_assets (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      kind TEXT CHECK(kind IN ('paper','dataset','note','experiment')),
+      title TEXT,
+      meta TEXT,
+      status TEXT CHECK(status IN ('unread','active','analyzed','archived')),
+      tags_json TEXT DEFAULT '[]',
+      question_ids_json TEXT DEFAULT '[]',
+      hypothesis_ids_json TEXT DEFAULT '[]',
+      updated_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_wb_assets_project ON wb_assets(project_id, updated_at);
+
+    -- 活动日志
+    CREATE TABLE IF NOT EXISTS wb_activity_log (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      actor TEXT CHECK(actor IN ('user','agent','system')),
+      type TEXT CHECK(type IN ('note','literature','data','task','summary')),
+      text TEXT,
+      thread_id TEXT,
+      created_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_wb_activity_project ON wb_activity_log(project_id, created_at);
+
+    -- Agent 任务状态栏
+    CREATE TABLE IF NOT EXISTS wb_agent_tasks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      agent TEXT CHECK(agent IN ('scout','librarian','synthesis','research_design','code_assistant','writer','critic')),
+      label TEXT,
+      state TEXT CHECK(state IN ('queued','running','done')),
+      updated_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
     -- 知识图谱节点
     CREATE TABLE IF NOT EXISTS graph_nodes (
       id TEXT PRIMARY KEY,
@@ -298,6 +385,13 @@ function initSchema(db: Database.Database) {
 function runMigrations(db: Database.Database) {
   ensureColumn(db, "users", "token_version", "token_version INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "scholars", "citation_count", "citation_count INTEGER DEFAULT 0");
+  // 会话消息补充 references_json(历史回放时还原参考卡;2026-08 前的旧消息为 NULL,前端优雅降级)
+  ensureColumn(
+    db,
+    "conversation_messages",
+    "references_json",
+    "references_json TEXT"
+  );
 
   // 迁移旧的无盐 SHA-256 demo 密码为 PBKDF2 格式（密码已知为 "yanshu123"）
   const demo = db

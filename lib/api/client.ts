@@ -34,6 +34,8 @@ export interface ApiResp<T = any> {
   error?: string;
   code?: string;
   summary?: string;
+  /** 匹配等接口的实际执行模式(如 "llm" | "keyword") */
+  mode?: string;
   pagination?: {
     page: number;
     page_size: number;

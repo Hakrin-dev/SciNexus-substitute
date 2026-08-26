@@ -10,7 +10,6 @@ import {
   Download,
   FileText,
   Loader2,
-  Presentation,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,7 @@ import {
 } from "@/lib/data/proposal";
 import { cn } from "@/lib/utils";
 
-const TYPE_ICONS = { proposal: FileText, review: BookOpen, slides: Presentation } as const;
+const TYPE_ICONS = { proposal: FileText, review: BookOpen } as const;
 
 /** 生成步骤(演示:定时依次点亮) */
 const GENERATE_STEPS = [

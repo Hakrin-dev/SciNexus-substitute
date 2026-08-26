@@ -19,6 +19,7 @@ import {
   useProjectOutline,
   useProjectThreads,
   useThreadCards,
+  useUpdateThreadCardStatus,
   useWorkbenchActivity,
   useWorkbenchAssets,
   useWorkbenchOverview,
@@ -81,6 +82,7 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
   const { data: activity = [] } = useWorkbenchActivity(projectId);
   const { data: overview } = useWorkbenchOverview(projectId);
   const { data: agentTasks = [] } = useAgentTasks(projectId);
+  const updateCardStatus = useUpdateThreadCardStatus(projectId);
 
   if (!project || !overview) return null;
 
@@ -201,6 +203,9 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
                   cards={cards}
                   selection={selection}
                   onSelect={(cardId) => setSelection({ kind: "card", id: cardId })}
+                  onStatusChange={(cardId, status) =>
+                    updateCardStatus.mutate({ cardId, status })
+                  }
                 />
               )}
               {view === "outline" && (

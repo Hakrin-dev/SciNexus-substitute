@@ -11,10 +11,12 @@ interface Props {
   cards: ThreadCard[];
   selection: Selection;
   onSelect: (cardId: string) => void;
+  /** 卡片状态流转(todo→doing→done);传入后状态徽章可点击 */
+  onStatusChange?: (cardId: string, status: ThreadCard["status"]) => void;
 }
 
 /** 线程视图 —— 按研究问题分节的垂直卡片流(主工作区默认视图) */
-export function ThreadView({ threads, cards, selection, onSelect }: Props) {
+export function ThreadView({ threads, cards, selection, onSelect, onStatusChange }: Props) {
   return (
     <div className="space-y-5">
       {threads.map((thread) => {
@@ -66,6 +68,7 @@ export function ThreadView({ threads, cards, selection, onSelect }: Props) {
                     card={card}
                     selected={selection?.kind === "card" && selection.id === card.id}
                     onSelect={onSelect}
+                    onStatusChange={onStatusChange}
                   />
                 </li>
               ))}
@@ -81,14 +84,23 @@ function ThreadCardRow({
   card,
   selected,
   onSelect,
+  onStatusChange,
 }: {
   card: ThreadCard;
   selected: boolean;
   onSelect: (cardId: string) => void;
+  onStatusChange?: (cardId: string, status: ThreadCard["status"]) => void;
 }) {
   const meta = CARD_KIND_META[card.kind];
   const Icon = meta.icon;
   const isHint = card.kind === "hint";
+
+  const cycleStatus = () => {
+    if (!onStatusChange) return;
+    const next: ThreadCard["status"] =
+      card.status === "todo" ? "doing" : card.status === "doing" ? "done" : "todo";
+    onStatusChange(card.id, next);
+  };
 
   return (
     <div
@@ -109,14 +121,25 @@ function ThreadCardRow({
           <Icon className="size-3.5" strokeWidth={1.8} />
         </span>
         <span className="text-xs font-medium text-muted">{meta.label}</span>
-        <span
+        <button
+          type="button"
+          aria-label={`切换状态(当前:${CARD_STATUS_META[card.status].label})`}
+          title={onStatusChange ? "点击切换状态:待办 → 进行中 → 已完成" : undefined}
+          disabled={!onStatusChange}
+          onClick={(e) => {
+            e.stopPropagation();
+            cycleStatus();
+          }}
           className={cn(
             "rounded-full px-2 py-0.5 text-[10px] font-medium",
             CARD_STATUS_META[card.status].className,
+            onStatusChange
+              ? "cursor-pointer hover:ring-1 hover:ring-primary/40"
+              : "cursor-default",
           )}
         >
           {CARD_STATUS_META[card.status].label}
-        </span>
+        </button>
         {card.aiGenerated && (
           <span className="ml-auto flex items-center gap-1 text-[11px] text-faint">
             <span className="inline-flex size-4 items-center justify-center rounded-full bg-primary-soft">

@@ -66,13 +66,14 @@ ECS:Watchtower 每 60s 轮询 GHCR,发现新镜像自动 pull + 重建(/opt/scin
 |------|------|----------|----------|
 | `/` | 主发现页(搜索 + Feed 流) | 研枢-主发现页.svg | [app/page.tsx](app/page.tsx) |
 | `/submit` | 投稿详情页(期刊/会议 + 倒计时) | 研枢-投稿详情页.svg | [app/submit/page.tsx](app/submit/page.tsx) |
+| `/submit/match` | AI 投稿匹配(标题/摘要 → Top5 会议/期刊,LLM 语义匹配可回退关键词) | — | [app/submit/match/page.tsx](app/submit/match/page.tsx) |
 | `/papers/[id]` | 论文详情页(沉浸式阅读器) | 研枢-论文详情页.svg | [app/papers/[id]/page.tsx](app/papers/[id]/page.tsx) |
 | `/scholars` | 学者画像(检索/排序/关注) | 研枢-学者画像页.svg | [app/scholars/page.tsx](app/scholars/page.tsx) |
 | `/scholars/[id]` | 学者详情(引用图表/发表列表) | 研枢-学者详情页.svg | [app/scholars/[id]/page.tsx](app/scholars/[id]/page.tsx) |
 | `/knowledge` | 知识库(文献库 + 在读表格) | 研枢-知识库页面.svg | [app/knowledge/page.tsx](app/knowledge/page.tsx) |
 | `/papers/[id]/graph` | 公域知识图谱(引用关系三栏页) | 知识图谱样页.png | [app/papers/[id]/graph/page.tsx](app/papers/[id]/graph/page.tsx) |
 | `/knowledge/graph` | 私域知识图谱(发表×收藏分层双色) | 知识图谱样页.png | [app/knowledge/graph/page.tsx](app/knowledge/graph/page.tsx) |
-| `/agents` | AI 研究助手(深度研究对话) | 研枢-AI研究助手.svg | [app/agents/page.tsx](app/agents/page.tsx) |
+| `/agents` | AI 研究助手(单容器对话:快速=参考卡,深度=工作流条+参考卡;历史可回放) | 研枢-AI研究助手.svg | [app/agents/page.tsx](app/agents/page.tsx);`/agents/deep-search` 为兼容重定向 |
 
 导航联动与 `prototype_v1.html` 热区一致:搜索提交 → `/agents`;论文卡片 → `/papers/[id]`;作者/学者 → `/scholars/[id]`。
 

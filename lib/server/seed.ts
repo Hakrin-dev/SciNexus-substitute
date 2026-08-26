@@ -2,6 +2,7 @@
  * 数据库种子数据初始化脚本
  * 将前端 lib/data/*.ts 中的模拟数据写入 SQLite，启动时自动执行一次
  */
+import type Database from "better-sqlite3";
 import { getDB, jsonStringify } from "./db";
 import { hashPassword } from "./password";
 
@@ -597,12 +598,183 @@ function parseCitationCount(s: string | null): number {
   return Math.round(n);
 }
 
+/** 课题工作台六视图种子(迁移自 lib/data/workbench.ts;ID 为弱引用,原样保留;幂等:已有数据则跳过) */
+function seedWorkbench(db: Database.Database): void {
+  const existing = db
+    .prepare("SELECT COUNT(*) as n FROM wb_outline_nodes WHERE project_id = 'scinexus'")
+    .get() as { n: number };
+  if (existing.n > 0) return;
+
+  const wb = "scinexus";
+
+  // 研究大纲树(parent_id 自引用;数组顺序即 sort)
+  const insertWbNode = db.prepare(
+    `INSERT INTO wb_outline_nodes (id, project_id, parent_id, kind, title, status, detail, ai_note, sort, asset_refs_json)
+     VALUES (@id, @project_id, @parent_id, @kind, @title, @status, @detail, @ai_note, @sort, @asset_refs_json)`
+  );
+  const outlineRows: {
+    id: string; parent: string | null; kind: string; title: string;
+    status: string; detail?: string; aiNote?: string; sort: number; refs: string[];
+  }[] = [
+    { id: "q1", parent: null, kind: "question", title: "多智能体综述管线如何保证引用真实性与论断不丢失?", status: "open",
+      detail: "核心研究问题:论断提取→聚类→成文三阶段管线的正确性边界。",
+      aiNote: "近 30 天新增 5 篇相关文献,建议优先核对聚类不变式相关章节。", sort: 0, refs: ["a1", "a2", "a3"] },
+    { id: "h1", parent: "q1", kind: "hypothesis", title: "全分划聚类可避免论断静默丢失", status: "supported",
+      detail: "漏归论文补聚后,分划不变式在全部测试集成立。", aiNote: "与 a2 实验数据匹配度 85%。", sort: 0, refs: ["a2"] },
+    { id: "e1", parent: "h1", kind: "evidence", title: "论断提取结构化输出实验(NeurIPS 语料)", status: "supported", sort: 0, refs: ["a1"] },
+    { id: "e2", parent: "h1", kind: "evidence", title: "聚类漏归补聚回归实验", status: "supported", sort: 1, refs: ["a2"] },
+    { id: "h2", parent: "q1", kind: "hypothesis", title: "引用校验重生成可将幽灵引用降为 0", status: "contested",
+      detail: "resolve_citations 重编号在长文档场景仍有 1 例悬空引用。",
+      aiNote: "断点:H2 缺少跨领域数据集验证,建议补充。", sort: 1, refs: ["a3", "a5"] },
+    { id: "e3", parent: "h2", kind: "evidence", title: "引用重编号单测(零悬空引用)", status: "supported", sort: 0, refs: ["a3"] },
+    { id: "e4", parent: "h2", kind: "evidence", title: "幽灵引用回归实验(进行中)", status: "open", sort: 1, refs: ["a5"] },
+    { id: "c1", parent: "q1", kind: "conclusion", title: "管线在受限域内引用真实性可保证", status: "done", sort: 2, refs: [] },
+    { id: "q2", parent: null, kind: "question", title: "critic 反馈能否定向提升 writer 初稿质量?", status: "open",
+      detail: "writer→critic→writer 回环的收益评估。", sort: 1, refs: ["a4"] },
+    { id: "h3", parent: "q2", kind: "hypothesis", title: "定向修订优于全量重跑(成本/质量比)", status: "contested", sort: 0, refs: ["a4"] },
+    { id: "n1", parent: null, kind: "note", title: "方法论笔记:结构化输出 schema 设计原则", status: "open", sort: 2, refs: ["a3"] },
+  ];
+  for (const n of outlineRows) {
+    insertWbNode.run({
+      id: n.id,
+      project_id: wb,
+      parent_id: n.parent,
+      kind: n.kind,
+      title: n.title,
+      status: n.status,
+      detail: n.detail ?? null,
+      ai_note: n.aiNote ?? null,
+      sort: n.sort,
+      asset_refs_json: jsonStringify(n.refs),
+    });
+  }
+
+  db.prepare(
+    `INSERT INTO wb_threads (id, project_id, question_node_id, title, stage) VALUES (?, ?, ?, ?, ?)`
+  ).run("t1", wb, "q1", "多智能体综述管线如何保证引用真实性与论断不丢失?", "数据分析");
+
+  const insertCard = db.prepare(
+    `INSERT INTO wb_thread_cards (id, project_id, thread_id, kind, title, summary, status, node_ref, ai_generated, created_at, asset_refs_json)
+     VALUES (@id, @project_id, @thread_id, @kind, @title, @summary, @status, @node_ref, @ai_generated, @created_at, @asset_refs_json)`
+  );
+  const cardRows: {
+    id: string; kind: string; title: string; summary: string; status: string;
+    nodeRef?: string; aiGenerated?: boolean; createdAt: string; refs: string[];
+  }[] = [
+    { id: "card1", kind: "question", title: "提出研究问题 Q1", summary: "从综述生成任务出发,定义「引用真实性」与「论断不丢失」两个正确性指标。", status: "done", nodeRef: "q1", createdAt: "2026-08-02T10:00:00+08:00", refs: [] },
+    { id: "card2", kind: "literature", title: "scout 检索:28 篇相关文献入库", summary: "混合召回 + 精排,其中 5 篇与聚类不变式直接相关,已挂到证据节点。", status: "done", nodeRef: "e1", aiGenerated: true, createdAt: "2026-08-06T10:00:00+08:00", refs: ["a1", "a4"] },
+    { id: "card3", kind: "hypothesis", title: "假设 H1:全分划聚类避免静默丢失", summary: "若每条论断必属且仅属一个维度,则补聚后可实现零丢失。", status: "done", nodeRef: "h1", createdAt: "2026-08-09T10:00:00+08:00", refs: ["a2"] },
+    { id: "card9", kind: "hint", title: "AI 断点提示", summary: "H2「幽灵引用降为 0」缺少跨领域数据集验证,当前证据仅覆盖 AI 领域语料。", status: "todo", nodeRef: "h2", aiGenerated: true, createdAt: "2026-08-20T10:00:00+08:00", refs: ["a5"] },
+    { id: "card4", kind: "experiment", title: "实验设计:聚类漏归补聚回归", summary: "对漏归论文执行二次聚类,校验分划不变式;数据集 a2。", status: "doing", nodeRef: "e2", createdAt: "2026-08-12T10:00:00+08:00", refs: ["a2"] },
+    { id: "card5", kind: "result", title: "代码运行完成:12/13 用例通过", summary: "长文档场景出现 1 例悬空引用,已回写 H2 为存疑。", status: "doing", nodeRef: "e4", aiGenerated: true, createdAt: "2026-08-21T10:00:00+08:00", refs: ["a5"] },
+    { id: "card6", kind: "analysis", title: "分析笔记:失败用例归因", summary: "悬空引用源于跨章节引用编号漂移,拟引入全局编号池。", status: "done", aiGenerated: true, createdAt: "2026-08-22T10:00:00+08:00", refs: ["a3"] },
+    { id: "card7", kind: "conclusion", title: "阶段结论 C1", summary: "受限域内管线引用真实性可保证;跨域场景待 e4 实验收敛后更新。", status: "todo", nodeRef: "c1", createdAt: "2026-08-23T10:00:00+08:00", refs: [] },
+    { id: "card8", kind: "next", title: "下一步:补充跨领域验证集", summary: "从 OpenAlex 拉取生物医学语料 200 篇,复跑幽灵引用回归。", status: "todo", createdAt: "2026-08-23T18:00:00+08:00", refs: ["a5"] },
+  ];
+  for (const c of cardRows) {
+    insertCard.run({
+      id: c.id,
+      project_id: wb,
+      thread_id: "t1",
+      kind: c.kind,
+      title: c.title,
+      summary: c.summary,
+      status: c.status,
+      node_ref: c.nodeRef ?? null,
+      ai_generated: c.aiGenerated ? 1 : 0,
+      created_at: c.createdAt,
+      asset_refs_json: jsonStringify(c.refs),
+    });
+  }
+
+  const insertAsset = db.prepare(
+    `INSERT INTO wb_assets (id, project_id, kind, title, meta, status, tags_json, question_ids_json, hypothesis_ids_json, updated_at)
+     VALUES (@id, @project_id, @kind, @title, @meta, @status, @tags_json, @question_ids_json, @hypothesis_ids_json, @updated_at)`
+  );
+  const assetRows: {
+    id: string; kind: string; title: string; meta: string; status: string;
+    tags: string[]; qids: string[]; hids: string[]; updatedAt: string;
+  }[] = [
+    { id: "a1", kind: "paper", title: "Structured Claim Extraction for Literature Review Pipelines", meta: "NeurIPS · 2026", status: "analyzed", tags: ["综述", "结构化输出"], qids: ["q1"], hids: ["h1"], updatedAt: "2026-08-06T10:00:00+08:00" },
+    { id: "a2", kind: "dataset", title: "论断聚类实验数据 v2(含漏归标注)", meta: "JSON · 48 MB", status: "active", tags: ["聚类", "回归实验"], qids: ["q1"], hids: ["h1"], updatedAt: "2026-08-12T10:00:00+08:00" },
+    { id: "a3", kind: "note", title: "引用重编号规则笔记(resolve_citations)", meta: "Markdown", status: "analyzed", tags: ["引用对齐"], qids: ["q1"], hids: ["h2"], updatedAt: "2026-08-22T10:00:00+08:00" },
+    { id: "a4", kind: "paper", title: "Iterative Review Refinement with Critic Feedback", meta: "ICLR · 2026", status: "unread", tags: ["修订策略"], qids: ["q2"], hids: ["h3"], updatedAt: "2026-08-19T10:00:00+08:00" },
+    { id: "a5", kind: "experiment", title: "幽灵引用回归实验(脚本 + 输出)", meta: "Python · 运行中", status: "active", tags: ["引用对齐", "回归实验"], qids: ["q1"], hids: ["h2"], updatedAt: "2026-08-21T10:00:00+08:00" },
+    { id: "a6", kind: "dataset", title: "早期用户反馈数据(已归档)", meta: "CSV · 2 MB", status: "archived", tags: ["用户研究"], qids: [], hids: [], updatedAt: "2026-08-03T10:00:00+08:00" },
+  ];
+  for (const a of assetRows) {
+    insertAsset.run({
+      id: a.id,
+      project_id: wb,
+      kind: a.kind,
+      title: a.title,
+      meta: a.meta,
+      status: a.status,
+      tags_json: jsonStringify(a.tags),
+      question_ids_json: jsonStringify(a.qids),
+      hypothesis_ids_json: jsonStringify(a.hids),
+      updated_at: a.updatedAt,
+    });
+  }
+
+  const insertLog = db.prepare(
+    `INSERT INTO wb_activity_log (id, project_id, actor, type, text, thread_id, created_at)
+     VALUES (@id, @project_id, @actor, @type, @text, @thread_id, @created_at)`
+  );
+  const logRows: {
+    id: string; actor: string; type: string; text: string; threadId?: string; at: string;
+  }[] = [
+    { id: "log1", actor: "agent", type: "summary", text: "今日摘要:阅读 2 篇文献,推进 1 个实验,产出分析笔记 1 条。", threadId: "t1", at: "2026-08-23T18:00:00+08:00" },
+    { id: "log2", actor: "system", type: "task", text: "AI 提取了 3 条新证据并关联到假设 H1。", at: "2026-08-23T17:00:00+08:00" },
+    { id: "log3", actor: "user", type: "note", text: "手动备注:全局编号池方案需要先评审再实施。", threadId: "t1", at: "2026-08-23T15:00:00+08:00" },
+    { id: "log4", actor: "agent", type: "task", text: "writer 生成了 C1 阶段结论草稿,等待确认。", threadId: "t1", at: "2026-08-22T16:00:00+08:00" },
+    { id: "log5", actor: "user", type: "data", text: "上传实验输出 a5(12/13 用例通过)。", at: "2026-08-22T11:00:00+08:00" },
+    { id: "log6", actor: "agent", type: "task", text: "code_assistant 触发幽灵引用回归实验,预计 40 分钟。", threadId: "t1", at: "2026-08-21T10:00:00+08:00" },
+    { id: "log7", actor: "agent", type: "summary", text: "critic 检测到逻辑断点:H2 缺乏跨领域数据支持,已插入提示卡。", threadId: "t1", at: "2026-08-20T14:00:00+08:00" },
+    { id: "log8", actor: "user", type: "literature", text: "导入文献 a4 至资产库,待阅读。", at: "2026-08-19T09:00:00+08:00" },
+  ];
+  for (const l of logRows) {
+    insertLog.run({
+      id: l.id,
+      project_id: wb,
+      actor: l.actor,
+      type: l.type,
+      text: l.text,
+      thread_id: l.threadId ?? null,
+      created_at: l.at,
+    });
+  }
+
+  const insertTask = db.prepare(
+    `INSERT INTO wb_agent_tasks (id, project_id, agent, label, state, updated_at)
+     VALUES (@id, @project_id, @agent, @label, @state, @updated_at)`
+  );
+  const taskRows: { id: string; agent: string; label: string; state: string }[] = [
+    { id: "task1", agent: "scout", label: "正在下载补充材料(生物医学语料)", state: "running" },
+    { id: "task2", agent: "code_assistant", label: "代码运行中:幽灵引用回归", state: "running" },
+    { id: "task3", agent: "librarian", label: "构建证据图谱(q1)", state: "queued" },
+    { id: "task4", agent: "writer", label: "C1 结论草稿已生成", state: "done" },
+  ];
+  for (const t of taskRows) {
+    insertTask.run({
+      id: t.id,
+      project_id: wb,
+      agent: t.agent,
+      label: t.label,
+      state: t.state,
+      updated_at: "2026-08-23T18:00:00+08:00",
+    });
+  }
+}
+
 export function runSeed() {
   const db = getDB();
   const tx = db.transaction(() => {
     // ---- 检查是否已初始化（只要 papers 表有数据就跳过） ----
     const paperCount = (db.prepare("SELECT COUNT(*) as n FROM papers").get() as any).n;
     if (paperCount > 0) {
+      // 老库升级:工作台表后加入,若为空则单独补种(幂等)
+      seedWorkbench(db);
       console.log("[seed] 数据库已有数据，跳过初始化");
       return;
     }
@@ -846,6 +1018,8 @@ export function runSeed() {
     for (const m of milestones) {
       insertMs.run(projectId, m.title, m.detail, m.status, m.order);
     }
+
+    seedWorkbench(db);
 
     console.log("[seed] 种子数据写入完成 ✅");
   });

@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useAuthStore } from "@/stores/auth";
 import { useSidebarStore } from "@/stores/sidebar";
 import { useUserPreferences } from "@/stores/user-preferences";
+import { useDemoState } from "@/stores/demo-state";
+import { useRecentViews } from "@/stores/recent-views";
 
 /**
  * 客户端 store 水合 —— 根布局挂载一次:
@@ -18,6 +20,8 @@ export function StoreHydration() {
   useEffect(() => {
     void useSidebarStore.persist.rehydrate();
     void useUserPreferences.persist.rehydrate();
+    void useDemoState.persist.rehydrate();
+    void useRecentViews.persist.rehydrate();
     void restore();
   }, [restore]);
 

@@ -6,10 +6,7 @@
 import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
 import { hashPassword } from "./password";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // 数据库文件存放位置:<cwd>/data/yanshu.db
 // 以 process.cwd() 为基准(next start / next dev / standalone 均以项目根为工作目录),
@@ -385,6 +382,8 @@ function initSchema(db: Database.Database) {
 function runMigrations(db: Database.Database) {
   ensureColumn(db, "users", "token_version", "token_version INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "scholars", "citation_count", "citation_count INTEGER DEFAULT 0");
+  // projects.updated_at:PUT 更新器会 touch 该列,旧库补齐
+  ensureColumn(db, "projects", "updated_at", "updated_at TEXT");
   // 会话消息补充 references_json(历史回放时还原参考卡;2026-08 前的旧消息为 NULL,前端优雅降级)
   ensureColumn(
     db,

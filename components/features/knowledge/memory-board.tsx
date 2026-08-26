@@ -1,0 +1,197 @@
+"use client";
+
+import * as React from "react";
+import { Brain, FolderKanban, Globe2, Sparkles, Trash2 } from "lucide-react";
+import { useDemoState } from "@/stores/demo-state";
+import { toast } from "@/stores/toast";
+import { cn } from "@/lib/utils";
+
+function formatDay(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${Number(m[2])}月${Number(m[3])}日` : iso;
+}
+
+type ScopeFilter = "all" | "global" | "project";
+
+const SCOPE_FILTERS: { value: ScopeFilter; label: string; icon: typeof Globe2 }[] = [
+  { value: "all", label: "全部", icon: Brain },
+  { value: "global", label: "全局级", icon: Globe2 },
+  { value: "project", label: "项目级", icon: FolderKanban },
+];
+
+/** 知识库·AI 记忆 —— 全局级/项目级记忆条目管理(演示态,本地持久化) */
+export function MemoryBoard() {
+  const memoryEnabled = useDemoState((s) => s.memoryEnabled);
+  const setMemoryEnabled = useDemoState((s) => s.setMemoryEnabled);
+  const memoryEntries = useDemoState((s) => s.memoryEntries);
+  const memoryOff = useDemoState((s) => s.memoryOff);
+  const toggleMemoryEntry = useDemoState((s) => s.toggleMemoryEntry);
+  const deleteMemoryEntry = useDemoState((s) => s.deleteMemoryEntry);
+
+  const [scope, setScope] = React.useState<ScopeFilter>("all");
+
+  const filtered = memoryEntries.filter((m) => scope === "all" || m.scope === scope);
+  const activeCount = memoryEntries.filter((m) => !memoryOff[m.id]).length;
+  const globalCount = memoryEntries.filter((m) => m.scope === "global").length;
+  const projectCount = memoryEntries.length - globalCount;
+
+  return (
+    <div className="space-y-4">
+      {/* 说明横幅 + 总开关 */}
+      <section className="flex items-center gap-4 rounded-2xl border border-primary/25 bg-primary-soft/60 p-5">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card shadow-sm">
+          <Brain className="size-5 text-primary" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">AI 记忆</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted">
+            <span className="font-medium text-ink-2">全局级</span>
+            在所有对话中生效;
+            <span className="font-medium text-ink-2">项目级</span>
+            仅在对应课题工作台的会话中生效。关闭后 AI 将停止使用这些记忆。
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={memoryEnabled}
+          onClick={() => {
+            setMemoryEnabled(!memoryEnabled);
+            toast.success(memoryEnabled ? "已关闭 AI 记忆" : "已开启 AI 记忆");
+          }}
+          className={cn(
+            "relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors",
+            memoryEnabled ? "bg-primary" : "bg-line",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 size-5 rounded-full bg-white shadow transition-all",
+              memoryEnabled ? "left-[22px]" : "left-0.5",
+            )}
+          />
+        </button>
+      </section>
+
+      {/* 作用域筛选 */}
+      <div className="flex flex-wrap items-center gap-2">
+        {SCOPE_FILTERS.map((f) => {
+          const count =
+            f.value === "all"
+              ? memoryEntries.length
+              : f.value === "global"
+                ? globalCount
+                : projectCount;
+          return (
+            <button
+              key={f.value}
+              type="button"
+              aria-pressed={scope === f.value}
+              onClick={() => setScope(f.value)}
+              className={cn(
+                "flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-xs transition-colors",
+                scope === f.value
+                  ? "bg-primary font-medium text-white"
+                  : "bg-chip text-muted hover:text-ink-2",
+              )}
+            >
+              <f.icon className="size-3.5" />
+              {f.label}
+              <span className={cn("tabular-nums", scope === f.value ? "text-white/80" : "text-faint")}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+        <span className="ml-auto text-xs text-faint">
+          生效 {activeCount}/{memoryEntries.length}
+        </span>
+      </div>
+
+      {/* 条目列表 */}
+      <div className="space-y-3">
+        {filtered.map((entry, i) => {
+          const off = !!memoryOff[entry.id];
+          const dimmed = off || !memoryEnabled;
+          return (
+            <article
+              key={entry.id}
+              className={cn(
+                "animate-in fade-in slide-in-from-bottom-2 fill-mode-both flex items-start gap-3.5 rounded-xl border border-line bg-card p-4 duration-300",
+                dimmed && "opacity-55",
+              )}
+              style={{ animationDelay: `${Math.min(i * 30, 240)}ms` }}
+            >
+              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
+                <Sparkles className={cn("size-3.5", dimmed ? "text-faint" : "text-primary")} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] leading-relaxed text-ink-2">{entry.fact}</p>
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-faint">
+                  {/* 作用域徽章 */}
+                  {entry.scope === "project" ? (
+                    <span className="flex items-center gap-1 rounded bg-brand-blue-soft px-1.5 py-0.5 font-medium text-brand-blue">
+                      <FolderKanban className="size-3" />
+                      {entry.project || "项目"} · 项目级
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 rounded bg-chip px-1.5 py-0.5 font-medium text-muted">
+                      <Globe2 className="size-3" />
+                      全局级
+                    </span>
+                  )}
+                  <span>来源:{entry.source}</span>
+                  <span>·</span>
+                  <span>{formatDay(entry.createdAt)}</span>
+                </p>
+              </div>
+              {/* 单条开关 */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!off}
+                aria-label={off ? "启用该记忆" : "停用该记忆"}
+                disabled={!memoryEnabled}
+                onClick={() => toggleMemoryEntry(entry.id)}
+                className={cn(
+                  "relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors",
+                  !off && memoryEnabled ? "bg-primary" : "bg-line",
+                  !memoryEnabled && "cursor-not-allowed",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 size-4 rounded-full bg-white shadow transition-all",
+                    !off && memoryEnabled ? "left-[18px]" : "left-0.5",
+                  )}
+                />
+              </button>
+              <button
+                type="button"
+                aria-label="删除该记忆"
+                onClick={() => {
+                  deleteMemoryEntry(entry.id);
+                  toast.info("已删除该条记忆");
+                }}
+                className="shrink-0 cursor-pointer rounded-md p-1.5 text-faint transition-colors hover:bg-chip hover:text-danger"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </article>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="rounded-2xl bg-card p-12 text-center shadow-card">
+            <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-chip">
+              <Brain className="size-5 text-faint" />
+            </span>
+            <p className="mt-3 text-sm text-muted">
+              {scope === "project" ? "暂无项目级记忆" : scope === "global" ? "暂无全局级记忆" : "暂无记忆"}
+            </p>
+            <p className="mt-1 text-xs text-faint">与 AI 对话时它会自动积累关于你的偏好</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

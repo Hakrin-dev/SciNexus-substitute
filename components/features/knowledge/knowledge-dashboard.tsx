@@ -6,6 +6,7 @@ import { useMemo, useState, type ComponentType } from "react";
 import {
   ArrowRight,
   BookOpen,
+  Brain,
   Building2,
   Clock3,
   FileText,
@@ -13,11 +14,13 @@ import {
   Network,
   Search,
   Sparkles,
+  StickyNote,
   TrendingUp,
   Users,
 } from "lucide-react";
 import { libraryFolders, libraryTags } from "@/lib/data/library";
 import { useLibraryItems, useScholars, useInstitutions } from "@/lib/api/services";
+import { useDemoState } from "@/stores/demo-state";
 import { cn } from "@/lib/utils";
 
 type SearchType = "全部" | "论文" | "学者" | "机构";
@@ -125,6 +128,10 @@ export function KnowledgeDashboard() {
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState<SearchType>("全部");
   const { data: libraryItems = [] } = useLibraryItems();
+  // 笔记与记忆计数(演示态,本地持久化)
+  const notes = useDemoState((s) => s.notes);
+  const memoryEntries = useDemoState((s) => s.memoryEntries);
+  const memoryCount = memoryEntries.length;
   const { data: scholars = [] } = useScholars();
   const { data: institutions = [] } = useInstitutions();
 
@@ -237,6 +244,39 @@ export function KnowledgeDashboard() {
         <Metric value={String(libraryItems.length)} label="文献资产" />
         <Metric value={String(scholars.length)} label="关注学者" />
         <Metric value={String(institutions.length)} label="研究机构" />
+      </section>
+
+      <section className="mt-4 grid grid-cols-2 gap-3">
+        {/* 笔记入口 */}
+        <Link
+          href="/knowledge/notes"
+          className="group flex items-center gap-3.5 rounded-2xl border border-line bg-card px-5 py-4 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-pop"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft">
+            <StickyNote className="size-5 text-primary" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink group-hover:text-primary">笔记</span>
+            <span className="mt-0.5 block truncate text-[11px] text-faint">
+              {notes.length} 篇 · 阅读心得与研究思路
+            </span>
+          </span>
+        </Link>
+        {/* 记忆入口 */}
+        <Link
+          href="/knowledge/memory"
+          className="group flex items-center gap-3.5 rounded-2xl border border-line bg-card px-5 py-4 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-pop"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft">
+            <Brain className="size-5 text-primary" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink group-hover:text-primary">记忆</span>
+            <span className="mt-0.5 block truncate text-[11px] text-faint">
+              AI 关于你的 {memoryCount} 条长期记忆
+            </span>
+          </span>
+        </Link>
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-12">

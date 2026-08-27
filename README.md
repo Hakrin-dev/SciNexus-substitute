@@ -62,18 +62,35 @@ ECS:Watchtower 每 60s 轮询 GHCR,发现新镜像自动 pull + 重建(/opt/scin
 
 ## 页面路由(已实现 ✅)
 
-| 路由 | 页面 | 对应原型 | 实现位置 |
-|------|------|----------|----------|
-| `/` | 主发现页(搜索 + Feed 流) | 研枢-主发现页.svg | [app/page.tsx](app/page.tsx) |
-| `/submit` | 投稿详情页(期刊/会议 + 倒计时) | 研枢-投稿详情页.svg | [app/submit/page.tsx](app/submit/page.tsx) |
-| `/submit/match` | AI 投稿匹配(标题/摘要 → Top5 会议/期刊,LLM 语义匹配可回退关键词) | — | [app/submit/match/page.tsx](app/submit/match/page.tsx) |
-| `/papers/[id]` | 论文详情页(沉浸式阅读器) | 研枢-论文详情页.svg | [app/papers/[id]/page.tsx](app/papers/[id]/page.tsx) |
-| `/scholars` | 学者画像(检索/排序/关注) | 研枢-学者画像页.svg | [app/scholars/page.tsx](app/scholars/page.tsx) |
-| `/scholars/[id]` | 学者详情(引用图表/发表列表) | 研枢-学者详情页.svg | [app/scholars/[id]/page.tsx](app/scholars/[id]/page.tsx) |
-| `/knowledge` | 知识库(文献库 + 在读表格) | 研枢-知识库页面.svg | [app/knowledge/page.tsx](app/knowledge/page.tsx) |
-| `/papers/[id]/graph` | 公域知识图谱(引用关系三栏页) | 知识图谱样页.png | [app/papers/[id]/graph/page.tsx](app/papers/[id]/graph/page.tsx) |
-| `/knowledge/graph` | 私域知识图谱(发表×收藏分层双色) | 知识图谱样页.png | [app/knowledge/graph/page.tsx](app/knowledge/graph/page.tsx) |
-| `/agents` | AI 研究助手(单容器对话:快速=参考卡,深度=工作流条+参考卡;历史可回放) | 研枢-AI研究助手.svg | [app/agents/page.tsx](app/agents/page.tsx);`/agents/deep-search` 为兼容重定向 |
+| 路由 | 页面 | 实现位置 |
+|------|------|----------|
+| `/` | 主发现页(搜索 + Feed 流) | [app/page.tsx](app/page.tsx) |
+| `/agents` | AI 研究助手(单容器对话:快速=参考卡,深度=工作流条+参考卡;历史可回放) | [app/agents/page.tsx](app/agents/page.tsx);`/agents/deep-search` 为兼容重定向 |
+| `/projects` | 课题工作台(仅展示「进行中」课题,空则跳 `/my-projects`) | [app/projects/page.tsx](app/projects/page.tsx) |
+| `/projects/[id]` | 课题工作台详情(概览/线程/大纲/资产/日志;`?studio=1` AI 生成台) | [app/projects/[id]/page.tsx](app/projects/[id]/page.tsx) |
+| `/projects/new` | 新建课题向导(演示态) | [app/projects/new/page.tsx](app/projects/new/page.tsx) |
+| `/submit` | 投稿详情页(期刊/会议 + 倒计时) | [app/submit/page.tsx](app/submit/page.tsx) |
+| `/submit/match` | AI 投稿匹配(标题/摘要 → Top5 会议/期刊,LLM 语义匹配可回退关键词) | [app/submit/match/page.tsx](app/submit/match/page.tsx) |
+| `/submit/history` | 投稿历史 | [app/submit/history/page.tsx](app/submit/history/page.tsx) |
+| `/papers/[id]` | 论文详情页(沉浸式阅读器) | [app/papers/[id]/page.tsx](app/papers/[id]/page.tsx) |
+| `/papers/[id]/graph` | 公域知识图谱(引用关系三栏页) | [app/papers/[id]/graph/page.tsx](app/papers/[id]/graph/page.tsx) |
+| `/scholars` · `/scholars/[id]` | 学者画像 / 详情 | [app/scholars/page.tsx](app/scholars/page.tsx) |
+| `/knowledge` | 知识库(索引) | [app/knowledge/page.tsx](app/knowledge/page.tsx) |
+| `/knowledge/papers` | 论文库(全部 / 期刊 / 会议 三个标签页) | [app/knowledge/papers/page.tsx](app/knowledge/papers/page.tsx) |
+| `/knowledge/notes` | 笔记(标题前 Feather 图标) | [app/knowledge/notes/page.tsx](app/knowledge/notes/page.tsx) |
+| `/knowledge/memory` | AI 记忆(总开关 + 条目管理,标题前 Brain 图标) | [app/knowledge/memory/page.tsx](app/knowledge/memory/page.tsx) |
+| `/knowledge/database` | 科研数据库(跨库检索,前端 mock) | [app/knowledge/database/page.tsx](app/knowledge/database/page.tsx) |
+| `/knowledge/graph` | 私域知识图谱(发表×收藏分层双色) | [app/knowledge/graph/page.tsx](app/knowledge/graph/page.tsx) |
+| `/tools` | 工具库(索引) | [app/tools/page.tsx](app/tools/page.tsx) |
+| `/tools/skills` | 技能 | [app/tools/skills/page.tsx](app/tools/skills/page.tsx) |
+| `/tools/plugins` | 插件 | [app/tools/plugins/page.tsx](app/tools/plugins/page.tsx) |
+| `/tools/mcp` | MCP(我的服务器 / 配置说明 双标签页) | [app/tools/mcp/page.tsx](app/tools/mcp/page.tsx) |
+| `/history` | 浏览记录 | [app/history/page.tsx](app/history/page.tsx) |
+| `/my-projects` | 归档项目(含删除,演示态) | [app/my-projects/page.tsx](app/my-projects/page.tsx) |
+
+> `/database` 已重定向至 `/knowledge/database`(数据库自 2026-08-27 起迁入知识库子导航)。
+>
+> **前端演示态**:课题的新建 / 归档 / 删除与科研数据库检索均为纯前端演示状态([stores/demo-state.ts](stores/demo-state.ts) + [lib/data/database.ts](lib/data/database.ts) mock),**不调用后端**;其余接口仍走「真实 API + mock 保底」([lib/api/services.ts](lib/api/services.ts))。
 
 导航联动与 `prototype_v1.html` 热区一致:搜索提交 → `/agents`;论文卡片 → `/papers/[id]`;作者/学者 → `/scholars/[id]`。
 
@@ -153,7 +170,7 @@ scinexus/
 │   └── agent/                # research_assistant/(supervisor + 7 agents + tools + review 管线)/ scripts/(OpenAlex/PDF 入库)
 ├── hooks/                    # use-debounce
 ├── providers/                # query-provider
-├── stores/                   # user-preferences(zustand persist)
+├── stores/                   # zustand persist:用户偏好 + 课题/记忆演示态(demo-state)
 ├── types/                    # 全局类型
 ├── brand/                    # 品牌资产:logo-wordmark.png(SciNexus 透明字标,日夜通用,由 logo.tsx 静态导入)+ 母版 logo.png 与管线(process_brand_assets.cjs)
 ├── Dockerfile                # 前端多阶段构建(node:22-alpine,standalone 产物;apk/pnpm 走国内镜像站,本地可构建)

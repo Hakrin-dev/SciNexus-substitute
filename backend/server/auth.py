@@ -172,8 +172,8 @@ def get_user(user_id: str) -> Optional[dict]:
     return _to_user(user) if user else None
 
 
-def seed_demo_user() -> None:
+def seed_demo_user() -> str:
     """预置演示账号 demo / demo123456,方便前端联调。"""
     if "demo" in _LOOKUP:
-        return
-    register({"username": "demo", "password": "demo123456", "displayName": "演示用户"})
+        return _LOOKUP["demo"]
+    return register({"username": "demo", "password": "demo123456", "displayName": "演示用户"})["user"]["id"]

@@ -6,6 +6,7 @@ import unittest
 
 import httpx
 
+from server import main as main_module
 from server.main import app
 
 
@@ -82,6 +83,32 @@ class PrivateIsolationTests(unittest.IsolatedAsyncioTestCase):
             (await self.client.delete(f"/api/library/{library_id}", headers=self.other_headers)).status_code,
             404,
         )
+
+    async def test_chat_stream_fallback_completes_when_agent_fails(self) -> None:
+        original_enabled = main_module.AGENT_ENABLED
+        original_chat = main_module._agent_chat_with_meta
+
+        def failing_agent(*_args, **_kwargs):
+            raise RuntimeError("agent unavailable")
+
+        main_module.AGENT_ENABLED = True
+        main_module._agent_chat_with_meta = failing_agent
+        try:
+            async with self.client.stream(
+                "POST",
+                "/api/chat/stream",
+                json={"message": "请介绍一下论文检索"},
+            ) as response:
+                self.assertEqual(response.status_code, 200)
+                body = await response.aread()
+        finally:
+            main_module.AGENT_ENABLED = original_enabled
+            main_module._agent_chat_with_meta = original_chat
+
+        text = body.decode("utf-8")
+        self.assertIn("event: meta", text)
+        self.assertIn('"run_id": null', text)
+        self.assertIn("event: done", text)
 
 
 if __name__ == "__main__":

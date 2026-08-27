@@ -750,6 +750,7 @@ async def chat_stream(req: ChatRequest):
     if not message:
         raise HTTPException(status_code=400, detail="消息不能为空")
     conversation_id = req.conversation_id or f"conv_{uuid.uuid4().hex}"
+    run_id = None
     if AGENT_ENABLED:
         try:
             result = _agent_chat_with_meta(
@@ -763,6 +764,7 @@ async def chat_stream(req: ChatRequest):
                 context={**(req.context or {}), **({"style": req.style} if req.style else {})},
             )
             reply = result["reply"]
+            run_id = result.get("run_id")
             workflow = result["workflow"]
             generated_files = result["generated_files"]
             references = result["references"]
@@ -783,7 +785,7 @@ async def chat_stream(req: ChatRequest):
         conv_id = conversation_id
         meta = {
             "conversation_id": conv_id,
-            "run_id": result.get("run_id"),
+            "run_id": run_id,
             "tokens": len(reply),
             "workflow": workflow,
             "generated_files": generated_files,

@@ -59,6 +59,12 @@ export interface BackendVenue {
   matchReason?: string | null;
 }
 
+export interface BackendMatchedVenue extends BackendVenue {
+  matchPct?: number | null;
+  matchClass?: string | null;
+  matchReason?: string | null;
+}
+
 export interface BackendLibraryItem {
   id: string;
   recordId: string;
@@ -208,6 +214,11 @@ export function toVenue(v: BackendVenue): Venue {
         }
       : undefined,
   };
+}
+
+/** 外部 API 场馆记录补齐 VenueCard 所需的视觉字段，同时保留匹配分数等扩展数据。 */
+export function normalizeVenues<T extends BackendVenue>(items: T[]): Array<T & Venue> {
+  return items.map((item) => ({ ...item, ...toVenue(item) }));
 }
 
 export function toLibraryItem(l: BackendLibraryItem): LibraryItem {

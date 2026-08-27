@@ -7,7 +7,8 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node scripts/smoke-test.mjs"
+    "test": "node scripts/smoke-test.mjs",
+    "test:regression": "node --experimental-strip-types --test scripts/regression-test.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",

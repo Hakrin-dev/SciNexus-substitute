@@ -21,8 +21,13 @@ from typing import Optional
 # token 有效期 7 天
 TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60
 
-# 密钥:优先环境变量;未配置时回退开发密钥(与前端 lib/server/auth.ts 行为一致)
-SECRET = os.environ.get("AUTH_SECRET", "yanshu-dev-secret-change-me")
+# 生产环境必须显式配置密钥；开发环境保留演示回退。
+_is_production = os.environ.get("NODE_ENV", "").lower() == "production" or os.environ.get("ENV", "").lower() == "production"
+SECRET = os.environ.get("AUTH_SECRET")
+if not SECRET:
+    if _is_production:
+        raise RuntimeError("[auth] 生产环境必须配置 AUTH_SECRET。")
+    SECRET = "yanshu-dev-secret-change-me"
 
 _AVATAR_COLORS = ["#5046E5", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#06B6D4"]
 

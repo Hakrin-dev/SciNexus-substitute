@@ -26,6 +26,7 @@ import {
 import { useDemoState } from "@/stores/demo-state";
 import { toast } from "@/stores/toast";
 import { cn } from "@/lib/utils";
+import { ScriptLogo } from "@/components/icons/script-logo";
 
 /* ── 通用小件 ─────────────────────────────────────────────── */
 
@@ -637,7 +638,7 @@ export function SkillsBoard() {
     <Tabs defaultValue="builtin">
       <TabsList className="gap-4 border-b border-line">
         <TabsTrigger value="builtin" className="flex items-center gap-1.5">
-          <Zap className="size-4" strokeWidth={1.8} />
+          <Wand2 className="size-4" strokeWidth={1.8} />
           内置
         </TabsTrigger>
         <TabsTrigger value="community" className="flex items-center gap-1.5">
@@ -645,7 +646,7 @@ export function SkillsBoard() {
           社区
         </TabsTrigger>
         <TabsTrigger value="custom" className="flex items-center gap-1.5">
-          <Wand2 className="size-4" strokeWidth={1.8} />
+          <ScriptLogo className="size-4" />
           自定义
         </TabsTrigger>
       </TabsList>

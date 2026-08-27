@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronRight, Copy } from "lucide-react";
+import { BookOpen, Code2, Library, Search, Check, ChevronRight, Copy } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { copyText } from "@/stores/toast";
 import { cn } from "@/lib/utils";
 
@@ -374,9 +375,9 @@ function ToolItem({ tool }: { tool: ToolDoc }) {
 
 /* ── 常见用例 ─────────────────────────────────────────────── */
 
-const USE_CASES: { icon: string; title: string; steps: string[] }[] = [
+const USE_CASES: { icon: LucideIcon; title: string; steps: string[] }[] = [
   {
-    icon: "📚",
+    icon: Library,
     title: "文献综述",
     steps: [
       "用 discover_papers 找到主题候选论文",
@@ -386,7 +387,7 @@ const USE_CASES: { icon: string; title: string; steps: string[] }[] = [
     ],
   },
   {
-    icon: "🧪",
+    icon: Code2,
     title: "代码分析",
     steps: [
       "discover_papers 找到目标论文",
@@ -395,7 +396,7 @@ const USE_CASES: { icon: string; title: string; steps: string[] }[] = [
     ],
   },
   {
-    icon: "🔍",
+    icon: Search,
     title: "深度研究",
     steps: [
       "discover_papers(可多角度并行)找到文献",
@@ -405,7 +406,7 @@ const USE_CASES: { icon: string; title: string; steps: string[] }[] = [
     ],
   },
   {
-    icon: "🗂",
+    icon: BookOpen,
     title: "知识库整理",
     steps: [
       "search_library 查看现有文献分布",
@@ -487,10 +488,10 @@ export function McpGuide() {
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {USE_CASES.map((uc) => (
             <div key={uc.title} className="rounded-xl border border-line bg-card p-4">
-              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <span>{uc.icon}</span>
-                {uc.title}
-              </p>
+                <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <uc.icon className="size-4 text-primary" strokeWidth={1.8} />
+                  {uc.title}
+                </p>
               <ol className="mt-2.5 space-y-1.5">
                 {uc.steps.map((step, si) => (
                   <li key={si} className="flex gap-2 text-[12px] leading-relaxed text-muted">

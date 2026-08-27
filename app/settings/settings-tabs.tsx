@@ -56,12 +56,13 @@ const LINKED_ACCOUNTS: {
   linked: boolean;
   logo?: StaticImageData;
   icon?: LucideIcon;
+  logoClass?: string;
 }[] = [
   { label: "Google Scholar", icon: GraduationCap, linked: true },
-  { label: "Hugging Face", logo: hfLogo, linked: false },
   { label: "GitHub", logo: githubLogo, linked: true },
+  { label: "Hugging Face", logo: hfLogo, linked: false },
   { label: "Google", logo: googleLogo, linked: false },
-  { label: "Apple", logo: appleLogo, linked: false },
+  { label: "Apple", logo: appleLogo, linked: false, logoClass: "scale-125" },
 ];
 
 const ACHIEVEMENTS = [
@@ -178,7 +179,7 @@ function AccountSection() {
                     alt={acc.label}
                     width={20}
                     height={20}
-                    className="size-5 object-contain"
+                    className={cn("size-5 object-contain", acc.logoClass)}
                   />
                 </span>
               ) : (

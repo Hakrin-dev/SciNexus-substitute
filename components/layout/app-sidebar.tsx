@@ -7,7 +7,6 @@ import {
   Archive,
   ChevronDown,
   Compass,
-  Database,
   History,
   Library,
   LogOut,
@@ -63,6 +62,7 @@ const KNOWLEDGE_SUB_NAV: SubNavItem[] = [
   { href: "/knowledge/papers", label: "论文" },
   { href: "/knowledge/notes", label: "笔记" },
   { href: "/knowledge/memory", label: "记忆" },
+  { href: "/knowledge/database", label: "数据库" },
 ];
 
 /** 「工具库」的副标题 */
@@ -77,13 +77,6 @@ const SUBMIT_NAV: NavItem = {
   href: "/submit",
   label: "投稿",
   icon: Send,
-};
-
-const DATABASE_NAV: NavItem = {
-  href: "/database",
-  label: "数据库",
-  icon: Database,
-  disabled: true,
 };
 
 /** 「投稿历史」即原投稿页的 History 视图(/submit/history) */
@@ -505,7 +498,6 @@ export function AppSidebar() {
           collapsed={collapsed}
           noNav
         />
-        <NavLink item={DATABASE_NAV} collapsed={collapsed} />
         {!collapsed && (
           <p className="shrink-0 px-3 pb-1.5 pt-4 text-[11px] font-medium tracking-wide text-faint">
             历史

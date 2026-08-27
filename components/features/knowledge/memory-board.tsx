@@ -22,7 +22,6 @@ const SCOPE_FILTERS: { value: ScopeFilter; label: string; icon: typeof Globe2 }[
 /** 知识库·AI 记忆 —— 全局级/项目级记忆条目管理(演示态,本地持久化) */
 export function MemoryBoard() {
   const memoryEnabled = useDemoState((s) => s.memoryEnabled);
-  const setMemoryEnabled = useDemoState((s) => s.setMemoryEnabled);
   const memoryEntries = useDemoState((s) => s.memoryEntries);
   const memoryOff = useDemoState((s) => s.memoryOff);
   const toggleMemoryEntry = useDemoState((s) => s.toggleMemoryEntry);
@@ -37,42 +36,6 @@ export function MemoryBoard() {
 
   return (
     <div className="space-y-4">
-      {/* 说明横幅 + 总开关 */}
-      <section className="flex items-center gap-4 rounded-2xl border border-primary/25 bg-primary-soft/60 p-5">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card shadow-sm">
-          <Brain className="size-5 text-primary" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">AI 记忆</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted">
-            <span className="font-medium text-ink-2">全局级</span>
-            在所有对话中生效;
-            <span className="font-medium text-ink-2">项目级</span>
-            仅在对应课题工作台的会话中生效。关闭后 AI 将停止使用这些记忆。
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={memoryEnabled}
-          onClick={() => {
-            setMemoryEnabled(!memoryEnabled);
-            toast.success(memoryEnabled ? "已关闭 AI 记忆" : "已开启 AI 记忆");
-          }}
-          className={cn(
-            "relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors",
-            memoryEnabled ? "bg-primary" : "bg-line",
-          )}
-        >
-          <span
-            className={cn(
-              "absolute top-0.5 size-5 rounded-full bg-white shadow transition-all",
-              memoryEnabled ? "left-[22px]" : "left-0.5",
-            )}
-          />
-        </button>
-      </section>
-
       {/* 作用域筛选 */}
       <div className="flex flex-wrap items-center gap-2">
         {SCOPE_FILTERS.map((f) => {

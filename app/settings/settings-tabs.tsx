@@ -171,21 +171,23 @@ function AccountSection() {
         <ul className="mt-3 divide-y divide-line">
           {LINKED_ACCOUNTS.map((acc) => (
             <li key={acc.label} className="flex items-center gap-3 py-3">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-chip">
-                {acc.logo ? (
+              {acc.logo ? (
+                <span className="flex size-9 items-center justify-center">
                   <Image
                     src={acc.logo}
                     alt={acc.label}
-                    width={16}
-                    height={16}
-                    className="size-4.5 object-contain"
+                    width={20}
+                    height={20}
+                    className="size-5 object-contain"
                   />
-                ) : (
-                  acc.icon && (
+                </span>
+              ) : (
+                <span className="flex size-9 items-center justify-center rounded-lg bg-chip">
+                  {acc.icon ? (
                     <acc.icon className="size-4.5 text-ink-2" strokeWidth={1.8} />
-                  )
-                )}
-              </span>
+                  ) : null}
+                </span>
+              )}
               <span className="flex-1 text-sm text-ink">{acc.label}</span>
               <span className="text-xs text-faint">
                 {acc.linked ? "已关联" : "未关联"}

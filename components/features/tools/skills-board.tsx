@@ -477,7 +477,7 @@ function CustomTab() {
       {/* GitHub 导入 */}
       <section className="rounded-xl border border-line bg-card p-4">
         <p className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
-          <Image src={githubLogo} alt="GitHub" width={14} height={14} className="size-3.5 object-contain" />
+          <Image src={githubLogo} alt="GitHub" width={16} height={16} className="size-4 object-contain" />
           从 GitHub 导入技能
         </p>
         <div className="mt-2.5 flex gap-2">
@@ -532,7 +532,7 @@ function CustomTab() {
                 )}
                 {skill.fromGithub && (
                   <span className="flex items-center gap-1 rounded bg-chip px-1.5 py-0.5 text-[10px] text-muted">
-                    <Image src={githubLogo} alt="GitHub" width={12} height={12} className="size-3 object-contain" />
+                    <Image src={githubLogo} alt="GitHub" width={14} height={14} className="size-3.5 object-contain" />
                     导入
                   </span>
                 )}

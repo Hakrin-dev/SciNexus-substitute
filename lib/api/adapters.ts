@@ -47,13 +47,17 @@ export interface BackendVenue {
   kind: "conference" | "journal";
   fullName: string;
   ccf?: string | null;
-  deadline?: string | null;
+  deadline?: string | null | Venue["deadline"];
   deadlineLabel?: string | null;
   urgent?: boolean;
   rate?: number | null;
   submissions?: number | null;
   domain?: string | null;
   location?: string | null;
+  badges?: VenueBadgeName[] | null;
+  metaRows?: Venue["metaRows"] | null;
+  chips?: string[] | null;
+  accent?: Venue["accent"] | null;
   matchPct?: number | null;
   matchClass?: string | null;
   matchReason?: string | null;
@@ -186,33 +190,43 @@ export function toFeedPaper(p: BackendPaper): FeedPaper {
 }
 
 export function toVenue(v: BackendVenue): Venue {
-  const badges: VenueBadgeName[] = [];
-  if (v.ccf) badges.push(`CCF ${v.ccf}` as VenueBadgeName);
+  const derivedBadges: VenueBadgeName[] = [];
+  if (v.ccf) derivedBadges.push(`CCF ${v.ccf}` as VenueBadgeName);
 
-  const metaRows: [VenueMetaIcon, string][][] = [];
+  const derivedMetaRows: [VenueMetaIcon, string][][] = [];
   const row: [VenueMetaIcon, string][] = [];
   if (v.domain) row.push(["folder", v.domain]);
   if (v.rate != null) row.push(["chart", `录用率: ${v.rate}%`]);
   if (v.location) row.push(["pin", v.location]);
-  if (v.deadline) row.push(["cal", v.deadline]);
-  if (row.length) metaRows.push(row);
+  if (typeof v.deadline === "string") row.push(["cal", v.deadline]);
+  if (row.length) derivedMetaRows.push(row);
+
+  const shapedDeadline =
+    typeof v.deadline === "object" && v.deadline !== null
+      ? v.deadline
+      : undefined;
+  const rawDeadline = typeof v.deadline === "string" ? v.deadline : undefined;
 
   return {
     id: v.id,
     kind: v.kind,
     abbr: v.abbr,
     fullName: v.fullName,
-    badges,
-    metaRows,
-    chips: v.domain ? [v.domain] : [],
-    accent: v.urgent ? "danger" : "success",
-    deadline: v.deadline
+    badges: Array.isArray(v.badges) ? v.badges : derivedBadges,
+    metaRows: Array.isArray(v.metaRows) ? v.metaRows : derivedMetaRows,
+    chips: Array.isArray(v.chips) ? v.chips : v.domain ? [v.domain] : [],
+    accent: v.accent === "danger" || v.accent === "success"
+      ? v.accent
+      : v.urgent
+        ? "danger"
+        : "success",
+    deadline: shapedDeadline ?? (rawDeadline
       ? {
           label: v.deadlineLabel ?? "截稿",
-          dateText: v.deadline,
-          offsetMs: deadlineOffsetMs(v.deadline),
+          dateText: rawDeadline,
+          offsetMs: deadlineOffsetMs(rawDeadline),
         }
-      : undefined,
+      : undefined),
   };
 }
 

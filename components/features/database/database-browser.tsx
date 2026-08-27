@@ -1,11 +1,15 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Database, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/stores/toast";
+import hfLogo from "@/brand/LOGO/HuggingFace.svg";
 import {
   DB_STATS,
   dbBenchmarks,
@@ -214,6 +218,83 @@ function BenchmarksTable() {
   );
 }
 
+/* ── 从 Hugging Face 拉取(演示) ───────────────────────────── */
+function HuggingFaceImport() {
+  const [url, setUrl] = React.useState("");
+  const [items, setItems] = React.useState<{ kind: string; id: string }[]>([]);
+
+  const handlePull = () => {
+    const m = url
+      .trim()
+      .match(
+        /^https?:\/\/(www\.)?huggingface\.co\/(datasets|models|spaces)\/([\w.-]+)(?:\/([\w.-]+))?/i,
+      );
+    if (!m) {
+      toast.error(
+        "请输入有效的 Hugging Face 链接(如 https://huggingface.co/datasets/owner/name)",
+      );
+      return;
+    }
+    const kind = m[2];
+    const id = m[4] ? `${m[3]}/${m[4]}` : m[3];
+    setItems((prev) => [{ kind, id }, ...prev].slice(0, 8));
+    setUrl("");
+    toast.success(`已从 Hugging Face 拉取「${id}」(${kind})`);
+  };
+
+  return (
+    <section className="rounded-2xl border border-line bg-card p-5">
+      <div className="flex items-center gap-2">
+        <Image
+          src={hfLogo}
+          alt="Hugging Face"
+          width={20}
+          height={20}
+          className="size-5 object-contain"
+        />
+        <h2 className="text-[15px] font-semibold text-ink">从 Hugging Face 中获取</h2>
+      </div>
+      <p className="mt-1 text-xs text-faint">
+        输入 Hugging Face 数据集 / 模型 / Space 链接即可拉取元数据到数据库(演示:解析链接,真实拉取待接入后端)
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Input
+          placeholder="https://huggingface.co/datasets/owner/dataset-name"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handlePull()}
+          className="font-mono text-[13px]"
+        />
+        <Button variant="soft" size="sm" className="shrink-0" onClick={handlePull}>
+          拉取
+        </Button>
+      </div>
+      {items.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {items.map((it, i) => (
+            <li
+              key={i}
+              className="flex items-center gap-2 rounded-lg bg-chip px-3 py-2 text-xs text-ink-2"
+            >
+              <Image
+                src={hfLogo}
+                alt=""
+                width={14}
+                height={14}
+                className="size-3.5 object-contain"
+              />
+              <span className="rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                {it.kind}
+              </span>
+              <span className="font-mono">{it.id}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /* ── 主组件 ─────────────────────────────────────────────── */
 export function DatabaseBrowser() {
   return (
@@ -232,6 +313,8 @@ export function DatabaseBrowser() {
           </p>
         </div>
       </div>
+
+      <HuggingFaceImport />
 
       <StatCards />
 

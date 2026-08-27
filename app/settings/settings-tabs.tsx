@@ -2,23 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image, { type StaticImageData } from "next/image";
 import {
-  Apple,
   Award,
   Bell,
   BarChart3,
   Bot,
   ChevronDown,
   ChevronRight,
-  Chrome,
-  Github,
   GraduationCap,
   KeyRound,
   Medal,
   Monitor,
   Moon,
   Newspaper,
-  Smile,
   Sun,
   Trophy,
   User,
@@ -26,6 +23,10 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import hfLogo from "@/brand/LOGO/HuggingFace.svg";
+import githubLogo from "@/brand/LOGO/Github.png";
+import googleLogo from "@/brand/LOGO/Google.svg";
+import appleLogo from "@/brand/LOGO/Apple.svg";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,12 +51,17 @@ const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
 
 const LANGUAGES = ["中文", "English"] as const;
 
-const LINKED_ACCOUNTS = [
+const LINKED_ACCOUNTS: {
+  label: string;
+  linked: boolean;
+  logo?: StaticImageData;
+  icon?: LucideIcon;
+}[] = [
   { label: "Google Scholar", icon: GraduationCap, linked: true },
-  { label: "Hugging Face", icon: Smile, linked: false },
-  { label: "GitHub", icon: Github, linked: true },
-  { label: "Google", icon: Chrome, linked: false },
-  { label: "Apple", icon: Apple, linked: false },
+  { label: "Hugging Face", logo: hfLogo, linked: false },
+  { label: "GitHub", logo: githubLogo, linked: true },
+  { label: "Google", logo: googleLogo, linked: false },
+  { label: "Apple", logo: appleLogo, linked: false },
 ];
 
 const ACHIEVEMENTS = [
@@ -166,7 +172,19 @@ function AccountSection() {
           {LINKED_ACCOUNTS.map((acc) => (
             <li key={acc.label} className="flex items-center gap-3 py-3">
               <span className="flex size-9 items-center justify-center rounded-lg bg-chip">
-                <acc.icon className="size-4.5 text-ink-2" strokeWidth={1.8} />
+                {acc.logo ? (
+                  <Image
+                    src={acc.logo}
+                    alt={acc.label}
+                    width={16}
+                    height={16}
+                    className="size-4.5 object-contain"
+                  />
+                ) : (
+                  acc.icon && (
+                    <acc.icon className="size-4.5 text-ink-2" strokeWidth={1.8} />
+                  )
+                )}
               </span>
               <span className="flex-1 text-sm text-ink">{acc.label}</span>
               <span className="text-xs text-faint">

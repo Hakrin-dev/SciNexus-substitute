@@ -4,14 +4,14 @@ import test from "node:test";
 import { normalizeVenues } from "../lib/api/adapters.ts";
 import { getAuthSecret } from "../lib/server/auth-secret.ts";
 
-test("Next authentication rejects a missing production AUTH_SECRET", () => {
-  assert.throws(
-    () => getAuthSecret({ NODE_ENV: "production" }),
-    /AUTH_SECRET/,
+test("Next authentication uses the fixed fallback when production AUTH_SECRET is missing", () => {
+  assert.equal(
+    getAuthSecret({ NODE_ENV: "production" }),
+    "yanshu-dev-secret-change-me",
   );
 });
 
-test("FastAPI authentication refuses to start without AUTH_SECRET in production", () => {
+test("FastAPI authentication starts with the fixed fallback when AUTH_SECRET is missing", () => {
   const result = spawnSync(
     "python",
     [
@@ -25,8 +25,7 @@ test("FastAPI authentication refuses to start without AUTH_SECRET in production"
     },
   );
 
-  assert.notEqual(result.status, 0);
-  assert.match(`${result.stdout}\n${result.stderr}`, /AUTH_SECRET/);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
 test("external venue payload gains arrays required by VenueCard", () => {

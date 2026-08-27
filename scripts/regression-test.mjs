@@ -46,3 +46,29 @@ test("external venue payload gains arrays required by VenueCard", () => {
   assert.deepEqual(venue.metaRows, [[ ["folder", "Machine Learning"] ]]);
   assert.deepEqual(venue.chips, ["Machine Learning"]);
 });
+
+test("pre-shaped venue payload preserves visual fields required by VenueCard", () => {
+  const [venue] = normalizeVenues([
+    {
+      id: "venue-2",
+      kind: "conference",
+      abbr: "SHAPED",
+      fullName: "Already Shaped Conference",
+      badges: ["CCF A"],
+      metaRows: [[ ["pin", "Online"] ]],
+      chips: ["Systems"],
+      accent: "danger",
+      deadline: { label: "Deadline", dateText: "2026-12-01", offsetMs: 1 },
+    },
+  ]);
+
+  assert.deepEqual(venue.badges, ["CCF A"]);
+  assert.deepEqual(venue.metaRows, [[ ["pin", "Online"] ]]);
+  assert.deepEqual(venue.chips, ["Systems"]);
+  assert.equal(venue.accent, "danger");
+  assert.deepEqual(venue.deadline, {
+    label: "Deadline",
+    dateText: "2026-12-01",
+    offsetMs: 1,
+  });
+});

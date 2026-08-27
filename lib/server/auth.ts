@@ -6,6 +6,7 @@
  */
 import { createHmac } from "node:crypto";
 import { getDB } from "./db";
+import { getAuthSecret } from "./auth-secret";
 import { hashPassword, verifyPassword, genId } from "./utils";
 
 export interface User {
@@ -24,15 +25,9 @@ export interface AuthResult {
 // token 有效期 7 天
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-// 密钥：优先环境变量；未配置时回退到开发密钥并告警
-const SECRET = process.env.AUTH_SECRET || "yanshu-dev-secret-change-me";
-if (!process.env.AUTH_SECRET) {
-  console.warn("[auth] 未配置 AUTH_SECRET，使用开发默认密钥；生产环境请务必通过环境变量配置。");
-}
-
 function sign(userId: string, version: number, expireTs: number): string {
   const payload = `${userId}:${version}:${expireTs}`;
-  const sig = createHmac("sha256", SECRET).update(payload).digest("hex");
+  const sig = createHmac("sha256", getAuthSecret()).update(payload).digest("hex");
   return Buffer.from(`${payload}:${sig}`).toString("base64url");
 }
 
@@ -43,7 +38,7 @@ function verify(token: string): { userId: string; version: number } | null {
     const version = parseInt(versionStr, 10);
     const expireTs = parseInt(expireTsStr, 10);
     if (!userId || isNaN(version) || !expireTs || Date.now() > expireTs) return null;
-    const expectedSig = createHmac("sha256", SECRET)
+    const expectedSig = createHmac("sha256", getAuthSecret())
       .update(`${userId}:${version}:${expireTs}`)
       .digest("hex");
     if (sig !== expectedSig) return null;

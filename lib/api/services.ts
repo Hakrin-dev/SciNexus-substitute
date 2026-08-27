@@ -15,7 +15,14 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
-import { toPaperDetail, type BackendScholarDetail } from "./adapters";
+import {
+  normalizeVenues,
+  toPaperDetail,
+  toVenue,
+  type BackendMatchedVenue,
+  type BackendScholarDetail,
+  type BackendVenue,
+} from "./adapters";
 import { toast } from "@/stores/toast";
 import { feedPapers } from "@/lib/data/papers";
 import { venues } from "@/lib/data/venues";
@@ -95,8 +102,8 @@ export function useVenues() {
     queryKey: ["api", "venues"],
     queryFn: async () => {
       try {
-        const json = await apiGet<Venue[]>("/api/venues");
-        return json.data ?? [];
+        const json = await apiGet<BackendVenue[]>("/api/venues");
+        return normalizeVenues(json.data ?? []);
       } catch (err) {
         return mockFallback("/api/venues", err, venues);
       }
@@ -118,14 +125,22 @@ export async function matchVenues(
   keywords: string[],
   useLlm = true,
 ): Promise<{ data: MatchedVenue[]; mode: "llm" | "keyword" }> {
-  const json = await apiPost<MatchedVenue[]>("/api/submission/match", {
+  const json = await apiPost<BackendMatchedVenue[]>("/api/submission/match", {
     title,
     abstract,
     keywords,
     use_llm: useLlm,
   });
   return {
-    data: json.data ?? [],
+    data: (json.data ?? []).map((venue): MatchedVenue => ({
+      ...toVenue(venue),
+      matchPct: venue.matchPct ?? 0,
+      matchClass:
+        venue.matchClass === "high" || venue.matchClass === "mid" || venue.matchClass === "low"
+          ? venue.matchClass
+          : "low",
+      matchReason: venue.matchReason ?? "",
+    })),
     mode: json.mode === "llm" ? "llm" : "keyword",
   };
 }

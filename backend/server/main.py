@@ -14,6 +14,7 @@ import asyncio
 import logging
 import json
 import uuid
+import copy
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -353,6 +354,37 @@ def _require_login(request: Request):
         raise HTTPException(status_code=401, detail="请先登录")
     return user_id
 
+
+# 私有状态必须按当前用户分桶。演示数据会在 startup 时仅初始化给 demo 用户。
+_DEMO_LIBRARY = copy.deepcopy(LIBRARY_PAPERS)
+_DEMO_CONVERSATIONS = copy.deepcopy(CONVERSATIONS)
+_DEMO_NOTIFICATIONS = copy.deepcopy(NOTIFICATIONS)
+_DEMO_PRIVATE_GRAPH = copy.deepcopy(PRIVATE_GRAPH)
+_USER_LIBRARIES: dict[str, list[dict]] = {}
+_USER_LIBRARY_FOLDERS: dict[str, list[dict]] = {}
+_USER_CONVERSATIONS: dict[str, list[dict]] = {}
+_USER_NOTIFICATIONS: dict[str, list[dict]] = {}
+_USER_FAVORITES: dict[str, list[dict]] = {}
+_USER_PRIVATE_GRAPHS: dict[str, dict] = {}
+_USER_FOLLOWED_SCHOLARS: dict[str, set[str]] = {}
+_USER_BOOKMARKED_INSTITUTIONS: dict[str, set[str]] = {}
+
+
+def _user_items(store: dict[str, list[dict]], user_id: str) -> list[dict]:
+    return store.setdefault(user_id, [])
+
+
+def _empty_private_graph() -> dict:
+    return {"origin": None, "nodes": [], "edges": [], "relatedIds": []}
+
+
+def _seed_demo_private_data(user_id: str) -> None:
+    """仅演示账户继承原型数据；其他账户从空的私有空间开始。"""
+    _USER_LIBRARIES.setdefault(user_id, copy.deepcopy(_DEMO_LIBRARY))
+    _USER_CONVERSATIONS.setdefault(user_id, copy.deepcopy(_DEMO_CONVERSATIONS))
+    _USER_NOTIFICATIONS.setdefault(user_id, copy.deepcopy(_DEMO_NOTIFICATIONS))
+    _USER_PRIVATE_GRAPHS.setdefault(user_id, copy.deepcopy(_DEMO_PRIVATE_GRAPH))
+
 @app.post("/api/auth/login")
 def auth_login(req: LoginRequest):
     """用户登录：返回 token 与用户信息。"""
@@ -518,9 +550,10 @@ def get_paper_graph(paper_id: str):
 
 
 @app.get("/api/knowledge/graph")
-def get_knowledge_graph():
+def get_knowledge_graph(request: Request):
     """获取私域知识图谱（我的发表 × 收藏论文 分层，PaperGraph 格式）。"""
-    return {"data": PRIVATE_GRAPH}
+    user_id = _require_login(request)
+    return {"data": _USER_PRIVATE_GRAPHS.get(user_id, _empty_private_graph())}
 
 @app.get("/api/graph/public")
 def get_graph_public():
@@ -528,9 +561,10 @@ def get_graph_public():
     return {"data": PUBLIC_GRAPH}
 
 @app.get("/api/graph/private")
-def get_graph_private():
+def get_graph_private(request: Request):
     """获取私域知识图谱（我的发表 × 收藏论文 分层，PaperGraph 格式）。"""
-    return {"data": PRIVATE_GRAPH}
+    user_id = _require_login(request)
+    return {"data": _USER_PRIVATE_GRAPHS.get(user_id, _empty_private_graph())}
 
 # ==================== 语义搜索 ====================
 @app.post("/api/search")
@@ -613,20 +647,22 @@ def _quick_summary(query: str, candidates: list) -> str:
 
 # ==================== AI 对话 ====================
 @app.get("/api/conversations")
-def list_conversations():
+def list_conversations(request: Request):
     """获取全部对话历史列表（仅返回 id、标题和预览）"""
-    result = [{"id": c["id"], "title": c["title"], "preview": c["preview"]} for c in CONVERSATIONS]
+    user_id = _require_login(request)
+    result = [{"id": c["id"], "title": c["title"], "preview": c["preview"]} for c in _user_items(_USER_CONVERSATIONS, user_id)]
     return {"data": result}
 
 @app.get("/api/conversations/{conv_id}")
-def get_conversation(conv_id: str):
+def get_conversation(conv_id: str, request: Request):
     """
     获取指定对话的完整详情
     :param conv_id: 对话唯一标识
     :return:        对话的完整数据
     :raises HTTPException 404: 对话不存在
     """
-    for c in CONVERSATIONS:
+    user_id = _require_login(request)
+    for c in _user_items(_USER_CONVERSATIONS, user_id):
         if c["id"] == conv_id:
             return {"data": c}
     raise HTTPException(status_code=404, detail="对话未找到")
@@ -714,6 +750,7 @@ async def chat_stream(req: ChatRequest):
     if not message:
         raise HTTPException(status_code=400, detail="消息不能为空")
     conversation_id = req.conversation_id or f"conv_{uuid.uuid4().hex}"
+    run_id = None
     if AGENT_ENABLED:
         try:
             result = _agent_chat_with_meta(
@@ -727,6 +764,7 @@ async def chat_stream(req: ChatRequest):
                 context={**(req.context or {}), **({"style": req.style} if req.style else {})},
             )
             reply = result["reply"]
+            run_id = result.get("run_id")
             workflow = result["workflow"]
             generated_files = result["generated_files"]
             references = result["references"]
@@ -747,7 +785,7 @@ async def chat_stream(req: ChatRequest):
         conv_id = conversation_id
         meta = {
             "conversation_id": conv_id,
-            "run_id": result.get("run_id"),
+            "run_id": run_id,
             "tokens": len(reply),
             "workflow": workflow,
             "generated_files": generated_files,
@@ -1002,23 +1040,19 @@ def get_scholar_detail(scholar_id: str):
             return {"data": s}
     raise HTTPException(status_code=404, detail="学者未找到")
 
-# 关注状态（内存，重启清空；与文献库 mock 数据层一致）
-_FOLLOWED_SCHOLARS: set[str] = set()
-
 @app.post("/api/scholars/{scholar_id}/follow")
 def follow_scholar(scholar_id: str, request: Request):
     """关注学者（需登录）。"""
-    _require_login(request)
+    user_id = _require_login(request)
     if not any(s["id"] == scholar_id for s in SCHOLARS):
         raise HTTPException(status_code=404, detail="学者不存在")
-    _FOLLOWED_SCHOLARS.add(scholar_id)
+    _USER_FOLLOWED_SCHOLARS.setdefault(user_id, set()).add(scholar_id)
     return {"data": {"followed": True}}
 
 @app.delete("/api/scholars/{scholar_id}/follow")
 def unfollow_scholar(scholar_id: str, request: Request):
     """取消关注学者（需登录）。"""
-    _require_login(request)
-    _FOLLOWED_SCHOLARS.discard(scholar_id)
+    _USER_FOLLOWED_SCHOLARS.setdefault(_require_login(request), set()).discard(scholar_id)
     return {"data": {"followed": False}}
 
 
@@ -1028,23 +1062,19 @@ def get_institutions():
     """获取研究机构列表。"""
     return {"data": INSTITUTIONS}
 
-# 收藏状态（内存，重启清空）
-_BOOKMARKED_INSTITUTIONS: set[str] = set()
-
 @app.post("/api/institutions/{inst_id}/bookmark")
 def bookmark_institution(inst_id: str, request: Request):
     """收藏机构（需登录）。"""
-    _require_login(request)
+    user_id = _require_login(request)
     if not any(i["id"] == inst_id for i in INSTITUTIONS):
         raise HTTPException(status_code=404, detail="机构不存在")
-    _BOOKMARKED_INSTITUTIONS.add(inst_id)
+    _USER_BOOKMARKED_INSTITUTIONS.setdefault(user_id, set()).add(inst_id)
     return {"data": {"bookmarked": True}}
 
 @app.delete("/api/institutions/{inst_id}/bookmark")
 def unbookmark_institution(inst_id: str, request: Request):
     """取消收藏机构（需登录）。"""
-    _require_login(request)
-    _BOOKMARKED_INSTITUTIONS.discard(inst_id)
+    _USER_BOOKMARKED_INSTITUTIONS.setdefault(_require_login(request), set()).discard(inst_id)
     return {"data": {"bookmarked": False}}
 
 
@@ -1055,27 +1085,36 @@ _PROJECTS_STORE: list[dict] = [dict(p) for p in PROJECTS]
 def _gen_id(prefix: str = "proj_") -> str:
     return prefix + uuid.uuid4().hex[:12]
 
-def _find_project(project_id: str) -> Optional[dict]:
+def _find_project(project_id: str, user_id: str) -> Optional[dict]:
     for p in _PROJECTS_STORE:
-        if p["id"] == project_id:
+        if p["id"] == project_id and p.get("user_id") == user_id:
             return p
     return None
 
+
+def _require_owned_project(project_id: str, request: Request) -> dict:
+    project = _find_project(project_id, _require_login(request))
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return project
+
 @app.get("/api/projects")
 def get_projects(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     status: Optional[str] = None,
 ):
     """获取科研项目列表（支持分页与状态筛选）。"""
-    result = list(_PROJECTS_STORE)
+    user_id = _require_login(request)
+    result = [p for p in _PROJECTS_STORE if p.get("user_id") == user_id]
     if status:
         result = [p for p in result if p["status"] == status]
     total = len(result)
     start = (page - 1) * page_size
     end = start + page_size
     return {
-        "data": result[start:end],
+        "data": [{key: value for key, value in project.items() if key != "user_id"} for project in result[start:end]],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -1085,7 +1124,7 @@ def get_projects(
 @app.post("/api/projects")
 def create_project(req: ProjectCreateRequest, request: Request):
     """创建新项目（需登录）。"""
-    _require_login(request)
+    user_id = _require_login(request)
     if not req.name or not req.name.strip():
         raise HTTPException(status_code=400, detail="项目名称不能为空")
     project = {
@@ -1096,6 +1135,7 @@ def create_project(req: ProjectCreateRequest, request: Request):
         "progress": 0,
         "createdAt": time.strftime("%Y-%m-%d"),
         "owner": "我",
+        "user_id": user_id,
         "overview": req.overview or [],
         "techStack": req.techStack or [],
         "milestones": [dict(m) for m in (req.milestones or [])],
@@ -1106,17 +1146,15 @@ def create_project(req: ProjectCreateRequest, request: Request):
     return {"data": {"id": project["id"]}}
 
 @app.get("/api/projects/{project_id}")
-def get_project_detail(project_id: str):
-    """获取项目详情；未命中回退第一个项目（与前端 getProject 行为一致）。"""
-    return {"data": get_project(project_id)}
+def get_project_detail(project_id: str, request: Request):
+    """获取当前用户拥有的项目详情。"""
+    project = _require_owned_project(project_id, request)
+    return {"data": {key: value for key, value in project.items() if key != "user_id"}}
 
 @app.put("/api/projects/{project_id}")
 def update_project(project_id: str, req: ProjectUpdateRequest, request: Request):
     """更新项目信息（需登录）。"""
-    _require_login(request)
-    project = _find_project(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="项目不存在")
+    project = _require_owned_project(project_id, request)
     updates = {
         "name": req.name,
         "tagline": req.tagline,
@@ -1138,10 +1176,10 @@ def update_project(project_id: str, req: ProjectUpdateRequest, request: Request)
 @app.delete("/api/projects/{project_id}")
 def delete_project(project_id: str, request: Request):
     """删除项目（需登录）。"""
-    _require_login(request)
+    user_id = _require_login(request)
     global _PROJECTS_STORE
     before = len(_PROJECTS_STORE)
-    _PROJECTS_STORE = [p for p in _PROJECTS_STORE if p["id"] != project_id]
+    _PROJECTS_STORE = [p for p in _PROJECTS_STORE if not (p["id"] == project_id and p.get("user_id") == user_id)]
     if len(_PROJECTS_STORE) == before:
         raise HTTPException(status_code=404, detail="项目不存在")
     return {"data": {"deleted": True}}
@@ -1149,44 +1187,51 @@ def delete_project(project_id: str, request: Request):
 # ---- 课题工作台子资源（样例数据，任意项目 id 复用同一套骨架）----
 
 @app.get("/api/projects/{project_id}/outline")
-def get_project_outline(project_id: str):
+def get_project_outline(project_id: str, request: Request):
     """课题工作台：研究大纲树（Q/H/E/C 层级）。"""
-    _find_project(project_id) or get_project(project_id)  # 校验存在性（未命中回退样例）
+    _require_owned_project(project_id, request)
     return {"data": WORKBENCH_OUTLINE}
 
 @app.get("/api/projects/{project_id}/threads")
-def get_project_threads(project_id: str):
+def get_project_threads(project_id: str, request: Request):
     """课题工作台：研究线程列表。"""
+    _require_owned_project(project_id, request)
     return {"data": WORKBENCH_THREADS}
 
 @app.get("/api/projects/{project_id}/thread-cards")
-def get_project_thread_cards(project_id: str):
+def get_project_thread_cards(project_id: str, request: Request):
     """课题工作台：全部线程卡片（按线程过滤由组件完成）。"""
+    _require_owned_project(project_id, request)
     return {"data": WORKBENCH_CARDS}
 
 @app.get("/api/projects/{project_id}/assets")
-def get_project_assets(project_id: str):
+def get_project_assets(project_id: str, request: Request):
     """课题工作台：工作台资产（多维表格行）。"""
+    _require_owned_project(project_id, request)
     return {"data": WORKBENCH_ASSETS}
 
 @app.get("/api/projects/{project_id}/activity")
-def get_project_activity(project_id: str):
+def get_project_activity(project_id: str, request: Request):
     """课题工作台：活动日志。"""
+    _require_owned_project(project_id, request)
     return {"data": WORKBENCH_ACTIVITY}
 
 @app.get("/api/projects/{project_id}/overview")
-def get_project_overview(project_id: str):
+def get_project_overview(project_id: str, request: Request):
     """课题工作台：概览聚合（焦点/阻塞项/建议）。"""
+    _require_owned_project(project_id, request)
     return {"data": WORKBENCH_OVERVIEW}
 
 @app.get("/api/projects/{project_id}/tasks")
-def get_project_tasks(project_id: str):
+def get_project_tasks(project_id: str, request: Request):
     """课题工作台：Agent 任务状态（底部状态栏）。"""
+    _require_owned_project(project_id, request)
     return {"data": WORKBENCH_AGENT_TASKS}
 
 # ==================== 个人文献库 ====================
 @app.get("/api/library")
 def get_library(
+    request: Request,
     folder: Optional[str] = None,
     tag: Optional[str] = None,
     status: Optional[str] = None,
@@ -1200,7 +1245,8 @@ def get_library(
     :param sort_by: 排序方式
     :return:        筛选后的文献列表及阅读统计
     """
-    result = list(LIBRARY_PAPERS)
+    library = _user_items(_USER_LIBRARIES, _require_login(request))
+    result = list(library)
 
     if folder and folder != "all":
         result = [p for p in result if p["folder"] == folder]
@@ -1213,16 +1259,16 @@ def get_library(
 
     return {
         "data": [serialize_library_item(p) for p in result],
-        "total": len(LIBRARY_PAPERS),
+        "total": len(library),
         "stats": {
-            "read": sum(1 for p in LIBRARY_PAPERS if p["status"] == "read"),
-            "reading": sum(1 for p in LIBRARY_PAPERS if p["status"] == "reading"),
-            "unread": sum(1 for p in LIBRARY_PAPERS if p["status"] == "unread"),
+            "read": sum(1 for p in library if p["status"] == "read"),
+            "reading": sum(1 for p in library if p["status"] == "reading"),
+            "unread": sum(1 for p in library if p["status"] == "unread"),
         }
     }
 
 @app.post("/api/library")
-async def add_to_library_endpoint(req: LibraryAddRequest):
+async def add_to_library_endpoint(req: LibraryAddRequest, request: Request):
     """
     添加论文到个人文献库（含输入校验和去重检查）
     :param req: 文献库添加请求体
@@ -1233,9 +1279,9 @@ async def add_to_library_endpoint(req: LibraryAddRequest):
     if req.folder and len(req.folder) > 100:
         raise HTTPException(status_code=400, detail="文件夹名称过长")
     logger.info(f"Library add: paper={req.paper_id}, folder={req.folder}")
-    return _add_to_library_impl(req)
+    return _add_to_library_impl(req, _user_items(_USER_LIBRARIES, _require_login(request)))
 
-def _add_to_library_impl(req: LibraryAddRequest):
+def _add_to_library_impl(req: LibraryAddRequest, library: list[dict]):
     """添加论文到文献库的核心实现：查找论文、去重检查、写入文献库"""
     # 查找目标论文
     paper = None
@@ -1247,12 +1293,12 @@ def _add_to_library_impl(req: LibraryAddRequest):
         raise HTTPException(status_code=404, detail="论文未找到")
 
     # 检查是否已存在（去重）
-    for lp in LIBRARY_PAPERS:
+    for lp in library:
         if lp["pid"] == req.paper_id:
             return {"message": "论文已在文献库中", "id": lp["id"]}
 
-    new_id = f"lp{len(LIBRARY_PAPERS)+1}"
-    LIBRARY_PAPERS.append({
+    new_id = _gen_id("lp_")
+    library.append({
         "id": new_id, "pid": paper["id"],
         "title": paper["title"], "authors": paper["authors"],
         "venue": paper["venue"], "ccf": paper["ccf"],
@@ -1263,84 +1309,84 @@ def _add_to_library_impl(req: LibraryAddRequest):
     return {"message": "收藏成功", "id": new_id}
 
 @app.delete("/api/library/{paper_id}")
-def remove_from_library(paper_id: str):
+def remove_from_library(paper_id: str, request: Request):
     """
     从文献库中删除指定论文
     :param paper_id: 文献库中的记录 ID
     :return:         操作结果
     :raises HTTPException 404: 文献库中不存在该记录
     """
-    global LIBRARY_PAPERS
-    before = len(LIBRARY_PAPERS)
-    LIBRARY_PAPERS = [p for p in LIBRARY_PAPERS if p["id"] != paper_id]
-    if len(LIBRARY_PAPERS) == before:
+    library = _user_items(_USER_LIBRARIES, _require_login(request))
+    before = len(library)
+    library[:] = [p for p in library if p["id"] != paper_id]
+    if len(library) == before:
         raise HTTPException(status_code=404, detail="文献库中未找到该论文")
     return {"message": "已删除"}
 
 @app.post("/api/library/batch-delete")
-async def batch_delete_library(ids: list[str]):
+async def batch_delete_library(ids: list[str], request: Request):
     """
     批量删除文献库记录
     :param ids: 要删除的记录 ID 列表
     :return:    删除结果及删除数量
     """
-    global LIBRARY_PAPERS
-    before = len(LIBRARY_PAPERS)
-    LIBRARY_PAPERS = [p for p in LIBRARY_PAPERS if p["id"] not in ids]
-    removed = before - len(LIBRARY_PAPERS)
+    library = _user_items(_USER_LIBRARIES, _require_login(request))
+    before = len(library)
+    library[:] = [p for p in library if p["id"] not in ids]
+    removed = before - len(library)
     logger.info(f"Batch delete: removed {removed} papers")
     return {"message": f"已删除 {removed} 篇文献", "removed": removed}
 
 @app.delete("/api/library")
-async def batch_delete_library_body(req: LibraryBatchDeleteRequest):
+async def batch_delete_library_body(req: LibraryBatchDeleteRequest, request: Request):
     """
     批量删除文献库记录（前端 DELETE /api/library + body {ids} 契约）。
     :param req: 含 ids 数组的请求体
     :return:    删除结果及删除数量
     """
-    global LIBRARY_PAPERS
     ids = req.ids or []
     if not ids:
         raise HTTPException(status_code=400, detail="请选择要删除的条目")
-    before = len(LIBRARY_PAPERS)
-    LIBRARY_PAPERS = [p for p in LIBRARY_PAPERS if p["id"] not in ids]
-    removed = before - len(LIBRARY_PAPERS)
+    library = _user_items(_USER_LIBRARIES, _require_login(request))
+    before = len(library)
+    library[:] = [p for p in library if p["id"] not in ids]
+    removed = before - len(library)
     logger.info(f"Batch delete (DELETE /api/library): removed {removed} papers")
     return {"message": f"已删除 {removed} 篇文献", "removed": removed}
 
-# 文献库文件夹（内存，重启清空）
-_LIBRARY_FOLDERS: list[dict] = []
-
-def _sync_library_folders():
+# 文献库文件夹（按用户内存存储，重启清空）
+def _sync_library_folders(user_id: str):
     """从 LIBRARY_PAPERS 聚合现有文件夹，保证 count 准确。"""
     from collections import Counter
-    counts = Counter(p.get("folder", "默认") for p in LIBRARY_PAPERS)
-    names = {f["name"] for f in _LIBRARY_FOLDERS}
+    counts = Counter(p.get("folder", "默认") for p in _user_items(_USER_LIBRARIES, user_id))
+    folders = _user_items(_USER_LIBRARY_FOLDERS, user_id)
+    names = {f["name"] for f in folders}
     for name, count in counts.items():
         if name not in names:
-            _LIBRARY_FOLDERS.append({"name": name, "count": count, "active": False})
-    for f in _LIBRARY_FOLDERS:
+            folders.append({"name": name, "count": count, "active": False})
+    for f in folders:
         f["count"] = counts.get(f["name"], 0)
-    return _LIBRARY_FOLDERS
+    return folders
 
 @app.get("/api/library/folders")
-def get_library_folders():
+def get_library_folders(request: Request):
     """获取文献库文件夹列表（含各自文献数与激活态）。"""
-    folders = _sync_library_folders()
+    folders = _sync_library_folders(_require_login(request))
     return {"data": [{"name": f["name"], "count": f["count"], "active": bool(f["active"])} for f in folders]}
 
 @app.post("/api/library/folders")
-def create_library_folder(req: FolderCreateRequest):
+def create_library_folder(req: FolderCreateRequest, request: Request):
     """新建文献库文件夹。"""
     name = (req.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="文件夹名称不能为空")
-    if not any(f["name"] == name for f in _LIBRARY_FOLDERS):
-        _LIBRARY_FOLDERS.append({"name": name, "count": 0, "active": False})
+    folders = _user_items(_USER_LIBRARY_FOLDERS, _require_login(request))
+    if not any(f["name"] == name for f in folders):
+        folders.append({"name": name, "count": 0, "active": False})
     return {"data": {"name": name}}
 
 @app.put("/api/library/{paper_id}/progress")
-def update_reading_progress(paper_id: str, progress: int = 0):
+def update_reading_progress(paper_id: str, request: Request, progress: int = 0):
     """
     更新论文阅读进度，并根据进度自动调整阅读状态
     :param paper_id: 文献库记录 ID
@@ -1348,7 +1394,7 @@ def update_reading_progress(paper_id: str, progress: int = 0):
     :return:         更新结果
     :raises HTTPException 404: 记录不存在
     """
-    for p in LIBRARY_PAPERS:
+    for p in _user_items(_USER_LIBRARIES, _require_login(request)):
         if p["id"] == paper_id:
             p["readingProgress"] = progress
             if progress >= 100:
@@ -1360,20 +1406,21 @@ def update_reading_progress(paper_id: str, progress: int = 0):
 
 # ==================== 通知管理 ====================
 @app.get("/api/notifications")
-def get_notifications():
+def get_notifications(request: Request):
     """获取全部通知列表及未读数量"""
-    unread = sum(1 for n in NOTIFICATIONS if not n["read"])
-    return {"data": NOTIFICATIONS, "unread_count": unread}
+    notifications = _user_items(_USER_NOTIFICATIONS, _require_login(request))
+    unread = sum(1 for n in notifications if not n["read"])
+    return {"data": notifications, "unread_count": unread}
 
 @app.put("/api/notifications/{notif_id}/read")
-def mark_notification_read(notif_id: str):
+def mark_notification_read(notif_id: str, request: Request):
     """
     将指定通知标记为已读
     :param notif_id: 通知唯一标识
     :return:         操作结果
     :raises HTTPException 404: 通知不存在
     """
-    for n in NOTIFICATIONS:
+    for n in _user_items(_USER_NOTIFICATIONS, _require_login(request)):
         if n["id"] == notif_id:
             n["read"] = True
             return {"message": "已标记为已读"}
@@ -1381,48 +1428,51 @@ def mark_notification_read(notif_id: str):
 
 # ==================== 收藏管理 ====================
 @app.get("/api/favorites")
-def get_favorites():
+def get_favorites(request: Request):
     """获取全部收藏列表及数量"""
-    return {"data": FAVORITES_CACHE, "count": len(FAVORITES_CACHE)}
+    favorites = _user_items(_USER_FAVORITES, _require_login(request))
+    return {"data": favorites, "count": len(favorites)}
 
 @app.post("/api/favorites")
-def add_favorite(req: FavRequest):
+def add_favorite(req: FavRequest, request: Request):
     """
     添加论文到收藏夹
     :param req: 收藏请求体
     :return:    操作结果
     :raises HTTPException 404: 论文不存在
     """
+    favorites = _user_items(_USER_FAVORITES, _require_login(request))
     for p in PAPERS:
         if p["id"] == req.paper_id:
-            FAVORITES_CACHE.append({
+            favorites.append({
                 "paper_id": req.paper_id,
                 "title": p["title"],
                 "folder": req.folder or "默认",
                 "tags": req.tags or [],
                 "added_at": "2026-07-23"
             })
-            return {"message": "收藏成功", "total": len(FAVORITES_CACHE)}
+            return {"message": "收藏成功", "total": len(favorites)}
     raise HTTPException(status_code=404, detail="论文未找到")
 
 @app.delete("/api/favorites/{paper_id}")
-def remove_favorite(paper_id: str):
+def remove_favorite(paper_id: str, request: Request):
     """
     取消指定论文的收藏
     :param paper_id: 论文唯一标识
     :return:         操作结果
     """
-    global FAVORITES_CACHE
-    FAVORITES_CACHE = [f for f in FAVORITES_CACHE if f["paper_id"] != paper_id]
+    favorites = _user_items(_USER_FAVORITES, _require_login(request))
+    favorites[:] = [f for f in favorites if f["paper_id"] != paper_id]
     return {"message": "已取消收藏"}
 
 # ==================== 开题报告 / 综述生成 ====================
 @app.post("/api/proposal/generate")
-def proposal_generate(req: ProposalRequest):
+def proposal_generate(req: ProposalRequest, request: Request):
     """
     生成开题报告 / 文献综述初稿（演示用静态内容 + 动态变量填充，契约对齐前端 app/api/proposal/generate）。
     :param req: {type: 'proposal'|'review', topic?, papers_count?}
     """
+    _require_login(request)
     type_ = req.type or "review"
     if type_ not in ("proposal", "review"):
         raise HTTPException(status_code=400, detail="type 必须为 proposal 或 review")
@@ -1480,23 +1530,27 @@ def get_stats():
     }
 
 @app.get("/api/stats/detailed")
-def detailed_stats():
+def detailed_stats(request: Request):
     """获取详细统计数据：论文CCF分布、文献库阅读状态分布等"""
     papers_by_ccf = {"A": 0, "B": 0, "C": 0, "预印本": 0}
     for p in PAPERS:
         ccf = p.get("ccf", "未知")
         papers_by_ccf[ccf] = papers_by_ccf.get(ccf, 0) + 1
 
+    user_id = _require_login(request)
+    library = _user_items(_USER_LIBRARIES, user_id)
+    notifications = _user_items(_USER_NOTIFICATIONS, user_id)
+    conversations = _user_items(_USER_CONVERSATIONS, user_id)
     lib_status = {"read": 0, "reading": 0, "unread": 0}
-    for p in LIBRARY_PAPERS:
+    for p in library:
         lib_status[p["status"]] = lib_status.get(p["status"], 0) + 1
 
     return {
         "papers": {"total": len(PAPERS), "by_ccf": papers_by_ccf},
         "journals": {"total": len(JOURNALS)},
-        "library": {"total": len(LIBRARY_PAPERS), "by_status": lib_status},
-        "conversations": {"total": len(CONVERSATIONS)},
-        "notifications": {"total": len(NOTIFICATIONS), "unread": sum(1 for n in NOTIFICATIONS if not n["read"])}
+        "library": {"total": len(library), "by_status": lib_status},
+        "conversations": {"total": len(conversations)},
+        "notifications": {"total": len(notifications), "unread": sum(1 for n in notifications if not n["read"])}
     }
 
 # ==================== 辅助函数 ====================
@@ -1551,7 +1605,10 @@ def _generate_checklist(query: str):
 def _startup_seed():
     """启动时预置演示用户（demo / demo123456），便于前端登录联调。"""
     try:
-        auth_module.seed_demo_user()
+        demo_user_id = auth_module.seed_demo_user()
+        _seed_demo_private_data(demo_user_id)
+        for project in _PROJECTS_STORE:
+            project.setdefault("user_id", demo_user_id)
         logger.info("演示用户已就绪: demo / demo123456")
     except Exception as exc:  # pragma: no cover
         logger.warning(f"演示用户播种失败: {exc}")

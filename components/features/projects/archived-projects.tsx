@@ -2,19 +2,22 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Archive, ArchiveRestore } from "lucide-react";
+import { Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useProjects } from "@/lib/api/services";
-import { apiPut } from "@/lib/api/client";
+import { apiDelete, apiPut } from "@/lib/api/client";
+import { useDemoState } from "@/stores/demo-state";
 import { toast } from "@/stores/toast";
 
 /** 归档项目 `/my-projects` —— 已完成/已搁置的项目,可一键恢复为进行中(真实接口) */
 export function ArchivedProjects() {
   const { data: projects = [], isLoading } = useProjects();
   const queryClient = useQueryClient();
+  const deleteProject = useDemoState((s) => s.deleteDemoProject);
   const [restoringId, setRestoringId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const archived = projects.filter((p) => p.status !== "进行中");
 
@@ -29,6 +32,22 @@ export function ArchivedProjects() {
     } finally {
       setRestoringId(null);
     }
+  };
+
+  const handleDelete = async (projectId: string, name: string) => {
+    if (typeof window !== "undefined" && !window.confirm(`确定删除「${name}」吗？此操作不可撤销。`))
+      return;
+    setDeletingId(projectId);
+    deleteProject(projectId);
+    try {
+      await apiDelete(`/api/projects/${projectId}`);
+    } catch {
+      /* 演示态项目无后端记录,忽略接口错误 */
+    }
+    await queryClient.invalidateQueries({ queryKey: ["api", "projects"] });
+    await queryClient.invalidateQueries({ queryKey: ["api", "project", projectId] });
+    toast.success(`「${name}」已删除`);
+    setDeletingId(null);
   };
 
   if (isLoading) return null;
@@ -73,12 +92,22 @@ export function ArchivedProjects() {
             <Button
               variant="outline"
               size="sm"
-              className="ml-auto rounded-full"
+              className="rounded-full"
               disabled={restoringId === project.id}
               onClick={() => void handleRestore(project.id, project.name)}
             >
               <ArchiveRestore className="size-3.5" />
               {restoringId === project.id ? "恢复中…" : "恢复为进行中"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto rounded-full text-faint hover:text-red-500"
+              disabled={deletingId === project.id}
+              onClick={() => void handleDelete(project.id, project.name)}
+            >
+              <Trash2 className="size-3.5" />
+              {deletingId === project.id ? "删除中…" : "删除"}
             </Button>
           </div>
 

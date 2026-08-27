@@ -2,7 +2,9 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  Archive,
   LayoutDashboard,
   ListTree,
   PanelRight,
@@ -24,6 +26,9 @@ import {
   useWorkbenchAssets,
   useWorkbenchOverview,
 } from "@/lib/api/services";
+import { apiPut } from "@/lib/api/client";
+import { useDemoState } from "@/stores/demo-state";
+import { toast } from "@/stores/toast";
 import type { WorkbenchView } from "@/lib/data/workbench";
 import { OutlineRail } from "./outline-rail";
 import { OutlineView } from "./outline-view";
@@ -84,6 +89,26 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
   const { data: agentTasks = [] } = useAgentTasks(projectId);
   const updateCardStatus = useUpdateThreadCardStatus(projectId);
 
+  const queryClient = useQueryClient();
+  const archiveProject = useDemoState((s) => s.archiveDemoProject);
+  const [archiving, setArchiving] = useState(false);
+
+  const handleArchive = async () => {
+    if (!project) return;
+    setArchiving(true);
+    archiveProject(project.id);
+    try {
+      await apiPut(`/api/projects/${project.id}`, { status: "已搁置" });
+    } catch {
+      /* 演示态项目无后端记录,忽略接口错误 */
+    }
+    await queryClient.invalidateQueries({ queryKey: ["api", "projects"] });
+    await queryClient.invalidateQueries({ queryKey: ["api", "project", project.id] });
+    toast.success(`「${project.name}」已归档，可在「归档项目」中恢复`);
+    setArchiving(false);
+    router.push("/my-projects");
+  };
+
   if (!project || !overview) return null;
 
   const setView = (next: WorkbenchView) =>
@@ -136,18 +161,30 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
             </span>
           </div>
         </div>
-        <button
-          onClick={() => setPanelOverride(!sidebarOpen)}
-          aria-label={sidebarOpen ? "收起 AI 助手栏" : "展开 AI 助手栏"}
-          title={sidebarOpen ? "收起 AI 助手栏" : "展开 AI 助手栏"}
-          className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-line bg-card text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary"
-        >
-          {sidebarOpen ? (
-            <PanelRightClose className="size-4" strokeWidth={1.8} />
-          ) : (
-            <PanelRight className="size-4" strokeWidth={1.8} />
+        <div className="flex shrink-0 items-center gap-2">
+          {project.status === "进行中" && (
+            <button
+              onClick={() => void handleArchive()}
+              disabled={archiving}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-line bg-card px-3 text-[13px] text-muted shadow-card transition-colors hover:bg-chip hover:text-ink"
+            >
+              <Archive className="size-3.5" strokeWidth={1.8} />
+              {archiving ? "归档中…" : "归档"}
+            </button>
           )}
-        </button>
+          <button
+            onClick={() => setPanelOverride(!sidebarOpen)}
+            aria-label={sidebarOpen ? "收起 AI 助手栏" : "展开 AI 助手栏"}
+            title={sidebarOpen ? "收起 AI 助手栏" : "展开 AI 助手栏"}
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-line bg-card text-ink-2 shadow-card transition-colors hover:bg-chip hover:text-primary"
+          >
+            {sidebarOpen ? (
+              <PanelRightClose className="size-4" strokeWidth={1.8} />
+            ) : (
+              <PanelRight className="size-4" strokeWidth={1.8} />
+            )}
+          </button>
+        </div>
       </header>
 
       {/* 视图 Tab 行 */}

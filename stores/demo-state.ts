@@ -11,6 +11,7 @@ import {
   type CustomSkill,
   type McpServer,
 } from "@/lib/data/tools";
+import { projects as mockProjectsArr, type Project } from "@/lib/data/projects";
 
 /* ── 类型 ───────────────────────────────────────────────────── */
 
@@ -78,6 +79,14 @@ interface DemoState {
   agentPrefs: Record<string, AgentPref>;
   setAgentDefaultModel: (model: string) => void;
   setAgentPref: (agent: string, patch: Partial<AgentPref>) => void;
+
+  /* 课题工作台·新建项目(前端演示,不落后端) */
+  demoProjects: Project[];
+  addDemoProject: (p: Omit<Project, "id" | "createdAt">) => string;
+  /** 归档:状态置为「已搁置」,从课题工作台列表隐藏,归入归档项目(演示态不落后端) */
+  archiveDemoProject: (id: string) => void;
+  /** 删除(演示态不落后端) */
+  deleteDemoProject: (id: string) => void;
 }
 
 /** 由 mock 派生的初始值(仅首次进入持久化存储时生效) */
@@ -224,10 +233,44 @@ export const useDemoState = create<DemoState>()(
             [agent]: { ...(s.agentPrefs[agent] ?? { enabled: true, model: "API接入" }), ...patch },
           },
         })),
+
+      demoProjects: [],
+      addDemoProject: (p) => {
+        const id = `p-${Date.now().toString(36)}`;
+        const np: Project = {
+          ...p,
+          id,
+          createdAt: new Date().toISOString().slice(0, 10),
+        };
+        // 注入到 mock 项目数组,使 getProject / useProjects 在当前会话可检索(演示态,不写后端)
+        if (!mockProjectsArr.some((x) => x.id === id)) mockProjectsArr.unshift(np);
+        set((s) => ({ demoProjects: [np, ...s.demoProjects] }));
+        return id;
+      },
+      archiveDemoProject: (id) => {
+        const upd = (p: Project) =>
+          p.id === id ? { ...p, status: "已搁置" as const } : p;
+        set((s) => ({ demoProjects: s.demoProjects.map(upd) }));
+        const idx = mockProjectsArr.findIndex((p) => p.id === id);
+        if (idx >= 0) mockProjectsArr[idx] = { ...mockProjectsArr[idx], status: "已搁置" };
+      },
+      deleteDemoProject: (id) => {
+        set((s) => ({ demoProjects: s.demoProjects.filter((p) => p.id !== id) }));
+        const idx = mockProjectsArr.findIndex((p) => p.id === id);
+        if (idx >= 0) mockProjectsArr.splice(idx, 1);
+      },
     }),
     {
       name: "scinexus-demo",
       skipHydration: true,
+      // 重新水合后,把持久化的演示项目注入 mock 数组,避免刷新后丢失
+      onRehydrateStorage: () => (state) => {
+        if (state?.demoProjects?.length) {
+          for (const p of state.demoProjects) {
+            if (!mockProjectsArr.some((x) => x.id === p.id)) mockProjectsArr.unshift(p);
+          }
+        }
+      },
     },
   ),
 );

@@ -12,6 +12,7 @@
  */
 "use client";
 
+import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
 import { toPaperDetail, type BackendScholarDetail } from "./adapters";
@@ -22,6 +23,7 @@ import { libraryItems } from "@/lib/data/library";
 import { scholars as mockScholars, scholarDetail as mockScholarDetail } from "@/lib/data/scholars";
 import { institutions as mockInstitutions } from "@/lib/data/institutions";
 import { getProject as mockGetProject, projects as mockProjects } from "@/lib/data/projects";
+import { useDemoState } from "@/stores/demo-state";
 import {
   workbenchActivity as wbActivity,
   workbenchAgentTasks as wbAgentTasks,
@@ -240,7 +242,8 @@ export function useInstitutions() {
 
 /** 项目列表 */
 export function useProjects() {
-  return useQuery({
+  const demoProjects = useDemoState((s) => s.demoProjects);
+  const query = useQuery({
     queryKey: ["api", "projects"],
     queryFn: async () => {
       try {
@@ -253,6 +256,15 @@ export function useProjects() {
     placeholderData: mockProjects,
     staleTime: 60_000,
   });
+
+  /** 合并前端演示态新建的项目(去重) */
+  const data = React.useMemo(() => {
+    const base = (query.data ?? []) as Project[];
+    const extra = demoProjects.filter((d) => !base.some((b) => b.id === d.id));
+    return [...extra, ...base];
+  }, [query.data, demoProjects]);
+
+  return { ...query, data };
 }
 
 /** 项目详情 */

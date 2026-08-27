@@ -10,7 +10,9 @@ export default function ProjectsIndexPage() {
   const { data: projects = [] } = useProjects();
 
   useEffect(() => {
-    if (projects[0]?.id) router.replace(`/projects/${projects[0].id}`);
+    const active = projects.find((p) => p.status === "进行中");
+    if (active?.id) router.replace(`/projects/${active.id}`);
+    else if (projects.length) router.replace("/my-projects");
   }, [projects, router]);
 
   return null;

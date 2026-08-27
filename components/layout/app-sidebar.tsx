@@ -384,10 +384,12 @@ export function AppSidebar() {
     return () => window.clearTimeout(timer);
   }, []);
   const { data: projects = [] } = useProjects();
-  const projectSubNav = projects.map((p) => ({
-    href: `/projects/${p.id}`,
-    label: p.name,
-  }));
+  const projectSubNav = projects
+    .filter((p) => p.status === "进行中")
+    .map((p) => ({
+      href: `/projects/${p.id}`,
+      label: p.name,
+    }));
 
   const toggleBtn = (
     <button
@@ -465,15 +467,13 @@ export function AppSidebar() {
           subNav={projectSubNav}
           collapsed={collapsed}
           footer={
-            <button
-              type="button"
-              disabled
-              title="新建项目:即将上线"
-              className="flex h-9 cursor-not-allowed items-center gap-2 rounded-lg px-3 text-sm text-faint"
+            <Link
+              href="/projects/new"
+              className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm text-primary transition-colors hover:bg-card"
             >
               <Plus className="size-3.5" />
               新建项目
-            </button>
+            </Link>
           }
         />
         <NavLink item={SUBMIT_NAV} collapsed={collapsed} />

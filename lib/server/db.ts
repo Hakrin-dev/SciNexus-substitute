@@ -284,6 +284,89 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    -- 自动研究运行。executor 固定记录当前执行适配器，现阶段使用 placeholder。
+    CREATE TABLE IF NOT EXISTS research_runs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      objective TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('queued','running','paused','completed','failed','cancelled')),
+      phase TEXT NOT NULL CHECK(phase IN ('plan','search','read','synthesize','experiment','report')),
+      progress INTEGER NOT NULL DEFAULT 0 CHECK(progress BETWEEN 0 AND 100),
+      executor TEXT NOT NULL DEFAULT 'placeholder',
+      stop_reason TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      started_at TEXT,
+      finished_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_runs_project ON research_runs(project_id, created_at);
+
+    -- 运行事件既用于审计，也可作为未来 SSE 推送的数据源。
+    CREATE TABLE IF NOT EXISTS research_run_events (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('status','phase','log','checkpoint','instruction','error')),
+      level TEXT NOT NULL DEFAULT 'info' CHECK(level IN ('debug','info','warning','error')),
+      message TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_events_run ON research_run_events(run_id, created_at);
+
+    -- 用户在研究过程中追加的指令，执行器接入后按 pending 顺序消费。
+    CREATE TABLE IF NOT EXISTS research_run_instructions (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','applied','rejected')),
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_instructions_run ON research_run_instructions(run_id, created_at);
+
+    -- 一次运行可以包含多轮实验；stdout/stderr 仅保存文本，后续可替换为对象存储引用。
+    CREATE TABLE IF NOT EXISTS research_experiments (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      round INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL CHECK(status IN ('planned','running','passed','failed','cancelled')),
+      hypothesis TEXT,
+      metrics_json TEXT NOT NULL DEFAULT '{}',
+      stdout TEXT NOT NULL DEFAULT '',
+      stderr TEXT NOT NULL DEFAULT '',
+      code_ref TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_experiments_run ON research_experiments(run_id, round);
+
+    -- 统一登记报告、数据、代码、笔记等运行产物，不绑定执行器内部目录结构。
+    CREATE TABLE IF NOT EXISTS research_artifacts (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('report','dataset','code','note','metrics','log','other')),
+      title TEXT NOT NULL,
+      uri TEXT,
+      content TEXT,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_artifacts_run ON research_artifacts(run_id, created_at);
+
     -- 知识图谱节点
     CREATE TABLE IF NOT EXISTS graph_nodes (
       id TEXT PRIMARY KEY,

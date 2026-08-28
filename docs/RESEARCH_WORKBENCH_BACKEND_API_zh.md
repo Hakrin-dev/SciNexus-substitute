@@ -77,5 +77,3 @@ project
 3. 将外部阶段映射为平台的六个固定阶段。
 4. 将指标、stdout、stderr 和文件登记到实验及产物接口。
 5. 使用事件表实现 SSE 或 WebSocket 实时推送。
-
-平台数据库和前端不应直接依赖 SimpleAutoResearch 的内部目录或 Python 类型。

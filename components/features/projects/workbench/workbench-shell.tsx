@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,8 +29,14 @@ import {
 import { apiPut } from "@/lib/api/client";
 import { useDemoState } from "@/stores/demo-state";
 import { toast } from "@/stores/toast";
-import type { WorkbenchView } from "@/lib/data/workbench";
-import { OutlineRail } from "./outline-rail";
+import type {
+  ResearchStageKey,
+  Selection,
+  ThreadCard,
+  WorkbenchAsset,
+  WorkbenchView,
+} from "@/lib/data/workbench";
+import { OutlineRail, type ResearchInputPhase } from "./outline-rail";
 import { OutlineView } from "./outline-view";
 import { ThreadView } from "./thread-view";
 import { AssetTableView } from "./asset-table-view";
@@ -40,7 +46,7 @@ import { AssistantSidebar } from "./assistant-sidebar";
 
 const VIEW_TABS = [
   { value: "overview", label: "概览", icon: LayoutDashboard },
-  { value: "thread", label: "线程", icon: Workflow },
+  { value: "thread", label: "研究过程", icon: Workflow },
   { value: "outline", label: "大纲", icon: ListTree },
   { value: "assets", label: "资产", icon: Table2 },
   { value: "log", label: "日志", icon: ScrollText },
@@ -48,16 +54,30 @@ const VIEW_TABS = [
 
 const VIEW_VALUES = new Set<string>(VIEW_TABS.map((t) => t.value));
 
-/** 助手栏视口默认值:xl+(1280px)展开,窄屏收起 */
-const desktopQuery = "(min-width: 1280px)";
-function subscribeDesktop(callback: () => void) {
-  const mq = window.matchMedia(desktopQuery);
-  mq.addEventListener("change", callback);
-  return () => mq.removeEventListener("change", callback);
-}
-function getDesktopMatches() {
-  return window.matchMedia(desktopQuery).matches;
-}
+const EXPERIMENT_LINKED_ASSETS: WorkbenchAsset[] = [
+  {
+    id: "a7",
+    kind: "experiment",
+    title: "跨领域引用校验实验 #2",
+    meta: "实验合同 + 待审阅代码方案",
+    questionIds: ["q1"],
+    hypothesisIds: ["h2"],
+    status: "active",
+    tags: ["跨领域验证", "实验 #2"],
+    updatedAt: "2026-08-23T18:00:00+08:00",
+  },
+  {
+    id: "a8",
+    kind: "note",
+    title: "跨领域实验 #2 分析与审阅笔记",
+    meta: "Markdown · 等待代码审阅",
+    questionIds: ["q1"],
+    hypothesisIds: ["h2"],
+    status: "active",
+    tags: ["结果判读", "实验 #2"],
+    updatedAt: "2026-08-23T18:00:00+08:00",
+  },
+];
 
 /**
  * 课题工作台 `/projects/[id]` —— 左大纲轨 + 主工作区(五视图 / AI 生成工作台) + 可折叠右侧助手栏。
@@ -69,13 +89,10 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
   const rawView = searchParams.get("view") ?? "";
   const view: WorkbenchView = VIEW_VALUES.has(rawView) ? (rawView as WorkbenchView) : "thread";
 
-  const [selection, setSelection] = useState<
-    { kind: "node" | "card" | "asset"; id: string } | null
-  >(null);
-  /** 助手栏展开态:视口默认(xl+ 展开)+ 用户手动覆盖 */
-  const [panelOverride, setPanelOverride] = useState<boolean | null>(null);
-  const desktopViewport = useSyncExternalStore(subscribeDesktop, getDesktopMatches, () => true);
-  const sidebarOpen = panelOverride ?? desktopViewport;
+  const [selection, setSelection] = useState<Selection>(null);
+  const [localResearchCards, setLocalResearchCards] = useState<ThreadCard[]>([]);
+  /** AI 助手首次进入默认收起,仅由用户点击侧边栏按钮展开。 */
+  const [sidebarOpen, setPanelOverride] = useState(false);
   /** AI 生成工作台(中间栏内联编辑);支持 ?studio=1 深链 */
   const [studioOpen, setStudioOpen] = useState(searchParams.get("studio") === "1");
 
@@ -83,7 +100,13 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
   const { data: outline = [] } = useProjectOutline(projectId);
   const { data: threads = [] } = useProjectThreads(projectId);
   const { data: cards = [] } = useThreadCards(projectId);
-  const { data: assets = [] } = useWorkbenchAssets(projectId);
+  const { data: loadedAssets = [] } = useWorkbenchAssets(projectId);
+  const assets = [
+    ...loadedAssets,
+    ...EXPERIMENT_LINKED_ASSETS.filter(
+      (candidate) => !loadedAssets.some((asset) => asset.id === candidate.id),
+    ),
+  ];
   const { data: activity = [] } = useWorkbenchActivity(projectId);
   const { data: overview } = useWorkbenchOverview(projectId);
   const { data: agentTasks = [] } = useAgentTasks(projectId);
@@ -128,6 +151,57 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
       : threads[0]?.questionId;
 
   const doneMilestones = project.milestones.filter((m) => m.status === "done").length;
+
+  const addResearchEntry = (phase: ResearchInputPhase, text: string) => {
+    const thread = threads[0];
+    if (!thread) return;
+    const stageByPhase: Record<ResearchInputPhase, ResearchStageKey> = {
+      plan: "plan",
+      search: "search",
+      read: "read",
+      synthesize: "synthesize",
+      experiment: "design",
+      report: "report",
+    };
+    const labelByPhase: Record<ResearchInputPhase, string> = {
+      plan: "计划",
+      search: "检索",
+      read: "阅读",
+      synthesize: "综合",
+      experiment: "实验",
+      report: "报告",
+    };
+    const now = Date.now();
+    const stage = stageByPhase[phase];
+    const label = labelByPhase[phase];
+    setLocalResearchCards((current) => [
+      ...current,
+      {
+        id: `local-user-${now}`,
+        threadId: thread.id,
+        kind: "next",
+        stage,
+        title: `用户补充 · ${label}`,
+        summary: text,
+        status: "todo",
+        assetRefs: [],
+        createdAt: new Date(now).toISOString(),
+      },
+      {
+        id: `local-ai-${now}`,
+        threadId: thread.id,
+        kind: "hint",
+        stage,
+        title: "AI 初步整理",
+        summary: `已将内容归入「${label}」。建议核对相关证据与资产，再决定是否更新研究判断。`,
+        status: "todo",
+        assetRefs: [],
+        aiGenerated: true,
+        createdAt: new Date(now + 1).toISOString(),
+      },
+    ]);
+    if (view !== "thread") setView("thread");
+  };
 
   return (
     <div
@@ -220,6 +294,7 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
             setSelection({ kind: "node", id: nodeId });
             if (view !== "outline") setView("outline");
           }}
+          onAddResearchEntry={addResearchEntry}
           className="sticky top-20 hidden self-start lg:block"
         />
 
@@ -238,8 +313,13 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
                 <ThreadView
                   threads={threads}
                   cards={cards}
+                  localCards={localResearchCards}
                   selection={selection}
                   onSelect={(cardId) => setSelection({ kind: "card", id: cardId })}
+                  onSelectAsset={selectAssetAndShow}
+                  onPhaseSelect={(phaseId) =>
+                    setSelection(phaseId ? { kind: "phase", id: phaseId } : null)
+                  }
                   onStatusChange={(cardId, status) =>
                     updateCardStatus.mutate({ cardId, status })
                   }

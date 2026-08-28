@@ -172,6 +172,48 @@ const VIEW_LABELS = {
   log: "日志",
 } as const;
 
+const PHASE_ASSISTANT: Record<
+  string,
+  { label: string; goal: string; status: string; advice: string }
+> = {
+  plan: {
+    label: "计划",
+    goal: "明确研究目标、范围、约束和完成标准。",
+    status: "研究问题已经建立，可以继续核对范围是否足够具体。",
+    advice: "确认核心问题、评价指标和不可超出的研究边界。",
+  },
+  search: {
+    label: "检索",
+    goal: "形成可复查的检索式、来源范围和候选文献集合。",
+    status: "已找到 28 篇候选文献，其中 5 篇与核心假设直接相关。",
+    advice: "优先补充跨领域材料，并检查是否遗漏反对证据。",
+  },
+  read: {
+    label: "阅读",
+    goal: "从文献中提取主张、方法、数据集和证据位置。",
+    status: "关键文献已完成初筛，部分跨领域材料仍待精读。",
+    advice: "把结论与原文证据位置绑定，避免只保留摘要判断。",
+  },
+  synthesize: {
+    label: "综合",
+    goal: "组织支持与反对证据，形成有边界、可检验的工作假设。",
+    status: "工作假设 H1 已形成，H2 的跨领域证据仍不充分。",
+    advice: "明确哪些证据支持假设、哪些证据构成限制或反例。",
+  },
+  experiment: {
+    label: "实验",
+    goal: "通过多轮设计、代码、运行和结果判读检验假设。",
+    status: "实验 #1 已完成结果判读；实验 #2 的代码方案等待审阅。",
+    advice: "先审阅全局引用编号池方案，再决定修改代码重跑或新建实验。",
+  },
+  report: {
+    label: "报告",
+    goal: "把证据、实验结果和限制整理成可追溯的研究结论。",
+    status: "当前只能形成受限领域结论，跨领域结论仍需补充实验。",
+    advice: "保留不确定性描述，不要把程序运行成功写成假设已被证实。",
+  },
+};
+
 function SectionHeader({
   icon: Icon,
   title,
@@ -224,6 +266,26 @@ function SelectionSection({
         </>
       );
     }
+  } else if (selection.kind === "phase") {
+    const phase = PHASE_ASSISTANT[selection.id];
+    if (phase) {
+      title = `${phase.label}阶段`;
+      badge = "研究过程 · AI 辅助";
+      body = (
+        <>
+          <div>
+            <p className="text-[11px] font-medium text-faint">阶段目标</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">{phase.goal}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-faint">当前判断</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">{phase.status}</p>
+          </div>
+          <AiNote text={phase.advice} />
+          <QuickActions />
+        </>
+      );
+    }
   } else if (selection.kind === "card") {
     const card = cards.find((c) => c.id === selection.id);
     if (card) {
@@ -239,7 +301,7 @@ function SelectionSection({
         </>
       );
     }
-  } else {
+  } else if (selection.kind === "asset") {
     const asset = assets.find((a) => a.id === selection.id);
     if (asset) {
       title = asset.title;

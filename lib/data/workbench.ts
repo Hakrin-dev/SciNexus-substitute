@@ -10,7 +10,7 @@ export type WorkbenchView = "overview" | "outline" | "thread" | "assets" | "log"
 /** 概览卡片可跳转的目标视图(不含概览自身) */
 export type JumpableView = Exclude<WorkbenchView, "overview">;
 
-export type Selection = { kind: "node" | "card" | "asset"; id: string } | null;
+export type Selection = { kind: "node" | "card" | "asset" | "phase"; id: string } | null;
 
 /* ── 研究大纲(Q/H/E/C 层级)──────────────────────────────────── */
 
@@ -41,6 +41,16 @@ export type ThreadCardKind =
   | "next"
   | "hint";
 
+export type ResearchStageKey =
+  | "plan"
+  | "search"
+  | "read"
+  | "synthesize"
+  | "design"
+  | "code"
+  | "run"
+  | "report";
+
 export interface ResearchThread {
   id: string;
   questionId: string;
@@ -52,6 +62,8 @@ export interface ThreadCard {
   id: string;
   threadId: string;
   kind: ThreadCardKind;
+  /** 自动研究阶段；用于过程导航和筛选，不改变原有卡片类型。 */
+  stage: ResearchStageKey;
   title: string;
   summary: string;
   status: "todo" | "doing" | "done";
@@ -245,7 +257,7 @@ export const workbenchThreads: ResearchThread[] = [
     id: "t1",
     questionId: "q1",
     title: "多智能体综述管线如何保证引用真实性与论断不丢失?",
-    stage: "数据分析",
+    stage: "设计",
   },
 ];
 
@@ -254,6 +266,7 @@ export const workbenchCards: ThreadCard[] = [
     id: "card1",
     threadId: "t1",
     kind: "question",
+    stage: "plan",
     title: "提出研究问题 Q1",
     summary: "从综述生成任务出发,定义「引用真实性」与「论断不丢失」两个正确性指标。",
     status: "done",
@@ -265,6 +278,7 @@ export const workbenchCards: ThreadCard[] = [
     id: "card2",
     threadId: "t1",
     kind: "literature",
+    stage: "search",
     title: "scout 检索:28 篇相关文献入库",
     summary: "混合召回 + 精排,其中 5 篇与聚类不变式直接相关,已挂到证据节点。",
     status: "done",
@@ -277,7 +291,8 @@ export const workbenchCards: ThreadCard[] = [
     id: "card3",
     threadId: "t1",
     kind: "hypothesis",
-    title: "假设 H1:全分划聚类避免静默丢失",
+    stage: "synthesize",
+    title: "综合产出:工作假设 H1",
     summary: "若每条论断必属且仅属一个维度,则补聚后可实现零丢失。",
     status: "done",
     assetRefs: ["a2"],
@@ -287,19 +302,21 @@ export const workbenchCards: ThreadCard[] = [
   {
     id: "card9",
     threadId: "t1",
-    kind: "hint",
-    title: "AI 断点提示",
-    summary: "H2「幽灵引用降为 0」缺少跨领域数据集验证,当前证据仅覆盖 AI 领域语料。",
-    status: "todo",
-    assetRefs: ["a5"],
+    kind: "literature",
+    stage: "read",
+    title: "阅读筛选:定位 5 篇关键文献",
+    summary: "完成方法与实验章节阅读,提取引用校验、全分划聚类和跨领域验证三类证据。",
+    status: "done",
+    assetRefs: ["a1", "a4"],
     nodeRef: "h2",
     aiGenerated: true,
-    createdAt: DAY(20),
+    createdAt: DAY(8),
   },
   {
     id: "card4",
     threadId: "t1",
     kind: "experiment",
+    stage: "design",
     title: "实验设计:聚类漏归补聚回归",
     summary: "对漏归论文执行二次聚类,校验分划不变式;数据集 a2。",
     status: "doing",
@@ -311,6 +328,7 @@ export const workbenchCards: ThreadCard[] = [
     id: "card5",
     threadId: "t1",
     kind: "result",
+    stage: "run",
     title: "代码运行完成:12/13 用例通过",
     summary: "长文档场景出现 1 例悬空引用,已回写 H2 为存疑。",
     status: "doing",
@@ -323,8 +341,9 @@ export const workbenchCards: ThreadCard[] = [
     id: "card6",
     threadId: "t1",
     kind: "analysis",
-    title: "分析笔记:失败用例归因",
-    summary: "悬空引用源于跨章节引用编号漂移,拟引入全局编号池。",
+    stage: "run",
+    title: "运行诊断:失败用例归因",
+    summary: "运行结果显示悬空引用源于跨章节引用编号漂移,建议下一次修改加入全局编号池。",
     status: "done",
     assetRefs: ["a3"],
     aiGenerated: true,
@@ -334,7 +353,8 @@ export const workbenchCards: ThreadCard[] = [
     id: "card7",
     threadId: "t1",
     kind: "conclusion",
-    title: "阶段结论 C1",
+    stage: "report",
+    title: "研究报告:阶段结论 C1",
     summary: "受限域内管线引用真实性可保证;跨域场景待 e4 实验收敛后更新。",
     status: "todo",
     assetRefs: [],
@@ -344,9 +364,34 @@ export const workbenchCards: ThreadCard[] = [
   {
     id: "card8",
     threadId: "t1",
+    kind: "experiment",
+    stage: "code",
+    title: "代码实现:加入全局引用编号池",
+    summary: "完成候选修复方案和文件变更计划,等待人工审阅后再进入运行阶段。",
+    status: "done",
+    assetRefs: ["a3", "a5"],
+    createdAt: DAY(18),
+  },
+  {
+    id: "card10",
+    threadId: "t1",
+    kind: "hint",
+    stage: "report",
+    title: "断点提示:结论证据尚不完整",
+    summary: "H2「幽灵引用降为 0」目前只覆盖 AI 领域语料,不能直接推广到其他研究领域。",
+    status: "todo",
+    assetRefs: ["a5"],
+    nodeRef: "h2",
+    aiGenerated: true,
+    createdAt: DAY(23, 12),
+  },
+  {
+    id: "card11",
+    threadId: "t1",
     kind: "next",
+    stage: "report",
     title: "下一步:补充跨领域验证集",
-    summary: "从 OpenAlex 拉取生物医学语料 200 篇,复跑幽灵引用回归。",
+    summary: "从 OpenAlex 补充生物医学语料,复跑幽灵引用回归后再更新最终结论。",
     status: "todo",
     assetRefs: ["a5"],
     createdAt: DAY(23, 18),

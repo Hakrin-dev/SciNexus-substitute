@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import {
   Archive,
@@ -28,6 +28,8 @@ import { useAuthStore } from "@/stores/auth";
 import { Logo } from "./logo";
 import { SettingsMenu } from "./settings-menu";
 import { LoginModal } from "@/components/auth/login-modal";
+import { scholarDirections } from "@/lib/data/scholars";
+import { libraryFolders } from "@/lib/data/library";
 
 interface NavItem {
   href: string;
@@ -46,10 +48,33 @@ interface SubNavItem {
   disabled?: boolean;
 }
 
-/** 「发现」的副标题:学者 / 机构(路由仍在 /knowledge 下) */
-const DISCOVER_SUB_NAV: SubNavItem[] = [
-  { href: "/knowledge/scholars", label: "学者" },
-  { href: "/knowledge/institutions", label: "机构" },
+/** 学者关系研究方向计数（「全部」= 方向总和,与 direction-filter 原逻辑一致） */
+const SCHOLARS_TOTAL = scholarDirections.reduce((sum, d) => {
+  const v = Number.parseFloat(d.count);
+  return sum + (d.count.toLowerCase().includes("k") ? v * 1000 : v);
+}, 0);
+
+/** 「发现」的二级结构：学者（可展开研究方向）/ 机构（普通跳转） */
+const DISCOVER_SCHOLAR_HREF = "/knowledge/scholars";
+const DISCOVER_INSTITUTION_HREF = "/knowledge/institutions";
+/** 学者下方三级研究方向（全部 + scholarDirections）。「全部」不传 dir query。 */
+const SCHOLAR_DIRECTION_ITEMS = [
+  { name: "全部", count: SCHOLARS_TOTAL, color: "primary" as const, query: null as string | null },
+  ...scholarDirections.map((d) => ({ ...d, query: d.name })),
+];
+/** 学者下研究方向展开/收起在 sidebarStore 里用的 key（避免与路径冲突） */
+const SCHOLAR_SUB_EXPANDED_KEY = "discover:scholars";
+
+/** 「知识库 → 论文」结构：可展开显示文件夹列表 */
+const PAPERS_HREF = "/knowledge/papers";
+const PAPERS_SUB_EXPANDED_KEY = "knowledge:papers";
+/** 论文默认文件夹：URL 无 ?folder= 时使用的默认值（对应原 LibraryPanel active 初始） */
+const PAPERS_DEFAULT_FOLDER = "在读";
+/** 知识库其余二级：笔记 / 记忆 / 数据库 */
+const KNOWLEDGE_OTHER_SUB_NAV: SubNavItem[] = [
+  { href: "/knowledge/notes", label: "笔记" },
+  { href: "/knowledge/memory", label: "记忆" },
+  { href: "/knowledge/database", label: "数据库" },
 ];
 
 const RESEARCH_NAV: NavItem[] = [
@@ -57,7 +82,7 @@ const RESEARCH_NAV: NavItem[] = [
   { href: "/agents", label: "AI 助手", icon: PromptCircle, matchPrefix: "/agents" },
 ];
 
-/** 「知识库」的副标题 */
+/** 「知识库」的副标题 —— 保留常量以免别处引用（实际展示改用 customSubContent） */
 const KNOWLEDGE_SUB_NAV: SubNavItem[] = [
   { href: "/knowledge/papers", label: "论文" },
   { href: "/knowledge/notes", label: "笔记" },
@@ -85,6 +110,277 @@ const HISTORY_NAV: NavItem[] = [
   { href: "/my-projects", label: "归档项目", icon: Archive },
   { href: "/submit/history", label: "投稿历史", icon: Send, matchPrefix: "/submit/history" },
 ];
+
+/**
+ * 「发现 → 学者」二级条目：
+ * - 点击标题跳转 /knowledge/scholars（全部），
+ * - 右侧箭头单独控制三级「研究方向」列表展开/收起，
+ * - 选中态：pathname 在学者路由下即高亮；当前 dir 对应条目额外高亮。
+ */
+function ScholarSubNav({ collapsed }: { collapsed: boolean }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const setCollapsed = useSidebarStore((s) => s.setCollapsed);
+  const setExpanded = useSidebarStore((s) => s.setExpanded);
+  const expandedStorage = useSidebarStore((s) => s.expanded);
+  // 学者路由下默认展开研究方向列表
+  const onScholarsRoute = pathname.startsWith(DISCOVER_SCHOLAR_HREF);
+  const open = expandedStorage[SCHOLAR_SUB_EXPANDED_KEY] ?? onScholarsRoute;
+  const labelActive = onScholarsRoute;
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        title="学者"
+        onClick={() => {
+          setCollapsed(false);
+          setExpanded(SCHOLAR_SUB_EXPANDED_KEY, true);
+          setExpanded("/", true);
+          router.push(DISCOVER_SCHOLAR_HREF);
+        }}
+        className={cn(
+          "h-9 shrink-0 rounded-lg text-sm transition-colors",
+          labelActive ? "bg-card font-semibold text-primary" : "text-muted hover:bg-card hover:text-ink-2",
+          "w-full",
+        )}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        学
+      </button>
+    );
+  }
+
+  return (
+    <div className="shrink-0">
+      <div className="flex h-9 items-center rounded-lg transition-colors">
+        <Link
+          href={DISCOVER_SCHOLAR_HREF}
+          aria-current={labelActive ? "page" : undefined}
+          onClick={() => setCollapsed(false)}
+          className={cn(
+            "flex h-full min-w-0 flex-1 items-center rounded-lg px-3 text-sm transition-colors",
+            labelActive
+              ? "bg-card font-semibold text-primary shadow-sm"
+              : "text-muted hover:bg-card hover:text-ink-2",
+          )}
+        >
+          学者
+        </Link>
+        <button
+          type="button"
+          aria-label={open ? "收起学者研究方向" : "展开学者研究方向"}
+          title={open ? "收起" : "展开"}
+          onClick={() => {
+            setCollapsed(false);
+            setExpanded(SCHOLAR_SUB_EXPANDED_KEY, !open);
+            if (!labelActive) setExpanded("/", true);
+          }}
+          className="mr-1 rounded-md p-1 text-faint transition-colors hover:bg-chip hover:text-ink-2"
+        >
+          <ChevronDown
+            className={cn("size-3.5 transition-transform", !open && "-rotate-90")}
+          />
+        </button>
+      </div>
+      {open && (
+        <ul className="mt-0.5 flex flex-col gap-0.5 pl-6">
+          {SCHOLAR_DIRECTION_ITEMS.map((item) => {
+            const currentDir = searchParams.get("dir");
+            const active = onScholarsRoute
+              ? item.query === null
+                ? currentDir === null || currentDir === ""
+                : currentDir === item.query
+              : false;
+            const href =
+              item.query === null
+                ? DISCOVER_SCHOLAR_HREF
+                : `${DISCOVER_SCHOLAR_HREF}?dir=${encodeURIComponent(item.query)}`;
+            const swatchColor = item.color === "primary" ? undefined : (item.color as string);
+            return (
+              <li key={item.name}>
+                <Link
+                  href={href}
+                  aria-pressed={active}
+                  onClick={() => setCollapsed(false)}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors",
+                    active ? "bg-primary-soft font-medium text-primary" : "text-ink-2 hover:bg-chip",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-3.5 shrink-0 rounded-[4px]",
+                      active ? "bg-primary" : "bg-ink-2/70",
+                    )}
+                    style={swatchColor && !active ? { backgroundColor: swatchColor } : undefined}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 truncate text-left">{item.name}</span>
+                  <span
+                    className={cn(
+                      "shrink-0 text-[11px]",
+                      active
+                        ? "rounded-full bg-primary px-1.5 py-0.5 leading-none text-white"
+                        : "text-faint",
+                    )}
+                  >
+                    {item.count}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 「知识库 → 论文」二级条目：
+ * - 点击标题跳转 /knowledge/papers（默认文件夹「在读」），
+ * - 右侧箭头单独控制三级「文件夹列表」展开/收起，
+ * - 过滤联动：?folder=（默认=在读）。
+ */
+function PaperSubNav({ collapsed }: { collapsed: boolean }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const setCollapsed = useSidebarStore((s) => s.setCollapsed);
+  const setExpanded = useSidebarStore((s) => s.setExpanded);
+  const expandedStorage = useSidebarStore((s) => s.expanded);
+  const onPapersRoute = pathname.startsWith(PAPERS_HREF);
+  const open = expandedStorage[PAPERS_SUB_EXPANDED_KEY] ?? onPapersRoute;
+  const labelActive = onPapersRoute;
+
+  /** 跳转时只保留当前 ?tag=（标签在主内容区筛选，切换文件夹时保留它） */
+  const buildHref = ({ folder }: { folder?: string | null }) => {
+    const params = new URLSearchParams();
+    const f = folder ?? searchParams.get("folder") ?? PAPERS_DEFAULT_FOLDER;
+    const t = searchParams.get("tag");
+    if (f && f !== PAPERS_DEFAULT_FOLDER) params.set("folder", f);
+    if (t) params.set("tag", t);
+    const qs = params.toString();
+    return qs ? `${PAPERS_HREF}?${qs}` : PAPERS_HREF;
+  };
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        title="论文"
+        onClick={() => {
+          setCollapsed(false);
+          setExpanded(PAPERS_SUB_EXPANDED_KEY, true);
+          setExpanded("/knowledge", true);
+          router.push(buildHref({ folder: null }));
+        }}
+        className={cn(
+          "h-9 shrink-0 rounded-lg text-sm transition-colors",
+          labelActive ? "bg-card font-semibold text-primary" : "text-muted hover:bg-card hover:text-ink-2",
+          "w-full",
+        )}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        论
+      </button>
+    );
+  }
+
+  const currentFolder = searchParams.get("folder") ?? PAPERS_DEFAULT_FOLDER;
+
+  return (
+    <div className="shrink-0">
+      <div className="flex h-9 items-center rounded-lg transition-colors">
+        <Link
+          href={buildHref({ folder: null })}
+          aria-current={labelActive ? "page" : undefined}
+          onClick={() => setCollapsed(false)}
+          className={cn(
+            "flex h-full min-w-0 flex-1 items-center rounded-lg px-3 text-sm transition-colors",
+            labelActive
+              ? "bg-card font-semibold text-primary shadow-sm"
+              : "text-muted hover:bg-card hover:text-ink-2",
+          )}
+        >
+          论文
+        </Link>
+        <button
+          type="button"
+          aria-label={open ? "收起论文子项" : "展开论文子项"}
+          title={open ? "收起" : "展开"}
+          onClick={() => {
+            setCollapsed(false);
+            setExpanded(PAPERS_SUB_EXPANDED_KEY, !open);
+            if (!labelActive) setExpanded("/knowledge", true);
+          }}
+          className="mr-1 rounded-md p-1 text-faint transition-colors hover:bg-chip hover:text-ink-2"
+        >
+          <ChevronDown
+            className={cn("size-3.5 transition-transform", !open && "-rotate-90")}
+          />
+        </button>
+      </div>
+      {open && (
+        <div className="mt-0.5 flex flex-col gap-1 pl-6">
+          {/* 文件夹列表（上方「新建文件夹」小按钮，语义与 LibraryPanel 一致） */}
+          <button
+            type="button"
+            onClick={() => {
+              setCollapsed(false);
+              if (!onPapersRoute) router.push(buildHref({ folder: null, tag: null }));
+            }}
+            className="mt-1 mb-1 flex h-8 items-center justify-center gap-1 rounded-lg border border-dashed border-line bg-transparent text-[12px] font-medium text-muted transition-colors hover:border-primary/50 hover:bg-primary-soft/50 hover:text-primary"
+          >
+            <Plus className="size-3.5" />
+            新建文件夹
+          </button>
+          <ul className="flex flex-col gap-0.5">
+            {libraryFolders.map((folder) => {
+              const active = onPapersRoute && currentFolder === folder.name;
+              const href = buildHref({ folder: folder.name });
+              return (
+                <li key={folder.name}>
+                  <Link
+                    href={href}
+                    aria-pressed={active}
+                    onClick={() => setCollapsed(false)}
+                    className={cn(
+                      "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors",
+                      active ? "bg-primary-soft font-medium text-primary" : "text-ink-2 hover:bg-chip",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "size-3.5 shrink-0 rounded-[4px]",
+                        active ? "bg-primary" : "bg-ink-2/70",
+                      )}
+                      style={!active ? { backgroundColor: folder.color } : undefined}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1 truncate text-left">{folder.name}</span>
+                    <span
+                      className={cn(
+                        "shrink-0 text-[11px]",
+                        active
+                          ? "rounded-full bg-primary px-1.5 py-0.5 leading-none text-white"
+                          : "text-faint",
+                      )}
+                    >
+                      {folder.count}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const pathname = usePathname();
@@ -177,6 +473,7 @@ function ExpandableNav({
   noNav,
   matchPrefixes,
   excludePrefixes,
+  customSubContent,
 }: {
   href: string;
   label: string;
@@ -192,6 +489,8 @@ function ExpandableNav({
   matchPrefixes?: string[];
   /** 从 href 前缀匹配中排除的路径(如「知识库」不含学者/机构页) */
   excludePrefixes?: string[];
+  /** 自定义展开内容:传入时替换默认的 subNav 数组渲染(footer 仍会追加在末尾) */
+  customSubContent?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -207,9 +506,14 @@ function ExpandableNav({
   const setCollapsed = useSidebarStore((s) => s.setCollapsed);
   const open = stored ?? routeActive;
   /** 主页是否独立于副标题(如 AI 助手:/agents 不是任何副标题页) */
-  const hasOwnPage = !subNav.some((s) => s.href === href);
-  /** 跳转目标:有主标题页跳主标题页,没有则跳第一个可用副标题页 */
-  const dest = hasOwnPage ? href : (subNav.find((s) => !s.disabled)?.href ?? href);
+  const hasOwnPage =
+    subNav.length > 0 ? !subNav.some((s) => s.href === href) : true;
+  /** 跳转目标:有主标题页跳主标题页,没有则跳第一个可用副标题页(customSubContent 时直接用 href) */
+  const dest = customSubContent
+    ? href
+    : hasOwnPage
+      ? href
+      : (subNav.find((s) => !s.disabled)?.href ?? href);
 
   /** 点击主标题:展开侧边栏与副标题,并按跳转规则跳转 */
   const handleMainClick = () => {
@@ -279,39 +583,40 @@ function ExpandableNav({
 
       {open && (
         <div className="mt-0.5 flex flex-col gap-0.5 pl-6">
-          {subNav.map((sub) => {
-            const active = pathname === sub.href;
-            if (sub.disabled) {
+          {customSubContent ??
+            subNav.map((sub) => {
+              const active = pathname === sub.href;
+              if (sub.disabled) {
+                return (
+                  <span
+                    key={sub.href}
+                    title="即将上线"
+                    className="flex h-9 cursor-not-allowed items-center rounded-lg px-3 text-sm text-muted/50"
+                  >
+                    {sub.label}
+                  </span>
+                );
+              }
               return (
-                <span
+                <Link
                   key={sub.href}
-                  title="即将上线"
-                  className="flex h-9 cursor-not-allowed items-center rounded-lg px-3 text-sm text-muted/50"
+                  href={sub.href}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => {
+                    // 副标题:保持侧边栏展开(不折叠)
+                    setCollapsed(false);
+                  }}
+                  className={cn(
+                    "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
+                    active
+                      ? "bg-card font-semibold text-primary shadow-sm"
+                      : "text-muted hover:bg-card hover:text-ink-2",
+                  )}
                 >
                   {sub.label}
-                </span>
+                </Link>
               );
-            }
-            return (
-              <Link
-                key={sub.href}
-                href={sub.href}
-                aria-current={active ? "page" : undefined}
-                onClick={() => {
-                  // 副标题:保持侧边栏展开(不折叠)
-                  setCollapsed(false);
-                }}
-                className={cn(
-                  "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
-                  active
-                    ? "bg-card font-semibold text-primary shadow-sm"
-                    : "text-muted hover:bg-card hover:text-ink-2",
-                )}
-              >
-                {sub.label}
-              </Link>
-            );
-          })}
+            })}
           {footer}
         </div>
       )}
@@ -370,6 +675,7 @@ export function AppSidebar() {
   const [loginOpen, setLoginOpen] = React.useState(false);
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const navScrollRef = React.useRef<HTMLElement | null>(null);
+  const pathname = usePathname();
 
   // 重挂载时在提交阶段(paint 前)恢复滚动位置,避免先画 0 位再跳转的闪烁
 
@@ -452,10 +758,27 @@ export function AppSidebar() {
           href="/"
           label="发现"
           icon={Compass}
-          subNav={DISCOVER_SUB_NAV}
+          subNav={[]}
           collapsed={collapsed}
           badge="新"
           matchPrefixes={["/knowledge/scholars", "/knowledge/institutions", "/scholars"]}
+          customSubContent={
+            collapsed ? (
+              // 折叠态的 发现 点击箭头打开详情展开,这里就不显示副标题(图标栏)
+              <></>
+            ) : (
+              <>
+                <ScholarSubNav collapsed={collapsed} />
+                <Link
+                  href={DISCOVER_INSTITUTION_HREF}
+                  aria-current={pathname.startsWith(DISCOVER_INSTITUTION_HREF) ? "page" : undefined}
+                  className="flex h-9 items-center rounded-lg px-3 text-sm transition-colors text-muted hover:bg-card hover:text-ink-2 data-[current=true]:bg-card data-[current=true]:font-semibold data-[current=true]:text-primary data-[current=true]:shadow-sm"
+                >
+                  机构
+                </Link>
+              </>
+            )
+          }
         />
         {RESEARCH_NAV.map((item) => (
           <NavLink key={item.label} item={item} collapsed={collapsed} />
@@ -486,9 +809,43 @@ export function AppSidebar() {
           href="/knowledge"
           label="知识库"
           icon={Library}
-          subNav={KNOWLEDGE_SUB_NAV}
+          subNav={[]}
           collapsed={collapsed}
           excludePrefixes={["/knowledge/scholars", "/knowledge/institutions"]}
+          customSubContent={
+            collapsed ? (
+              <></>
+            ) : (
+              <>
+                <PaperSubNav collapsed={collapsed} />
+                {KNOWLEDGE_OTHER_SUB_NAV.map((sub) => {
+                  const active = pathname === sub.href;
+                  if (sub.disabled) {
+                    return (
+                      <span
+                        key={sub.href}
+                        title="即将上线"
+                        className="flex h-9 cursor-not-allowed items-center rounded-lg px-3 text-sm text-muted/50"
+                      >
+                        {sub.label}
+                      </span>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setCollapsed?.(false)}
+                      className="flex h-9 items-center rounded-lg px-3 text-sm transition-colors text-muted hover:bg-card hover:text-ink-2 data-[current=true]:bg-card data-[current=true]:font-semibold data-[current=true]:text-primary data-[current=true]:shadow-sm"
+                    >
+                      {sub.label}
+                    </Link>
+                  );
+                })}
+              </>
+            )
+          }
         />
         <ExpandableNav
           href="/tools"

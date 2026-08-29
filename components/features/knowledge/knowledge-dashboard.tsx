@@ -318,7 +318,15 @@ export function KnowledgeDashboard() {
             </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4">
-            {libraryTags.map((tag) => <span key={tag} className="rounded-full bg-chip px-3 py-1 text-[11px] text-muted">#{tag}</span>)}
+            {libraryTags.map((tag) => (
+              <span
+                key={tag.name}
+                className="rounded-full bg-chip px-3 py-1 text-[11px] text-muted"
+                style={{ color: tag.color }}
+              >
+                #{tag.name}
+              </span>
+            ))}
           </div>
         </article>
 

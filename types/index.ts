@@ -97,13 +97,26 @@ export interface LibraryItem {
   authors: string;
   addedAt: string;
   pdfTone: "violet" | "amber" | "green";
+  /** 所属文件夹(对应 libraryFolders[i].name),后端缺失时用于筛选演示 */
+  folder?: string;
+  /** 标签名列表(对应 libraryTags[i].name),用于标签过滤 */
+  tags?: string[];
 }
 
 export interface LibraryFolder {
   name: string;
   count: number;
   active?: boolean;
+  /** 方块颜色 (#RRGGBB, 未选中态) */
+  color?: string;
 }
+
+export interface LibraryTag {
+  name: string;
+  /** 文字 + 边框颜色 (#RRGGBB) */
+  color: string;
+}
+
 
 /** AI 研究助手 */
 export interface AgentReference {

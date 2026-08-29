@@ -3,14 +3,6 @@ import { Network, Square } from "lucide-react";
 import { libraryFolders, libraryTags } from "@/lib/data/library";
 import { cn } from "@/lib/utils";
 
-const TAG_COLORS = [
-  "bg-primary-soft text-primary",
-  "bg-brand-blue-soft text-brand-blue",
-  "bg-success-soft text-success",
-  "bg-danger-soft text-danger",
-  "bg-brand-violet-soft text-brand-violet",
-];
-
 /** 我的文献库面板 —— 文件夹树 + 标签(对应知识库页面 SVG 第二栏) */
 export function LibraryPanel() {
   return (
@@ -72,15 +64,13 @@ export function LibraryPanel() {
 
       <p className="mt-5 px-1 text-xs text-faint">标签</p>
       <div className="mt-2 flex flex-wrap gap-2 px-1">
-        {libraryTags.map((tag, i) => (
+        {libraryTags.map((tag) => (
           <span
-            key={tag}
-            className={cn(
-              "cursor-pointer rounded-md px-2 py-1 text-xs",
-              TAG_COLORS[i % TAG_COLORS.length],
-            )}
+            key={tag.name}
+            className="cursor-pointer rounded-md px-2 py-1 text-xs"
+            style={{ color: tag.color }}
           >
-            # {tag}
+            # {tag.name}
           </span>
         ))}
       </div>

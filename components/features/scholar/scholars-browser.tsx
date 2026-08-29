@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Network, Search } from "lucide-react";
 import { ScholarCard } from "./scholar-card";
-import { DirectionFilter } from "./direction-filter";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useScholars } from "@/lib/api/services";
 import { cn } from "@/lib/utils";
@@ -15,12 +15,19 @@ const SORTS = [
   { key: "followed", label: "已关注" },
 ];
 
-/** 学者浏览区 —— 搜索防抖过滤 + 排序切换(README 5.2 交互增强) */
+/** 学者浏览区 —— 三栏改两栏:
+ *  原中栏「研究方向筛选」已移至全局侧边栏(发现/学者展开项),
+ *  方向通过 URL query `dir` 传进来,主内容区直接占满宽度。
+ */
 export function ScholarsBrowser() {
   const { data: scholars = [] } = useScholars();
+  const searchParams = useSearchParams();
+
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("top");
-  const [direction, setDirection] = useState<string | null>(null);
+  // direction: 从 ?dir 读取;空串或未提供 => 全部(null)
+  const dirQuery = searchParams.get("dir");
+  const direction = dirQuery ? dirQuery : null;
   const debouncedQuery = useDebounce(query, 300);
 
   const filtered = useMemo(() => {
@@ -40,9 +47,7 @@ export function ScholarsBrowser() {
   }, [debouncedQuery, direction, sort, scholars]);
 
   return (
-    <>
-      <DirectionFilter activeDirection={direction} onDirectionChange={setDirection} />
-      <div className="min-w-0 flex-1 space-y-5 px-8 py-6">
+    <div className="min-w-0 flex-1 space-y-5 px-8 py-6">
       {/* 顶部横幅:探索学者关系图谱 */}
       <section className="flex items-center justify-between rounded-2xl bg-card px-8 py-7 shadow-card">
         <div className="flex items-center gap-4">
@@ -103,7 +108,7 @@ export function ScholarsBrowser() {
           未找到匹配的学者
         </div>
       )}
-      </div>
-    </>
+    </div>
   );
 }
+

@@ -716,7 +716,7 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-30 hidden flex-col bg-sidebar py-5 transition-[width] duration-200 lg:flex",
+        "fixed inset-y-0 left-0 z-30 hidden min-h-0 flex-col bg-sidebar py-5 transition-[width] duration-200 lg:flex",
         collapsed ? "w-16 px-2" : "w-60 px-4",
       )}
     >
@@ -747,7 +747,7 @@ export function AppSidebar() {
         onScroll={(e) => {
           savedNavScrollTop = e.currentTarget.scrollTop;
         }}
-        className="scrollbar-subtle mt-4 flex flex-1 flex-col gap-0.5 overflow-y-auto"
+        className="scrollbar-subtle mt-4 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2"
       >
         {!collapsed && (
           <p className="shrink-0 px-3 pb-1.5 pt-2 text-[11px] font-medium tracking-wide text-faint">
@@ -772,7 +772,12 @@ export function AppSidebar() {
                 <Link
                   href={DISCOVER_INSTITUTION_HREF}
                   aria-current={pathname.startsWith(DISCOVER_INSTITUTION_HREF) ? "page" : undefined}
-                  className="flex h-9 items-center rounded-lg px-3 text-sm transition-colors text-muted hover:bg-card hover:text-ink-2 data-[current=true]:bg-card data-[current=true]:font-semibold data-[current=true]:text-primary data-[current=true]:shadow-sm"
+                  className={cn(
+                    "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
+                    pathname.startsWith(DISCOVER_INSTITUTION_HREF)
+                      ? "bg-card font-semibold text-primary shadow-sm"
+                      : "text-muted hover:bg-card hover:text-ink-2",
+                  )}
                 >
                   机构
                 </Link>
@@ -840,7 +845,12 @@ export function AppSidebar() {
                         const setCollapsedSide = useSidebarStore.getState().setCollapsed;
                         setCollapsedSide?.(false);
                       }}
-                      className="flex h-9 items-center rounded-lg px-3 text-sm transition-colors text-muted hover:bg-card hover:text-ink-2 data-[current=true]:bg-card data-[current=true]:font-semibold data-[current=true]:text-primary data-[current=true]:shadow-sm"
+                      className={cn(
+                        "flex h-9 items-center rounded-lg px-3 text-sm transition-colors",
+                        active
+                          ? "bg-card font-semibold text-primary shadow-sm"
+                          : "text-muted hover:bg-card hover:text-ink-2",
+                      )}
                     >
                       {sub.label}
                     </Link>

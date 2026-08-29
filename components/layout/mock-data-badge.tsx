@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MOCK_TAG } from "@/lib/api/services";
+import { useSidebarStore } from "@/stores/sidebar";
+import { cn } from "@/lib/utils";
 
 /**
  * 演示数据全局提示徽章
@@ -12,6 +14,7 @@ import { MOCK_TAG } from "@/lib/api/services";
 export function MockDataBadge() {
   const queryClient = useQueryClient();
   const [visible, setVisible] = useState(false);
+  const collapsed = useSidebarStore((s) => s.collapsed);
 
   useEffect(() => {
     const cache = queryClient.getQueryCache();
@@ -45,7 +48,12 @@ export function MockDataBadge() {
 
   if (!visible) return null;
   return (
-    <div className="fixed bottom-4 left-4 z-50 flex items-center gap-1.5 rounded-full border border-amber-300/70 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-800 shadow-sm dark:border-amber-500/40 dark:bg-amber-950/70 dark:text-amber-200">
+    <div
+      className={cn(
+        "fixed bottom-4 left-4 z-50 flex items-center gap-1.5 rounded-full border border-amber-300/70 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-800 shadow-sm transition-[left] duration-200 dark:border-amber-500/40 dark:bg-amber-950/70 dark:text-amber-200",
+        collapsed ? "lg:left-20" : "lg:left-64",
+      )}
+    >
       <span className="size-1.5 rounded-full bg-amber-500" aria-hidden />
       演示数据 · 后端接口未连通
     </div>

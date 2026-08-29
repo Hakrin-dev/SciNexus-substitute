@@ -47,7 +47,7 @@ export function ScholarsBrowser() {
   }, [debouncedQuery, direction, sort, scholars]);
 
   return (
-    <div className="min-w-0 flex-1 space-y-5 px-8 py-6">
+    <div className="mx-auto w-full max-w-[1440px] min-w-0 flex-1 space-y-5 px-8 py-6 2xl:px-10">
       {/* 顶部横幅:探索学者关系图谱 */}
       <section className="flex items-center justify-between rounded-2xl bg-card px-8 py-7 shadow-card">
         <div className="flex items-center gap-4">

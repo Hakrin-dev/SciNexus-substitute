@@ -330,7 +330,7 @@ function PaperSubNav({ collapsed }: { collapsed: boolean }) {
             type="button"
             onClick={() => {
               setCollapsed(false);
-              if (!onPapersRoute) router.push(buildHref({ folder: null, tag: null }));
+              if (!onPapersRoute) router.push(buildHref({ folder: null }));
             }}
             className="mt-1 mb-1 flex h-8 items-center justify-center gap-1 rounded-lg border border-dashed border-line bg-transparent text-[12px] font-medium text-muted transition-colors hover:border-primary/50 hover:bg-primary-soft/50 hover:text-primary"
           >
@@ -836,7 +836,10 @@ export function AppSidebar() {
                       key={sub.href}
                       href={sub.href}
                       aria-current={active ? "page" : undefined}
-                      onClick={() => setCollapsed?.(false)}
+                      onClick={() => {
+                        const setCollapsedSide = useSidebarStore.getState().setCollapsed;
+                        setCollapsedSide?.(false);
+                      }}
                       className="flex h-9 items-center rounded-lg px-3 text-sm transition-colors text-muted hover:bg-card hover:text-ink-2 data-[current=true]:bg-card data-[current=true]:font-semibold data-[current=true]:text-primary data-[current=true]:shadow-sm"
                     >
                       {sub.label}

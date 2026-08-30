@@ -39,6 +39,11 @@ export interface BackendPaper {
   citations: number;
   doi?: string | null;
   relevance?: number | null;
+  keywords?: string[];
+  subjects?: string[];
+  knowledgeScore?: number | null;
+  rank?: number | null;
+  source?: "remote_knowledge_base" | "local" | "hybrid" | string;
 }
 
 export interface BackendVenue {
@@ -182,7 +187,7 @@ export function toFeedPaper(p: BackendPaper): FeedPaper {
     title: p.title,
     abstract: p.abstract || "",
     aiLink: "AI 深度解读",
-    tags: p.tags ?? [],
+    tags: p.tags ?? [...(p.keywords ?? []), ...(p.subjects ?? [])],
     likes: 0,
     citations: p.citations ?? 0,
     thumb: p.venue || p.tags?.[0] || "论文",

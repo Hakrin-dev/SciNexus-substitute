@@ -17,6 +17,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureSeed, fail, parseBody, genId } from "@/lib/server/utils";
 import { getDB, jsonParse, mapPaper } from "@/lib/server/db";
 import { chatText } from "@/lib/server/llm";
+import {
+  searchKnowledgeBase,
+  shouldFallbackToLocal,
+  shouldUseRemoteKnowledgeBase,
+  toFrontendKnowledgePaper,
+} from "@/lib/server/knowledge-base";
 
 export const runtime = "nodejs";
 
@@ -29,20 +35,72 @@ interface SearchReq {
   sort_by?: string;
   task_type?: string;
   top_k?: number;
+  conference?: string[];
+  author?: string[];
+  keyword?: string[];
+  subject?: string[];
   /** 快速→深度会话串联:沿用调用方传入的会话 id,缺省则新建 */
   conversation_id?: string;
 }
 
 export async function POST(req: NextRequest) {
-  ensureSeed();
   const start = Date.now();
   try {
     const body = await parseBody<SearchReq>(req);
     if (!body.query?.trim()) return fail("搜索关键词不能为空");
 
-    const db = getDB();
     const q = body.query.toLowerCase().trim();
     const tokens = q.split(/\s+/).filter(Boolean);
+
+    if (shouldUseRemoteKnowledgeBase()) {
+      try {
+        const remote = await searchKnowledgeBase({
+          query: body.query.trim(),
+          topK: body.top_k,
+          yearFrom: body.year_from,
+          yearTo: body.year_to,
+          conferences: body.conference,
+          authors: body.author,
+          keywords: body.keyword,
+          subjects: body.subject,
+        });
+        const data = remote.results.map(toFrontendKnowledgePaper);
+        const conversationId = body.conversation_id || genId("conv_");
+        return NextResponse.json({
+          success: true,
+          data,
+          summary: await quickSummary(body.query, data),
+          conversation_id: conversationId,
+          meta: {
+            query: body.query,
+            count: data.length,
+            search_time: remote.tookMs / 1000,
+            source: "remote_knowledge_base",
+            fallbackUsed: false,
+            queryParse: remote.queryParse,
+            queryRewrite: remote.queryRewrite,
+            state: remote.state,
+            task_type: body.task_type || "paper_search",
+            conversation_id: conversationId,
+            agents: ["supervisor", "scout"],
+            workflow: {
+              steps: [
+                { agent: "supervisor", action: "识别检索意图并授权知识底座", status: "done" },
+                { agent: "scout", action: "远程知识底座召回真实论文", status: "done" },
+              ],
+            },
+          },
+        });
+      } catch (error) {
+        console.warn("[scinexus] 远程知识底座检索失败", error);
+        if (!shouldFallbackToLocal()) {
+          return fail(error instanceof Error ? error.message : "知识底座暂不可用", 502);
+        }
+      }
+    }
+
+    ensureSeed();
+    const db = getDB();
 
     // 1. 意图分解
     const subQueries = decomposeIntent(q);

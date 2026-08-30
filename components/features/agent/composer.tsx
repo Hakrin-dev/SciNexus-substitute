@@ -44,7 +44,7 @@ export type StyleChoice = (typeof STYLES)[number];
  */
 export const PROVIDERS: {
   name: string;
-  logo?: StaticImageData;
+  logo?: string | StaticImageData;
   /** 路由类条目(API Key)使用 lucide 图标而非品牌 logo */
   icon?: typeof Zap;
   logoClass?: string;

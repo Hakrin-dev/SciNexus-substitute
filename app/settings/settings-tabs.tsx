@@ -54,7 +54,7 @@ const LANGUAGES = ["中文", "English"] as const;
 const LINKED_ACCOUNTS: {
   label: string;
   linked: boolean;
-  logo?: StaticImageData;
+  logo?: string | StaticImageData;
   icon?: LucideIcon;
   logoClass?: string;
 }[] = [

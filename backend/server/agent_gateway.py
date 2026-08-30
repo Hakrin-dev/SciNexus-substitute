@@ -261,21 +261,82 @@ def _quick_summary(query: str, papers: list[dict]) -> str:
 
 
 def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
-                  conversation_id: str | None = None) -> dict:
-    """论文检索：直接走本地索引（快、带相关度），返回前端兼容的 {data, meta, summary}。
+                  conversation_id: str | None = None,
+                  year_from: int | None = None, year_to: int | None = None,
+                  conferences: list[str] | None = None, authors: list[str] | None = None,
+                  keywords: list[str] | None = None, subjects: list[str] | None = None) -> dict:
+    """论文检索：远程知识底座优先，按配置回退本地混合索引。
 
-    简单论文检索不再经过慢速多智能体工作流（supervisor/scout 逐次调用 LLM，
-    单次可达数十秒，导致前端超时回退到无相关度的本地数据）。改为本地
-    vector/BM25 直检，相关度随 relevance_score 透传；summary 为基于检索结果的
-    轻量「简易回答」（一次 LLM，失败回退模板）。复杂任务（研读/对话）仍走完整工作流。
+    简单检索不经过慢速多智能体工作流。remote/hybrid 模式先调用远程增强检索；
+    超时或 500/503 时按 RETRIEVAL_FALLBACK_LOCAL 回退原有本地索引。
     """
-    papers = _direct_search(query, top_k)
+    from research_assistant.config import settings  # noqa: PLC0415
+
+    source = "local"
+    fallback_used = False
+    query_parse: dict = {}
+    query_rewrite: dict = {}
+    took_ms: int | None = None
+    papers: list[dict] = []
+    remote_error: Exception | None = None
+    if settings.retrieval_provider in ("remote", "hybrid"):
+        try:
+            from research_assistant.integrations.retrieval_client import client  # noqa: PLC0415
+
+            remote = client.search(
+                query,
+                top_k=top_k,
+                year_gte=year_from,
+                year_lte=year_to,
+                conference=conferences,
+                author=authors,
+                keyword=keywords,
+                subject=subjects,
+            )
+            papers = [paper.to_agent() for paper in remote["results"]]
+            source = "remote_knowledge_base"
+            query_parse = remote["query_parse"]
+            query_rewrite = remote["query_rewrite"]
+            took_ms = remote["took_ms"]
+        except Exception as exc:
+            remote_error = exc
+            if not settings.retrieval_fallback_local:
+                raise
+
+    if settings.retrieval_provider == "local" or remote_error is not None:
+        papers = _direct_search(query, top_k)
+        source = "local"
+        fallback_used = remote_error is not None
+    elif settings.retrieval_provider == "hybrid":
+        from research_assistant.tools.result_fusion import fuse_results  # noqa: PLC0415
+
+        local_papers = _direct_search(query, top_k)
+        papers = fuse_results([papers, local_papers], weights=[1.0, 0.7], top_k=top_k)
+        source = "hybrid"
+
     workflow = {
         "task_id": "",
         "agents": ["data_source"],
         "steps": [
             {"agent": "supervisor", "action": "识别检索意图并授权检索", "status": "done"},
-            {"agent": "data_source", "action": "本地索引召回候选论文并计算相关度", "status": "done", "tools": ["vector_index"]},
+            {
+                "agent": "data_source",
+                "action": (
+                    "远程与本地多路召回并融合"
+                    if source == "hybrid"
+                    else "远程知识底座召回真实论文"
+                    if source == "remote_knowledge_base"
+                    else "本地索引召回候选论文并计算相关度"
+                ),
+                "status": "done",
+                "tools": (
+                    ["remote_knowledge_base", "vector_index"]
+                    if source == "hybrid"
+                    else ["remote_knowledge_base"]
+                    if source == "remote_knowledge_base"
+                    else ["vector_index"]
+                ),
+            },
         ],
         "errors": [],
         "status": "done",
@@ -297,6 +358,12 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
             "run_id": f"run_{uuid.uuid4().hex}",
             "task_type": task_type or "paper_search",
             "agents": ["data_source"],
+            "source": source,
+            "fallbackUsed": fallback_used,
+            "queryParse": query_parse,
+            "queryRewrite": query_rewrite,
+            "tookMs": took_ms,
+            "remoteError": str(remote_error) if remote_error else None,
             "workflow": workflow,
         },
     }
@@ -432,7 +499,17 @@ def list_papers(page: int = 1, page_size: int = 10) -> dict:
 
 
 def get_paper(paper_id: str) -> dict | None:
-    """论文详情（agent 数据后端），附带结构化分析（store 异常时降级为无 structured）。"""
+    """论文详情：远程知识底座优先，失败后回退 agent 数据后端。"""
+    from research_assistant.config import settings  # noqa: PLC0415
+
+    if settings.retrieval_provider in ("remote", "hybrid"):
+        try:
+            from research_assistant.integrations.retrieval_client import client  # noqa: PLC0415
+
+            return _to_frontend_paper(client.get_paper(paper_id).to_agent())
+        except Exception:
+            if not settings.retrieval_fallback_local:
+                raise
     from research_assistant.tools.data_source import backend  # noqa: PLC0415
 
     p = backend.get_paper(paper_id)
@@ -520,6 +597,57 @@ def get_paper_graph(paper_id: str) -> dict:
     返回 {nodes, links, originPaper, priorWorks, derivativeWorks}；论文不存在时
     nodes 为空列表，前端据此回退到 mock 演示。
     """
+    from research_assistant.config import settings  # noqa: PLC0415
+
+    if settings.retrieval_provider in ("remote", "hybrid"):
+        try:
+            from research_assistant.integrations.retrieval_client import client  # noqa: PLC0415
+
+            graph = client.get_graph(paper_id)
+            raw_nodes = graph.get("nodes") or []
+            paper_nodes = []
+            for raw in raw_nodes:
+                data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+                node_id = str(raw.get("id") or raw.get("paper_id") or data.get("id") or "")
+                node_type = str(raw.get("type") or data.get("type") or "PAPER").upper()
+                title = str(raw.get("title") or data.get("title") or raw.get("label") or "")
+                if not node_id or ("PAPER" not in node_type and not title):
+                    continue
+                authors = raw.get("authors") or data.get("authors") or []
+                if isinstance(authors, list):
+                    authors = ", ".join(str(item.get("name") or item) if isinstance(item, dict) else str(item) for item in authors)
+                paper_nodes.append({
+                    "id": node_id,
+                    "labelLines": [str(raw.get("year") or data.get("year") or ""), str(raw.get("venue") or data.get("venue") or "知识底座")],
+                    "weight": 1.0,
+                    "year": raw.get("year") or data.get("year") or 0,
+                    "title": title or node_id,
+                    "authors": authors or "未知作者",
+                    "venue": raw.get("venue") or data.get("venue") or "知识底座",
+                    "citations": "0",
+                    "abstract": raw.get("abstract") or data.get("abstract") or "",
+                    "paperId": node_id,
+                    "layer": "public",
+                })
+            root_id = str(graph.get("rootId") or paper_id)
+            origin = next((node for node in paper_nodes if node["id"] == root_id), None)
+            if origin is None:
+                origin = {"id": root_id, "labelLines": ["", "知识底座"], "weight": 1.0,
+                          "year": 0, "title": root_id, "authors": "未知作者", "venue": "知识底座",
+                          "citations": "0", "abstract": "", "paperId": root_id, "layer": "public"}
+            nodes = [node for node in paper_nodes if node["id"] != root_id]
+            allowed = {root_id, *(node["id"] for node in nodes)}
+            edges = [
+                {"source": line.get("from"), "target": line.get("to"), "strength": 0.65,
+                 "crossLayer": False, "relation": line.get("text") or (line.get("data") or {}).get("type") or "RELATED"}
+                for line in (graph.get("lines") or [])
+                if line.get("from") in allowed and line.get("to") in allowed
+            ]
+            return {"origin": origin, "nodes": nodes, "edges": edges,
+                    "relatedIds": [node["id"] for node in nodes], "source": "remote_knowledge_base"}
+        except Exception:
+            if not settings.retrieval_fallback_local:
+                raise
     from research_assistant.tools.data_source import backend  # noqa: PLC0415
 
     return backend.graph.get_paper_graph(paper_id)

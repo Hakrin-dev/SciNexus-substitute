@@ -9,6 +9,7 @@ from research_assistant.llm import LLMProvider
 from research_assistant.schemas import RetrievedPaper, ScoutOutput, ScoutQueryPlan
 from research_assistant.tools import tools
 from research_assistant.tools.quality import checklist_match_level
+from research_assistant.config import settings
 
 # 常见中文填充词（mock 阶段代替分词）
 _FILLERS = (
@@ -96,20 +97,44 @@ class ScoutAgent(BaseAgent):
             "venue": plan.venue_level,
         }
 
-        # 阶段2. 工具执行：并发调用 VectorRAG + GraphRAG（超时保护由工具层保证）
+        # 阶段2. 工具执行：远程知识底座优先；local/hybrid 或远程异常时使用本地检索。
         top_k = 10
-        # 相关度以原始 query 为准（core_topics 仅经 filters 参与宽召回），避免 LLM 扩写主题稀释相关度
-        vector_hits = tools.call("vector_rag", query=query, top_k=top_k, filters=filters)
-        graph_hits = tools.call("graph_rag", query=query, top_k=top_k, filters=filters)
+        remote_hits: list[dict] = []
+        remote_error: Exception | None = None
+        if settings.retrieval_provider in ("remote", "hybrid"):
+            try:
+                from research_assistant.integrations.retrieval_client import client
+
+                time_range = filters.get("time_range") or []
+                remote = client.search(
+                    query,
+                    top_k=top_k,
+                    year_gte=time_range[0] if len(time_range) > 0 else None,
+                    year_lte=time_range[1] if len(time_range) > 1 else None,
+                    conference=[filters["venue"]] if filters.get("venue") else None,
+                    subject=[filters["domain"]] if filters.get("domain") else None,
+                )
+                remote_hits = [paper.to_agent() for paper in remote["results"]]
+            except Exception as exc:
+                remote_error = exc
+
+        vector_hits: list[dict] = []
+        graph_hits: list[dict] = []
+        use_local = settings.retrieval_provider in ("local", "hybrid")
+        use_local = use_local or (remote_error is not None and settings.retrieval_fallback_local)
+        if use_local:
+            # 相关度以原始 query 为准，避免 LLM 扩写主题稀释相关度。
+            vector_hits = tools.call("vector_rag", query=query, top_k=top_k, filters=filters)
+            graph_hits = tools.call("graph_rag", query=query, top_k=top_k, filters=filters)
         # LLM 生成的过滤器（venue/domain/time_range）可能过度过滤导致空召回：
         # 回退用原始 query + 无过滤器重试，保证检索始终有结果。
-        if not vector_hits and not graph_hits:
+        if use_local and not remote_hits and not vector_hits and not graph_hits:
             vector_hits = tools.call("vector_rag", query=query, top_k=top_k, filters=None)
             graph_hits = tools.call("graph_rag", query=query, top_k=top_k, filters=None)
 
         # 阶段3. 去重排序 + 质量验证（优先数据自带 match 等级），再生成最终输出
         seen: dict[str, dict] = {}
-        for hit in vector_hits + graph_hits:
+        for hit in remote_hits + vector_hits + graph_hits:
             seen.setdefault(hit["paper_id"], hit)
 
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -136,7 +161,7 @@ class ScoutAgent(BaseAgent):
                     match_level=level,
                     evidence_snippet=venue or heat,
                     retrieval_timestamp=timestamp,
-                    db_source="VectorRAG+GraphRAG",
+                    db_source=hit.get("db_source") or "VectorRAG+GraphRAG",
                     abstract=hit.get("abstract") or "",
                     ccf=hit.get("ccf"),
                     heat=heat or None,

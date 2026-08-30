@@ -66,6 +66,15 @@ class Settings:
     # 检索相关参数
     top_k: int = int(os.getenv("TOP_K", "10"))
 
+    # ---- 远程知识底座 ----
+    # remote = 远程优先；local = 仅本地；hybrid = 远程优先并保留本地降级/后续融合入口
+    retrieval_provider: str = field(default_factory=lambda: os.getenv("RETRIEVAL_PROVIDER", "remote").lower())
+    retrieval_api_url: str = field(default_factory=lambda: os.getenv("RETRIEVAL_API_URL", "http://47.110.47.12"))
+    retrieval_timeout_seconds: float = float(os.getenv("RETRIEVAL_TIMEOUT_SECONDS", "30"))
+    retrieval_retry_count: int = int(os.getenv("RETRIEVAL_RETRY_COUNT", "2"))
+    retrieval_default_top_k: int = int(os.getenv("RETRIEVAL_DEFAULT_TOP_K", "10"))
+    retrieval_fallback_local: bool = field(default_factory=lambda: _env_bool("RETRIEVAL_FALLBACK_LOCAL", True))
+
     # ---- 文献综述（综述写作，移植自 SZDR paperreport）----
     review_claim_max_chars: int = int(os.getenv("REVIEW_CLAIM_MAX_CHARS", "120"))
     review_dimensions_min: int = int(os.getenv("REVIEW_DIMENSIONS_MIN", "3"))

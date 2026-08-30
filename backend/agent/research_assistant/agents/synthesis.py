@@ -6,6 +6,7 @@ from research_assistant.llm import LLMProvider
 from research_assistant.schemas import AnchoredText, QAAnswer, StructuredElements, SynthesisOutput, SynthesisPlan
 from research_assistant.tools import tools
 from research_assistant.tools.data_source import backend
+from research_assistant.config import settings
 
 SYSTEM_PROMPT = (
     "你是一位深度阅读专家，专注于从学术论文中提取结构化知识：\n"
@@ -69,6 +70,13 @@ class SynthesisAgent(BaseAgent):
     @staticmethod
     def _paper_context(pid: str) -> str:
         paper = backend.get_paper(pid) or {}
+        if not paper and settings.retrieval_provider in ("remote", "hybrid"):
+            try:
+                from research_assistant.integrations.retrieval_client import client
+
+                paper = client.get_paper(pid).to_agent()
+            except Exception:
+                paper = {}
         title = paper.get("title") or pid
         venue = paper.get("venue") or "未知来源"
         year = paper.get("year") or "未知年份"
@@ -227,7 +235,7 @@ class SynthesisAgent(BaseAgent):
         # 论文定位顺序：显式 paper_id > 证据链 > 题名/查询启发式 > 库内第一篇
         paper_ids: list[str] = []
         explicit_pid = state.get("paper_id")
-        if explicit_pid and backend.get_paper(explicit_pid):
+        if explicit_pid:
             paper_ids = [explicit_pid]
         if not paper_ids:
             ev = (state.get("working_memory") or {}).get("evidence_chain_index") or {}

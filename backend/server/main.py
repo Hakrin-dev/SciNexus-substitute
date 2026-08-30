@@ -174,6 +174,10 @@ class SearchRequest(BaseModel):
     task_type: Optional[str] = None           # 显式 Agent 任务类型
     conversation_id: Optional[str] = None     # 与后续深度任务共享的话题会话
     top_k: Optional[int] = None               # 返回候选论文数量上限（默认由后端决定）
+    conference: Optional[list[str]] = None     # 会议筛选
+    author: Optional[list[str]] = None         # 作者筛选
+    keyword: Optional[list[str]] = None        # 关键词筛选
+    subject: Optional[list[str]] = None        # 学科筛选
 
 class ChatRequest(BaseModel):
     """AI 对话请求"""
@@ -556,9 +560,26 @@ def get_knowledge_graph(request: Request):
     return {"data": _USER_PRIVATE_GRAPHS.get(user_id, _empty_private_graph())}
 
 @app.get("/api/graph/public")
-def get_graph_public():
+def get_graph_public(paper_id: Optional[str] = None):
     """获取公域知识图谱（某论文的引用关系，PaperGraph 格式）。"""
+    if paper_id and AGENT_ENABLED:
+        try:
+            return {"data": _agent_get_paper_graph(paper_id)}
+        except Exception as exc:
+            logger.warning(f"知识底座图谱失败，回退 mock: {exc}")
     return {"data": PUBLIC_GRAPH}
+
+
+@app.get("/api/knowledge/health")
+def get_knowledge_health():
+    """检查远程知识底座主服务、检索服务和就绪状态。"""
+    try:
+        from research_assistant.config import settings
+        from research_assistant.integrations.retrieval_client import client
+
+        return {"success": True, "data": {**client.health(), "provider": settings.retrieval_provider}}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"知识底座暂不可用: {exc}") from exc
 
 @app.get("/api/graph/private")
 def get_graph_private(request: Request):
@@ -580,7 +601,18 @@ async def search_endpoint(req: SearchRequest, request: Request):
     logger.info(f"Search: query='{req.query}', mode={req.mode}")
     if AGENT_ENABLED:
         try:
-            result = _agent_search(req.query, task_type=req.task_type, conversation_id=req.conversation_id)
+            result = _agent_search(
+                req.query,
+                top_k=req.top_k or 10,
+                task_type=req.task_type,
+                conversation_id=req.conversation_id,
+                year_from=req.year_from,
+                year_to=req.year_to,
+                conferences=req.conference,
+                authors=req.author,
+                keywords=req.keyword,
+                subjects=req.subject,
+            )
             result.setdefault("conversation_id", req.conversation_id or f"conv_{uuid.uuid4().hex}")
             return result
         except Exception as exc:

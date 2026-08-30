@@ -5,13 +5,37 @@
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok } from "@/lib/server/utils";
 import { getDB, jsonParse } from "@/lib/server/db";
+import {
+  getKnowledgePaper,
+  shouldFallbackToLocal,
+  shouldUseRemoteKnowledgeBase,
+  toFrontendKnowledgePaper,
+} from "@/lib/server/knowledge-base";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  ensureSeed();
   const { id } = await params;
   try {
+    if (shouldUseRemoteKnowledgeBase()) {
+      try {
+        const remote = toFrontendKnowledgePaper(await getKnowledgePaper(id));
+        return ok({
+          ...remote,
+          authors: remote.author_list,
+          page: { current: 1, total: 1 },
+          toc: [{ id: "abstract", label: "摘要 Abstract", active: true }],
+          introduction: remote.abstract,
+        });
+      } catch (error) {
+        console.warn(`[scinexus] 远程论文详情失败: ${id}`, error);
+        if (!shouldFallbackToLocal()) {
+          return fail(error instanceof Error ? error.message : "知识底座暂不可用", 502);
+        }
+      }
+    }
+
+    ensureSeed();
     const db = getDB();
     const row = db.prepare("SELECT * FROM papers WHERE id = ?").get(id) as any;
     if (!row) {

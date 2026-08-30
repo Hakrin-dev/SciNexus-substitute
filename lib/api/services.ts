@@ -620,6 +620,11 @@ export interface QuickPaper {
   abstract: string;
   relevance: number | null;
   match: string;
+  source?: string;
+  rank?: number | null;
+  knowledgeScore?: number | null;
+  keywords?: string[];
+  subjects?: string[];
 }
 
 /**
@@ -647,6 +652,11 @@ export async function quickSearchPapers(
       abstract: String(p.abstract ?? ""),
       relevance: typeof p.relevance === "number" ? (p.relevance as number) : null,
       match: String(p.matchLabel ?? p.match ?? ""),
+      source: p.source ? String(p.source) : undefined,
+      rank: p.rank != null ? Number(p.rank) : null,
+      knowledgeScore: p.knowledgeScore != null ? Number(p.knowledgeScore) : null,
+      keywords: Array.isArray(p.keywords) ? p.keywords.map(String) : [],
+      subjects: Array.isArray(p.subjects) ? p.subjects.map(String) : [],
     }));
     return {
       papers,
@@ -694,7 +704,11 @@ export function formatPaperList(query: string, papers: QuickPaper[]): string {
       p.year ? String(p.year) : "",
       p.ccf ? `CCF ${p.ccf}` : "",
       `引用 ${p.citations}`,
-      p.relevance != null ? `相关度 ${Math.round(p.relevance * 100)}` : "",
+      p.source === "remote_knowledge_base"
+        ? `远程知识底座${p.rank ? ` · 排名 #${p.rank}` : ""}`
+        : p.relevance != null
+          ? `相关度 ${Math.round(p.relevance * 100)}`
+          : "",
     ]
       .filter(Boolean)
       .join(" · ");

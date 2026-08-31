@@ -41,6 +41,10 @@ next-env.d.ts
 .opencode/memory/
 opencode.json
 
+# pi 本地记忆和配置文件
+.pi/
+AGENTS.md
+
 # python(截图验证 / 品牌资产处理脚本;本地 venv 不入库)
 __pycache__/
 *.py[cod]

@@ -19,7 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { libraryFolders, libraryTags } from "@/lib/data/library";
-import { useLibraryItems, useScholars, useInstitutions } from "@/lib/api/services";
+import { useLibraryItems, useScholars, useInstitutions, useMemory } from "@/lib/api/services";
 import { useDemoState } from "@/stores/demo-state";
 import { cn } from "@/lib/utils";
 
@@ -128,10 +128,10 @@ export function KnowledgeDashboard() {
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState<SearchType>("全部");
   const { data: libraryItems = [] } = useLibraryItems();
-  // 笔记与记忆计数(演示态,本地持久化)
+  // 笔记计数(演示态,本地持久化);记忆计数走真实接口,失败回退演示态
   const notes = useDemoState((s) => s.notes);
-  const memoryEntries = useDemoState((s) => s.memoryEntries);
-  const memoryCount = memoryEntries.length;
+  const { data: memoryData } = useMemory();
+  const memoryCount = memoryData?.items.length ?? 0;
   const { data: scholars = [] } = useScholars();
   const { data: institutions = [] } = useInstitutions();
 

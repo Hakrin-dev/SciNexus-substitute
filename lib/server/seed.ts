@@ -767,6 +767,40 @@ function seedWorkbench(db: Database.Database): void {
   }
 }
 
+// ====== AI 长期记忆演示数据（与 lib/data/memory.ts memoryMock 对齐） ======
+const defaultMemoryEntries = [
+  { id: "mem_m1", fact: "用户的研究方向是机器人操作中的扩散策略,当前聚焦推理效率优化。", source: "长上下文 Transformer 调研", createdAt: "2026-08-10T10:00:00+08:00", scope: "global", project: null },
+  { id: "mem_m2", fact: "用户偏好的论文呈现格式:先结论后论据,引用保留「编号. 标题(作者, 年份)」样式。", source: "NeurIPS 2026 投稿筛选", createdAt: "2026-08-14T14:20:00+08:00", scope: "global", project: null },
+  { id: "mem_m3", fact: "用户正在准备 NeurIPS 2026 投稿,deadline 相关提醒应提高优先级。", source: "NeurIPS 2026 投稿筛选", createdAt: "2026-08-16T09:05:00+08:00", scope: "global", project: null },
+  { id: "mem_m4", fact: "实验环境为单卡 RTX 4090,推荐方案时需考虑 24GB 显存约束。", source: "扩散模型效率优化", createdAt: "2026-08-19T16:40:00+08:00", scope: "project", project: "研枢" },
+  { id: "mem_m5", fact: "综述管线的实验数据统一放在 wb_assets 的 a2 数据集,引用时用版本号 v2。", source: "扩散模型效率优化", createdAt: "2026-08-20T13:10:00+08:00", scope: "project", project: "研枢" },
+  { id: "mem_m6", fact: "用户习惯用中文提问但希望术语保留英文原文。", source: "操作泛化性研究计划", createdAt: "2026-08-21T11:30:00+08:00", scope: "global", project: null },
+];
+
+/** AI 长期记忆种子（幂等：仅当演示用户尚无记忆条目时写入） */
+function seedMemory(db: Database.Database): void {
+  const existing = db
+    .prepare("SELECT COUNT(*) as n FROM memory_entries WHERE user_id = 'user_demo'")
+    .get() as { n: number };
+  if (existing.n > 0) return;
+
+  const insertEntry = db.prepare(
+    `INSERT INTO memory_entries (id, user_id, fact, scope, project_id, project, source, created_at)
+     VALUES (@id, 'user_demo', @fact, @scope, @project_id, @project, @source, @created_at)`
+  );
+  for (const m of defaultMemoryEntries) {
+    insertEntry.run({
+      id: m.id,
+      fact: m.fact,
+      scope: m.scope,
+      project_id: m.scope === "project" ? "scinexus" : null,
+      project: m.project,
+      source: m.source,
+      created_at: m.createdAt,
+    });
+  }
+  db.prepare("INSERT OR IGNORE INTO memory_settings (user_id, enabled) VALUES ('user_demo', 1)").run();
+}
 export function runSeed() {
   const db = getDB();
   const tx = db.transaction(() => {
@@ -775,7 +809,8 @@ export function runSeed() {
     if (paperCount > 0) {
       // 老库升级:工作台表后加入,若为空则单独补种(幂等)
       seedWorkbench(db);
-      console.log("[seed] 数据库已有数据，跳过初始化");
+            seedMemory(db);
+console.log("[seed] 数据库已有数据，跳过初始化");
       return;
     }
 
@@ -1021,7 +1056,9 @@ export function runSeed() {
 
     seedWorkbench(db);
 
-    console.log("[seed] 种子数据写入完成 ✅");
+        seedMemory(db);
+
+console.log("[seed] 种子数据写入完成 ✅");
   });
   tx();
 }

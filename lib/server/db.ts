@@ -372,6 +372,28 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE
     );
+    -- AI 长期记忆总开关
+    CREATE TABLE IF NOT EXISTS memory_settings (
+      user_id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- AI 长期记忆条目(手动 / agent 自动写入)
+    CREATE TABLE IF NOT EXISTS memory_entries (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      fact TEXT NOT NULL,
+      scope TEXT CHECK(scope IN ('global','project')) NOT NULL DEFAULT 'global',
+      project_id TEXT,
+      project TEXT,
+      source TEXT DEFAULT '手动',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_memory_entries_user ON memory_entries(user_id, created_at);
   `);
 }
 
@@ -487,5 +509,24 @@ export function mapGraphNode(r: any) {
     abstract: r.abstract,
     paperId: r.paper_id,
     layer: r.layer,
+  };
+}
+
+
+/** AI 记忆条目序列化（memory 列表 / 增改 共用；scope=project 时附带项目信息） */
+export function mapMemoryEntry(r: any) {
+  const base = {
+    id: r.id,
+    fact: r.fact,
+    source: r.source ?? "手动",
+    createdAt: r.created_at,
+    scope: r.scope === "project" ? "project" : "global",
+    enabled: !!r.enabled,
+  };
+  if (base.scope !== "project") return base;
+  return {
+    ...base,
+    ...(r.project ? { project: r.project } : {}),
+    ...(r.project_id ? { projectId: r.project_id } : {}),
   };
 }

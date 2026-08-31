@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import { Brain, FolderKanban, Globe2, Sparkles, Trash2 } from "lucide-react";
-import { useDemoState } from "@/stores/demo-state";
+import {
+  useDeleteMemoryEntry,
+  useMemory,
+  useToggleMemoryEntry,
+} from "@/lib/api/services";
 import { toast } from "@/stores/toast";
 import { cn } from "@/lib/utils";
 
@@ -19,18 +23,21 @@ const SCOPE_FILTERS: { value: ScopeFilter; label: string; icon: typeof Globe2 }[
   { value: "project", label: "项目级", icon: FolderKanban },
 ];
 
-/** 知识库·AI 记忆 —— 全局级/项目级记忆条目管理(演示态,本地持久化) */
+/**
+ * 知识库·AI 记忆 —— 全局级/项目级记忆条目管理。
+ * 登录后走真实接口(GET /api/memory,SQLite 持久化,重启不丢);
+ * 未登录/后端不可达时回退本地演示态(demo-state)。
+ */
 export function MemoryBoard() {
-  const memoryEnabled = useDemoState((s) => s.memoryEnabled);
-  const memoryEntries = useDemoState((s) => s.memoryEntries);
-  const memoryOff = useDemoState((s) => s.memoryOff);
-  const toggleMemoryEntry = useDemoState((s) => s.toggleMemoryEntry);
-  const deleteMemoryEntry = useDemoState((s) => s.deleteMemoryEntry);
+  const { data } = useMemory();
+  const toggleEntry = useToggleMemoryEntry();
+  const deleteEntry = useDeleteMemoryEntry();
+  const { enabled: memoryEnabled, items: memoryEntries } = data;
 
   const [scope, setScope] = React.useState<ScopeFilter>("all");
 
   const filtered = memoryEntries.filter((m) => scope === "all" || m.scope === scope);
-  const activeCount = memoryEntries.filter((m) => !memoryOff[m.id]).length;
+  const activeCount = memoryEntries.filter((m) => m.enabled).length;
   const globalCount = memoryEntries.filter((m) => m.scope === "global").length;
   const projectCount = memoryEntries.length - globalCount;
 
@@ -74,7 +81,7 @@ export function MemoryBoard() {
       {/* 条目列表 */}
       <div className="space-y-3">
         {filtered.map((entry, i) => {
-          const off = !!memoryOff[entry.id];
+          const off = !entry.enabled;
           const dimmed = off || !memoryEnabled;
           return (
             <article
@@ -114,8 +121,8 @@ export function MemoryBoard() {
                 role="switch"
                 aria-checked={!off}
                 aria-label={off ? "启用该记忆" : "停用该记忆"}
-                disabled={!memoryEnabled}
-                onClick={() => toggleMemoryEntry(entry.id)}
+                disabled={!memoryEnabled || toggleEntry.isPending}
+                onClick={() => toggleEntry.mutate(entry.id)}
                 className={cn(
                   "relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors",
                   !off && memoryEnabled ? "bg-primary" : "bg-line",
@@ -132,8 +139,9 @@ export function MemoryBoard() {
               <button
                 type="button"
                 aria-label="删除该记忆"
+                disabled={deleteEntry.isPending}
                 onClick={() => {
-                  deleteMemoryEntry(entry.id);
+                  deleteEntry.mutate(entry.id);
                   toast.info("已删除该条记忆");
                 }}
                 className="shrink-0 cursor-pointer rounded-md p-1.5 text-faint transition-colors hover:bg-chip hover:text-danger"

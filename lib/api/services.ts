@@ -14,7 +14,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
+import { apiDelete, apiGet, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
 import {
   normalizeVenues,
   toFeedPaper,
@@ -597,6 +597,170 @@ export async function fetchConversationMessages(id: string): Promise<Conversatio
   }));
 }
 
+/* ── AI 长期记忆(真实接口 + 演示态保底)────────────────────────── */
+
+/** 记忆条目(登录后为后端数据;未登录回退 demo-state 派生) */
+export interface MemoryItem {
+  id: string;
+  /** 记忆的事实陈述(AI 视角第一人称) */
+  fact: string;
+  /** 来源,如「对话-2026-08-31」/「手动」 */
+  source: string;
+  createdAt: string;
+  scope: "global" | "project";
+  /** scope=project 时的项目名(展示用) */
+  project?: string;
+  /** 单条启用状态(演示态由 memoryOff 派生) */
+  enabled: boolean;
+}
+
+export interface MemoryData {
+  /** 记忆总开关:关闭后 agent 不再引用记忆 */
+  enabled: boolean;
+  items: MemoryItem[];
+}
+
+/**
+ * AI 记忆读取:登录后走 GET /api/memory(SQLite 持久化,重启不丢);
+ * 未登录/后端不可达时回退 demo-state(浏览器本地持久化,实时派生)。
+ * 返回 source 供调用方区分真实/演示数据。
+ */
+export function useMemory(): { data: MemoryData; source: "api" | "demo" } {
+  const demoEntries = useDemoState((s) => s.memoryEntries);
+  const demoEnabled = useDemoState((s) => s.memoryEnabled);
+  const demoOff = useDemoState((s) => s.memoryOff);
+
+  const demoData = React.useMemo<MemoryData>(
+    () => ({
+      enabled: demoEnabled,
+      items: demoEntries.map((e) => ({ ...e, enabled: !demoOff[e.id] })),
+    }),
+    [demoEntries, demoEnabled, demoOff],
+  );
+
+  const query = useQuery({
+    queryKey: ["api", "memory"],
+    queryFn: async (): Promise<MemoryData> => {
+      const json = await apiGet<{ enabled?: boolean; items?: any[] }>("/api/memory");
+      const items = json.data?.items;
+      if (!Array.isArray(items)) throw new Error("missing memory shape");
+      return {
+        enabled: json.data?.enabled ?? true,
+        items: items.map(
+          (it): MemoryItem => ({
+            id: String(it.id ?? ""),
+            fact: String(it.fact ?? ""),
+            source: String(it.source ?? "手动"),
+            createdAt: String(it.createdAt ?? ""),
+            scope: it.scope === "project" ? "project" : "global",
+            project: typeof it.project === "string" && it.project ? it.project : undefined,
+            enabled: it.enabled !== false,
+          }),
+        ),
+      };
+    },
+    placeholderData: demoData,
+    staleTime: 15_000,
+    retry: 0,
+  });
+
+  if (query.data) return { data: query.data, source: "api" };
+  return { data: demoData, source: "demo" };
+}
+
+const MEMORY_KEY = ["api", "memory"] as const;
+
+/** 记忆总开关;未登录/离线时回退 demo-state */
+export function useSetMemoryEnabled() {
+  const queryClient = useQueryClient();
+  const setMemoryEnabled = useDemoState((s) => s.setMemoryEnabled);
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      await apiPut("/api/memory", { enabled });
+      return enabled;
+    },
+    onMutate: async (enabled) => {
+      await queryClient.cancelQueries({ queryKey: MEMORY_KEY });
+      const prev = queryClient.getQueryData<MemoryData>(MEMORY_KEY);
+      if (prev) queryClient.setQueryData<MemoryData>(MEMORY_KEY, { ...prev, enabled });
+      return { prev };
+    },
+    onError: (_err, enabled, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData<MemoryData>(MEMORY_KEY, ctx.prev);
+      else setMemoryEnabled(enabled); // 未登录/离线 → 本地演示态
+    },
+    onSuccess: (enabled) => {
+      queryClient.setQueryData<MemoryData>(MEMORY_KEY, (old) =>
+        old ? { ...old, enabled } : old,
+      );
+    },
+  });
+}
+
+/** 启用/停用单条记忆;未登录/离线时回退 demo-state */
+export function useToggleMemoryEntry() {
+  const queryClient = useQueryClient();
+  const toggleMemoryEntry = useDemoState((s) => s.toggleMemoryEntry);
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await apiPost(`/api/memory/entries/${id}/toggle`);
+      return id;
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: MEMORY_KEY });
+      const prev = queryClient.getQueryData<MemoryData>(MEMORY_KEY);
+      if (prev) {
+        queryClient.setQueryData<MemoryData>(MEMORY_KEY, (old) =>
+          old
+            ? {
+                ...old,
+                items: old.items.map((it) =>
+                  it.id === id ? { ...it, enabled: !it.enabled } : it,
+                ),
+              }
+            : old,
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, id, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData<MemoryData>(MEMORY_KEY, ctx.prev);
+      else toggleMemoryEntry(id); // 未登录/离线 → 本地演示态
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: MEMORY_KEY });
+    },
+  });
+}
+
+/** 删除单条记忆;未登录/离线时回退 demo-state */
+export function useDeleteMemoryEntry() {
+  const queryClient = useQueryClient();
+  const deleteMemoryEntry = useDemoState((s) => s.deleteMemoryEntry);
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await apiDelete(`/api/memory/entries/${id}`);
+      return id;
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: MEMORY_KEY });
+      const prev = queryClient.getQueryData<MemoryData>(MEMORY_KEY);
+      if (prev) {
+        queryClient.setQueryData<MemoryData>(MEMORY_KEY, (old) =>
+          old ? { ...old, items: old.items.filter((it) => it.id !== id) } : old,
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, id, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData<MemoryData>(MEMORY_KEY, ctx.prev);
+      else deleteMemoryEntry(id); // 未登录/离线 → 本地演示态
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: MEMORY_KEY });
+    },
+  });
+}
 /** 论文检索（/api/search，带 relevance） */
 export interface KnowledgeSearchFilters {
   yearFrom?: number;

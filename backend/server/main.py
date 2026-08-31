@@ -15,6 +15,7 @@ import logging
 import json
 import uuid
 import copy
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -331,6 +332,21 @@ def _mock_workflow_meta(query: str, count: int, elapsed: float, mode: str = "key
         }
     }
 
+class MemoryEntryCreateRequest(BaseModel):
+    """新增 AI 记忆条目请求"""
+    fact: str                               # 记忆的事实陈述(AI 视角第一人称)
+    scope: str = "global"                   # global=全局生效;project=仅项目内生效
+    project_id: Optional[str] = None        # scope=project 时的项目 ID
+    project: Optional[str] = None           # 项目名(展示用)
+    source: str = "手动"                    # 来源,如 "对话-2026-08-31" / "手动"
+
+class MemoryEntryEditRequest(BaseModel):
+    """编辑 AI 记忆条目请求"""
+    fact: str
+
+class MemorySettingsRequest(BaseModel):
+    """AI 记忆总开关请求"""
+    enabled: bool
 # ==================== 根路径 ====================
 @app.get("/")
 def root():
@@ -371,6 +387,55 @@ _USER_CONVERSATIONS: dict[str, list[dict]] = {}
 _USER_NOTIFICATIONS: dict[str, list[dict]] = {}
 _USER_FAVORITES: dict[str, list[dict]] = {}
 _USER_PRIVATE_GRAPHS: dict[str, dict] = {}
+_USER_MEMORY_ENTRIES: dict[str, list[dict]] = {}
+_USER_MEMORY_SETTINGS: dict[str, dict] = {}
+
+# AI 长期记忆演示数据（与前端 lib/data/memory.ts memoryMock 对齐；仅播种演示账户）
+_DEMO_MEMORY_ENTRIES: list[dict] = [
+    {
+        "id": "mem_m1",
+        "fact": "用户的研究方向是机器人操作中的扩散策略,当前聚焦推理效率优化。",
+        "source": "长上下文 Transformer 调研",
+        "created_at": "2026-08-10T10:00:00+08:00",
+        "scope": "global", "project_id": None, "project": None, "enabled": True,
+    },
+    {
+        "id": "mem_m2",
+        "fact": "用户偏好的论文呈现格式:先结论后论据,引用保留「编号. 标题(作者, 年份)」样式。",
+        "source": "NeurIPS 2026 投稿筛选",
+        "created_at": "2026-08-14T14:20:00+08:00",
+        "scope": "global", "project_id": None, "project": None, "enabled": True,
+    },
+    {
+        "id": "mem_m3",
+        "fact": "用户正在准备 NeurIPS 2026 投稿,deadline 相关提醒应提高优先级。",
+        "source": "NeurIPS 2026 投稿筛选",
+        "created_at": "2026-08-16T09:05:00+08:00",
+        "scope": "global", "project_id": None, "project": None, "enabled": True,
+    },
+    {
+        "id": "mem_m4",
+        "fact": "实验环境为单卡 RTX 4090,推荐方案时需考虑 24GB 显存约束。",
+        "source": "扩散模型效率优化",
+        "created_at": "2026-08-19T16:40:00+08:00",
+        "scope": "project", "project_id": "scinexus", "project": "研枢", "enabled": True,
+    },
+    {
+        "id": "mem_m5",
+        "fact": "综述管线的实验数据统一放在 wb_assets 的 a2 数据集,引用时用版本号 v2。",
+        "source": "扩散模型效率优化",
+        "created_at": "2026-08-20T13:10:00+08:00",
+        "scope": "project", "project_id": "scinexus", "project": "研枢", "enabled": True,
+    },
+    {
+        "id": "mem_m6",
+        "fact": "用户习惯用中文提问但希望术语保留英文原文。",
+        "source": "操作泛化性研究计划",
+        "created_at": "2026-08-21T11:30:00+08:00",
+        "scope": "global", "project_id": None, "project": None, "enabled": True,
+    },
+]
+
 _USER_FOLLOWED_SCHOLARS: dict[str, set[str]] = {}
 _USER_BOOKMARKED_INSTITUTIONS: dict[str, set[str]] = {}
 
@@ -389,6 +454,8 @@ def _seed_demo_private_data(user_id: str) -> None:
     _USER_CONVERSATIONS.setdefault(user_id, copy.deepcopy(_DEMO_CONVERSATIONS))
     _USER_NOTIFICATIONS.setdefault(user_id, copy.deepcopy(_DEMO_NOTIFICATIONS))
     _USER_PRIVATE_GRAPHS.setdefault(user_id, copy.deepcopy(_DEMO_PRIVATE_GRAPH))
+    _USER_MEMORY_ENTRIES.setdefault(user_id, copy.deepcopy(_DEMO_MEMORY_ENTRIES))
+    _USER_MEMORY_SETTINGS.setdefault(user_id, {"enabled": True})
 
 
 def _require_production_auth_secret() -> None:
@@ -1504,6 +1571,110 @@ def remove_favorite(paper_id: str, request: Request):
     favorites = _user_items(_USER_FAVORITES, _require_login(request))
     favorites[:] = [f for f in favorites if f["paper_id"] != paper_id]
     return {"message": "已取消收藏"}
+
+# ==================== AI 长期记忆 ====================
+def _serialize_memory_entry(m: dict) -> dict:
+    """输出前端对齐的记忆条目(camelCase)。"""
+    out: dict = {
+        "id": m["id"],
+        "fact": m["fact"],
+        "source": m.get("source") or "手动",
+        "createdAt": m.get("created_at"),
+        "scope": m.get("scope", "global"),
+        "enabled": bool(m.get("enabled", True)),
+    }
+    if out["scope"] == "project":
+        out["project"] = m.get("project")
+        out["projectId"] = m.get("project_id")
+    return out
+
+
+@app.get("/api/memory")
+def get_memory(request: Request, scope: Optional[str] = None):
+    """获取当前用户的 AI 记忆(条目列表 + 总开关)。scope 可选过滤 global|project。"""
+    user_id = _require_login(request)
+    if scope is not None and scope not in ("global", "project"):
+        raise HTTPException(status_code=400, detail="scope 仅支持 global / project")
+    settings = _USER_MEMORY_SETTINGS.get(user_id) or {"enabled": True}
+    entries = [m for m in _user_items(_USER_MEMORY_ENTRIES, user_id)
+               if scope is None or m.get("scope") == scope]
+    entries.sort(key=lambda m: str(m.get("created_at")), reverse=True)
+    return {
+        "success": True,
+        "data": {
+            "enabled": bool(settings.get("enabled", True)),
+            "items": [_serialize_memory_entry(m) for m in entries],
+        },
+    }
+
+
+@app.put("/api/memory")
+def set_memory_enabled(req: MemorySettingsRequest, request: Request):
+    """设置 AI 记忆总开关(关闭后 agent 不再引用记忆)。"""
+    user_id = _require_login(request)
+    _USER_MEMORY_SETTINGS[user_id] = {"enabled": bool(req.enabled)}
+    return {"success": True, "data": {"enabled": bool(req.enabled)}}
+
+
+@app.post("/api/memory/entries")
+def create_memory_entry(req: MemoryEntryCreateRequest, request: Request):
+    """新增记忆条目(手动 / agent 自动写入)。"""
+    user_id = _require_login(request)
+    fact = (req.fact or "").strip()
+    if not fact:
+        raise HTTPException(status_code=400, detail="fact 不能为空")
+    scope = "project" if req.scope == "project" else "global"
+    if scope == "project" and not req.project_id and not req.project:
+        raise HTTPException(status_code=400, detail="项目级记忆需要提供 project_id 或 project")
+    entry = {
+        "id": _gen_id("mem_"),
+        "fact": fact,
+        "scope": scope,
+        "project_id": req.project_id,
+        "project": req.project,
+        "source": (req.source or "").strip() or "手动",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "enabled": True,
+    }
+    _user_items(_USER_MEMORY_ENTRIES, user_id).append(entry)
+    return {"success": True, "data": _serialize_memory_entry(entry)}
+
+
+@app.put("/api/memory/entries/{entry_id}")
+def edit_memory_entry(entry_id: str, req: MemoryEntryEditRequest, request: Request):
+    """编辑记忆条目的事实陈述。"""
+    user_id = _require_login(request)
+    fact = (req.fact or "").strip()
+    if not fact:
+        raise HTTPException(status_code=400, detail="fact 不能为空")
+    for m in _user_items(_USER_MEMORY_ENTRIES, user_id):
+        if m["id"] == entry_id:
+            m["fact"] = fact
+            return {"success": True, "data": _serialize_memory_entry(m)}
+    raise HTTPException(status_code=404, detail="记忆条目未找到")
+
+
+@app.delete("/api/memory/entries/{entry_id}")
+def delete_memory_entry(entry_id: str, request: Request):
+    """删除记忆条目。"""
+    user_id = _require_login(request)
+    entries = _user_items(_USER_MEMORY_ENTRIES, user_id)
+    before = len(entries)
+    entries[:] = [m for m in entries if m["id"] != entry_id]
+    if len(entries) == before:
+        raise HTTPException(status_code=404, detail="记忆条目未找到")
+    return {"success": True, "data": {"id": entry_id}}
+
+
+@app.post("/api/memory/entries/{entry_id}/toggle")
+def toggle_memory_entry(entry_id: str, request: Request):
+    """启用 / 停用单条记忆。"""
+    user_id = _require_login(request)
+    for m in _user_items(_USER_MEMORY_ENTRIES, user_id):
+        if m["id"] == entry_id:
+            m["enabled"] = not m.get("enabled", True)
+            return {"success": True, "data": _serialize_memory_entry(m)}
+    raise HTTPException(status_code=404, detail="记忆条目未找到")
 
 # ==================== 开题报告 / 综述生成 ====================
 @app.post("/api/proposal/generate")

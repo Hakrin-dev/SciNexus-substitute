@@ -150,6 +150,8 @@ export interface PaperDetail {
   introduction: string;
   source?: "remote_knowledge_base" | "local" | "hybrid" | string;
   fallbackUsed?: boolean;
+  /** 上游实际返回的原始 PDF 地址；缺失时不展示 PDF 链接。 */
+  pdfUrl?: string | null;
   /** 仅在实际获得全文分块时为 true；摘要不能伪装成全文。 */
   hasFulltext?: boolean;
 }

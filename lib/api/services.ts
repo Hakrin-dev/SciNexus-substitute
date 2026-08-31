@@ -17,8 +17,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
 import {
   normalizeVenues,
+  toFeedPaper,
   toPaperDetail,
   toVenue,
+  type BackendPaper,
   type BackendMatchedVenue,
   type BackendScholarDetail,
   type BackendVenue,
@@ -58,12 +60,15 @@ import type { FeedPaper, LibraryItem, MatchedVenue, PaperGraph, Scholar, Venue }
 
 /** mock 回退数据的符号标记(不参与 JSON/渲染,仅供 <MockDataBadge> 检测) */
 export const MOCK_TAG = Symbol("scinexus.mock");
+/** 回退数据所属域，供 UI 说明是哪一部分在用演示数据。 */
+export const MOCK_DOMAIN = Symbol("scinexus.mock-domain");
 
 /** 给回退数据打上演示标记 */
-export function tagMock<T>(data: T): T {
+export function tagMock<T>(data: T, domain = "数据"): T {
   try {
     if (data && typeof data === "object") {
       (data as Record<symbol, unknown>)[MOCK_TAG] = true;
+      (data as Record<symbol, unknown>)[MOCK_DOMAIN] = domain;
     }
   } catch {
     // 不可扩展对象忽略标记
@@ -76,7 +81,10 @@ function mockFallback<T>(source: string, err: unknown, fallback: T): T {
   if (process.env.NODE_ENV !== "production") {
     console.warn(`[scinexus] ${source} 请求失败，已回退演示数据:`, err);
   }
-  return tagMock(fallback);
+  const domain = source.includes("conversations") ? "对话" : source.includes("projects")
+    ? "项目" : source.includes("search") || source.includes("papers") || source.includes("graph")
+      ? "论文/图谱" : "其他数据";
+  return tagMock(fallback, domain);
 }
 
 /** 主发现页 Feed 流 */
@@ -494,10 +502,12 @@ export function usePublicGraph(paperId?: string) {
         );
         return json.data;
       } catch (err) {
+        // 指定论文的图谱失败时必须让页面呈现真实错误，不能展示无关演示图谱。
+        if (paperId) throw err;
         return mockFallback("/api/graph/public", err, mockPublicGraph);
       }
     },
-    placeholderData: mockPublicGraph,
+    placeholderData: paperId ? undefined : mockPublicGraph,
     staleTime: 60_000,
   });
 }
@@ -588,10 +598,50 @@ export async function fetchConversationMessages(id: string): Promise<Conversatio
 }
 
 /** 论文检索（/api/search，带 relevance） */
-export async function searchPapers(query: string) {
+export interface KnowledgeSearchFilters {
+  yearFrom?: number;
+  yearTo?: number;
+  conferences?: string[];
+  authors?: string[];
+  keywords?: string[];
+  subjects?: string[];
+  topK?: number;
+}
+
+/** 浏览器可见的知识底座状态；失败不回退 mock，避免把远程状态误报为连接成功。 */
+export function useKnowledgeHealth() {
+  return useQuery({
+    queryKey: ["api", "knowledge", "health"],
+    queryFn: () => apiGet<{
+      status: "ready" | "degraded" | "unavailable";
+      provider: string;
+      checkedAt: string;
+      tookMs: number;
+      checks: Record<string, { ok: boolean; data?: unknown; error?: string }>;
+    }>("/api/knowledge/health").then((response) => response.data),
+    staleTime: 30_000,
+    retry: 0,
+  });
+}
+
+/** 论文检索（/api/search，保留远程来源、排序和回退状态）。 */
+export async function searchPapers(query: string, filters: KnowledgeSearchFilters = {}) {
   try {
-    const json = await apiPost<FeedPaper[]>("/api/search", { query });
-    return json.data ?? [];
+    const json = await apiPost<BackendPaper[]>("/api/search", {
+      query,
+      year_from: filters.yearFrom,
+      year_to: filters.yearTo,
+      conference: filters.conferences,
+      author: filters.authors,
+      keyword: filters.keywords,
+      subject: filters.subjects,
+      top_k: filters.topK,
+    });
+    const fallbackUsed = json.meta?.fallbackUsed === true;
+    const source = typeof json.meta?.source === "string" ? json.meta.source : undefined;
+    return (json.data ?? []).map((paper) =>
+      toFeedPaper({ ...paper, source: paper.source ?? source, fallbackUsed }),
+    );
   } catch (err) {
     return mockFallback(
       "/api/search",

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MOCK_TAG } from "@/lib/api/services";
+import { MOCK_DOMAIN, MOCK_TAG } from "@/lib/api/services";
 import { useSidebarStore } from "@/stores/sidebar";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 export function MockDataBadge() {
   const queryClient = useQueryClient();
   const [visible, setVisible] = useState(false);
+  const [domains, setDomains] = useState<string[]>([]);
   const collapsed = useSidebarStore((s) => s.collapsed);
 
   useEffect(() => {
@@ -24,18 +25,14 @@ export function MockDataBadge() {
     const scan = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        setVisible(
-          cache
-            .getAll()
-            .some(
-              (q) =>
-                q.getObserversCount() > 0 &&
-                q.state.data !== undefined &&
-                typeof q.state.data === "object" &&
-                q.state.data !== null &&
-                MOCK_TAG in (q.state.data as object),
-            ),
-        );
+        const fallbackDomains = cache.getAll().flatMap((q) => {
+          const data = q.state.data;
+          if (q.getObserversCount() <= 0 || !data || typeof data !== "object" || !(MOCK_TAG in data)) return [];
+          const domain = (data as Record<symbol, unknown>)[MOCK_DOMAIN];
+          return typeof domain === "string" ? [domain] : ["其他数据"];
+        });
+        setDomains([...new Set(fallbackDomains)]);
+        setVisible(fallbackDomains.length > 0);
       });
     };
     scan();
@@ -55,7 +52,7 @@ export function MockDataBadge() {
       )}
     >
       <span className="size-1.5 rounded-full bg-amber-500" aria-hidden />
-      演示数据 · 后端接口未连通
+      演示数据：{domains.join("、")}（不代表知识底座状态）
     </div>
   );
 }

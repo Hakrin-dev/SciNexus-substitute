@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Funnel } from "lucide-react";
-import { searchPapers } from "@/lib/api/services";
+import { searchPapers, type KnowledgeSearchFilters } from "@/lib/api/services";
+import { KnowledgeHealthStatus } from "@/components/features/knowledge/knowledge-health-status";
 import { cn } from "@/lib/utils";
 import type { FeedPaper } from "@/types";
 import { SearchHero } from "./search-hero";
@@ -127,11 +128,16 @@ export function HomeFeed() {
   const [busy, setBusy] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [ascending, setAscending] = useState(true);
+  const [filters, setFilters] = useState<KnowledgeSearchFilters>({ topK: 10 });
+
+  const list = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
+  const setList = (key: "conferences" | "authors" | "keywords" | "subjects", value: string) =>
+    setFilters((current) => ({ ...current, [key]: list(value) }));
 
   const search = async (q: string) => {
     setBusy(true);
     try {
-      setResults(await searchPapers(q));
+      setResults(await searchPapers(q, filters));
     } finally {
       setBusy(false);
     }
@@ -148,6 +154,21 @@ export function HomeFeed() {
   return (
     <>
       <SearchHero onSearchPapers={search} />
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 px-1">
+        <details className="group rounded-xl border border-line bg-card px-3 py-2 text-sm">
+          <summary className="cursor-pointer list-none text-ink-2">高级筛选 <span className="text-faint">（年份、会议、作者、关键词、主题）</span></summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <input aria-label="最早年份" type="number" placeholder="最早年份" value={filters.yearFrom ?? ""} onChange={(e) => setFilters((v) => ({ ...v, yearFrom: e.target.value ? Number(e.target.value) : undefined }))} className="rounded-lg border border-line bg-background px-2 py-1.5" />
+            <input aria-label="最晚年份" type="number" placeholder="最晚年份" value={filters.yearTo ?? ""} onChange={(e) => setFilters((v) => ({ ...v, yearTo: e.target.value ? Number(e.target.value) : undefined }))} className="rounded-lg border border-line bg-background px-2 py-1.5" />
+            <input aria-label="会议" placeholder="会议，如 AAAI, NeurIPS" value={(filters.conferences ?? []).join(", ")} onChange={(e) => setList("conferences", e.target.value)} className="rounded-lg border border-line bg-background px-2 py-1.5" />
+            <input aria-label="作者" placeholder="作者，逗号分隔" value={(filters.authors ?? []).join(", ")} onChange={(e) => setList("authors", e.target.value)} className="rounded-lg border border-line bg-background px-2 py-1.5" />
+            <input aria-label="关键词" placeholder="关键词，逗号分隔" value={(filters.keywords ?? []).join(", ")} onChange={(e) => setList("keywords", e.target.value)} className="rounded-lg border border-line bg-background px-2 py-1.5" />
+            <input aria-label="主题" placeholder="主题，逗号分隔" value={(filters.subjects ?? []).join(", ")} onChange={(e) => setList("subjects", e.target.value)} className="rounded-lg border border-line bg-background px-2 py-1.5" />
+            <input aria-label="结果数量" type="number" min="1" max="50" placeholder="结果数量" value={filters.topK ?? ""} onChange={(e) => setFilters((v) => ({ ...v, topK: e.target.value ? Number(e.target.value) : undefined }))} className="rounded-lg border border-line bg-background px-2 py-1.5" />
+          </div>
+        </details>
+        <KnowledgeHealthStatus />
+      </div>
       {sorted === null ? (
         <>
           <FeedTabs />

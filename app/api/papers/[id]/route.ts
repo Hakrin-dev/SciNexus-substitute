@@ -23,9 +23,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         return ok({
           ...remote,
           authors: remote.author_list,
+          fallbackUsed: false,
+          hasFulltext: false,
           page: { current: 1, total: 1 },
           toc: [{ id: "abstract", label: "摘要 Abstract", active: true }],
-          introduction: remote.abstract,
+      introduction: remote.abstract,
         });
       } catch (error) {
         console.warn(`[scinexus] 远程论文详情失败: ${id}`, error);
@@ -68,6 +70,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ccf: row.ccf,
       year: row.year,
       doi: row.doi,
+      source: "local",
+      fallbackUsed: shouldUseRemoteKnowledgeBase(),
+      hasFulltext: false,
     };
     return ok(data);
   } catch (e: any) {

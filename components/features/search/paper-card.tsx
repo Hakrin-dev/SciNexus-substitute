@@ -29,9 +29,14 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
             <span className="text-faint">{paper.date}</span>
             <Badge variant={VENUE_VARIANT[paper.venueTone]}>{paper.venue}</Badge>
+            <span className={paper.source === "remote_knowledge_base" ? "rounded-full bg-primary-soft px-2 py-0.5 text-[11px] text-primary" : "rounded-full bg-chip px-2 py-0.5 text-[11px] text-muted"}>
+              {paper.source === "remote_knowledge_base" ? "远程知识底座" : paper.source === "hybrid" ? "混合检索" : "本地数据"}
+            </span>
+            {paper.fallbackUsed && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">已回退</span>}
+            {paper.rank != null && <span className="text-[11px] text-faint">远程排名 #{paper.rank}</span>}
             <span className="flex items-center gap-1.5 text-muted">
               <Users className="size-3.5 text-faint" />
-              {paper.authors}
+            {paper.authors || "知识底座未提供作者"}
             </span>
           </div>
 
@@ -108,7 +113,7 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
         <div className="relative hidden w-[200px] shrink-0 md:block">
           <div className="absolute -top-2 right-2 z-10 flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs text-muted shadow-card">
             <TrendingUp className="size-3 text-primary" />
-            引用 {paper.citations}
+            {paper.citations > 0 ? `引用 ${paper.citations}` : "引用数据未提供"}
           </div>
           <div className="flex h-full min-h-[128px] items-center justify-center rounded-xl bg-chip text-sm text-faint">
             {paper.thumb}

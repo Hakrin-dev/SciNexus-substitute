@@ -13,6 +13,12 @@ export interface FeedPaper {
   citations: number;
   /** CCF 等级(A/B/C),用于「影响因子」排序的占位依据;无数据时为 null */
   ccf?: string | null;
+  /** 检索结果的数据来源，避免把本地回退误写成远程结果。 */
+  source?: "remote_knowledge_base" | "local" | "hybrid" | string;
+  /** 远程知识底座提供的排序位置（不是百分比得分）。 */
+  rank?: number | null;
+  knowledgeScore?: number | null;
+  fallbackUsed?: boolean;
   thumb: string;
 }
 
@@ -140,6 +146,10 @@ export interface PaperDetail {
   toc: { id: string; label: string; active?: boolean }[];
   abstract: string;
   introduction: string;
+  source?: "remote_knowledge_base" | "local" | "hybrid" | string;
+  fallbackUsed?: boolean;
+  /** 仅在实际获得全文分块时为 true；摘要不能伪装成全文。 */
+  hasFulltext?: boolean;
 }
 
 export interface RelatedPaper {
@@ -172,6 +182,8 @@ export interface GraphEdge {
   strength: number;
   /** 私域跨层边(虚线) */
   crossLayer?: boolean;
+  /** 远程知识图谱的关系标签，例如 CITES。 */
+  relation?: string;
 }
 
 export interface PaperGraph {
@@ -180,6 +192,8 @@ export interface PaperGraph {
   edges: GraphEdge[];
   /** 左栏列表顺序 */
   relatedIds: string[];
+  source?: "remote_knowledge_base" | "local" | "hybrid" | string;
+  fallbackUsed?: boolean;
 }
 
 /** 机构统计项 */

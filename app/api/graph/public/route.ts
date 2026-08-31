@@ -66,6 +66,7 @@ function toPaperGraph(graph: KnowledgeGraph, paperId: string) {
       })),
     relatedIds: nodes.map((node) => node.id),
     source: "remote_knowledge_base",
+    fallbackUsed: false,
   };
 }
 
@@ -141,8 +142,9 @@ export async function GET(req: NextRequest) {
       ensureSeed();
       const db = getDB();
       const built = buildGraphAround(db, paperId);
-      if (built) return ok(built);
-      // 未命中论文则继续走下方演示图谱兜底
+      if (built) return ok({ ...built, source: "local", fallbackUsed: true });
+      // 请求了特定论文却无法取得其图谱时，不能回落到无关的默认演示图谱。
+      return fail("当前论文暂无可用图谱数据", 404);
     }
 
     ensureSeed();
@@ -172,6 +174,8 @@ export async function GET(req: NextRequest) {
         crossLayer: !!e.cross_layer,
       })),
       relatedIds: relatedRows.map((r) => r.node_id),
+      source: "local",
+      fallbackUsed: shouldUseRemoteKnowledgeBase(),
     };
     return ok(data);
   } catch (e) {

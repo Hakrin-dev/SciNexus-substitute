@@ -129,7 +129,8 @@ export function toFrontendKnowledgePaper(paper: KnowledgePaper) {
   return {
     id: paper.paperId,
     title: paper.title,
-    authors: paper.authors.join(", ") || "未知作者",
+    // 空数组表示上游未提供作者，不在服务端制造看似真实的占位作者。
+    authors: paper.authors.join(", "),
     author_list: paper.authors,
     affiliation: null,
     venue: paper.venue || "未知来源",
@@ -286,4 +287,19 @@ export async function getKnowledgeHealth() {
     requestJson<Record<string, unknown>>("/api/retrieval/ready"),
   ]);
   return { service, retrieval, ready };
+}
+
+/** 供筛选 UI 使用的知识底座元数据；路径白名单避免代理任意远程地址。 */
+export async function getKnowledgeMetadata(
+  kind: "venues" | "tracks" | "categories" | "conferences",
+  conference?: string,
+) {
+  const paths = {
+    venues: "/api/papers/venues",
+    tracks: "/api/papers/tracks",
+    categories: "/api/categories",
+    conferences: "/api/conferences",
+  } as const;
+  const query = kind === "tracks" && conference ? `?conference=${encodeURIComponent(conference)}` : "";
+  return requestJson<unknown>(`${paths[kind]}${query}`);
 }

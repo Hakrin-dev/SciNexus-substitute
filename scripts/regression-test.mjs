@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { normalizeVenues } from "../lib/api/adapters.ts";
+import { normalizeVenues, toFeedPaper } from "../lib/api/adapters.ts";
 import { getAuthSecret } from "../lib/server/auth-secret.ts";
 import {
   normalizeKnowledgeGraph,
@@ -95,6 +95,27 @@ test("remote knowledge paper fields map to the existing frontend paper contract"
   assert.deepEqual(paper.tags, ["graph", "AI"]);
   assert.equal(paper.knowledgeScore, 0.022);
   assert.equal(paper.source, "remote_knowledge_base");
+});
+
+test("remote search cards retain source data and never render NaN likes", () => {
+  const card = toFeedPaper({
+    id: "paper:remote:1",
+    title: "Remote Paper",
+    authors: "",
+    venue: "AAAI",
+    citations: Number.NaN,
+    year: 2021,
+    source: "remote_knowledge_base",
+    rank: 1,
+    knowledgeScore: 0.022,
+  });
+
+  assert.equal(card.likes, 0);
+  assert.equal(card.citations, 0);
+  assert.equal(card.date, "2021");
+  assert.equal(card.authors, "未提供作者");
+  assert.equal(card.source, "remote_knowledge_base");
+  assert.equal(card.rank, 1);
 });
 
 test("remote graph normalization preserves directed citation lines", () => {

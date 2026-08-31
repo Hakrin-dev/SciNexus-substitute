@@ -288,6 +288,26 @@ export const client = {
   },
 };
 
+export interface CreateProjectInput {
+  name: string;
+  tagline: string;
+  status?: string;
+  overview: string[];
+  techStack: string[];
+  milestones: Record<string, unknown>[];
+  members: { name: string; role: string }[];
+  links: Record<string, unknown>[];
+}
+
+export async function createProject(input: CreateProjectInput): Promise<string> {
+  const response = await request<{ id?: unknown }>("POST", "/api/projects", { body: input });
+  const id = response.data?.id;
+  if (typeof id !== "string" || !id) {
+    throw new Error("创建课题失败：后端未返回课题 ID");
+  }
+  return id;
+}
+
 export default client;
 export { ApiError };
 

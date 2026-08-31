@@ -138,3 +138,43 @@ test("remote graph normalization preserves directed citation lines", () => {
     data: { type: "CITES" },
   });
 });
+
+test("external project creation submits the wizard payload and returns the backend project id", async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, init) => {
+    request = { url: String(url), init };
+    return new Response(JSON.stringify({ data: { id: "proj-created" } }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    const { createProject } = await import("../lib/api/client.ts");
+    const id = await createProject({
+      name: "Scientific Retrieval Evaluation",
+      tagline: "Evaluate retrieval quality",
+      overview: ["Evaluate retrieval quality"],
+      techStack: ["Next.js", "FastAPI"],
+      members: [{ name: "Lin", role: "Lead" }],
+      milestones: [],
+      links: [],
+    });
+
+    assert.equal(id, "proj-created");
+    assert.equal(request.url, "/api/projects");
+    assert.equal(request.init.method, "POST");
+    assert.deepEqual(JSON.parse(request.init.body), {
+      name: "Scientific Retrieval Evaluation",
+      tagline: "Evaluate retrieval quality",
+      overview: ["Evaluate retrieval quality"],
+      techStack: ["Next.js", "FastAPI"],
+      members: [{ name: "Lin", role: "Lead" }],
+      milestones: [],
+      links: [],
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

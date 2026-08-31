@@ -15,8 +15,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useDemoState } from "@/stores/demo-state";
 import { toast } from "@/stores/toast";
+import { createProject } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 const FIELDS = ["检索", "写作", "分析", "代码", "实验设计", "综述"] as const;
@@ -30,7 +30,6 @@ interface Member {
 
 export function NewProjectFlow() {
   const router = useRouter();
-  const addDemoProject = useDemoState((s) => s.addDemoProject);
 
   const [step, setStep] = React.useState(0);
   const [name, setName] = React.useState("");
@@ -41,6 +40,7 @@ export function NewProjectFlow() {
   const [memberRole, setMemberRole] = React.useState("");
   const [tech, setTech] = React.useState<string[]>([]);
   const [techInput, setTechInput] = React.useState("");
+  const [creating, setCreating] = React.useState(false);
 
   const canNextStep1 = name.trim().length > 0;
 
@@ -59,21 +59,29 @@ export function NewProjectFlow() {
   };
   const removeTech = (v: string) => setTech((t) => t.filter((x) => x !== v));
 
-  const handleCreate = () => {
-    const id = addDemoProject({
-      name: name.trim(),
-      tagline: tagline.trim() || `${field ?? "科研"}方向的新课题`,
-      status: "进行中",
-      progress: 0,
-      owner: "我",
-      overview: tagline.trim() ? [tagline.trim()] : [`${field ?? "科研"}方向的新课题`],
-      techStack: tech,
-      milestones: [],
-      members,
-      links: [],
-    });
-    toast.success(`已创建课题「${name.trim()}」`);
-    router.push(`/projects/${id}`);
+  const handleCreate = async () => {
+    if (creating) return;
+    const fallbackTagline = `${field ?? "科研"}方向的新课题`;
+    const projectTagline = tagline.trim() || fallbackTagline;
+    setCreating(true);
+    try {
+      const id = await createProject({
+        name: name.trim(),
+        tagline: projectTagline,
+        status: "进行中",
+        overview: [projectTagline],
+        techStack: tech,
+        milestones: [],
+        members,
+        links: [],
+      });
+      toast.success(`已创建课题「${name.trim()}」`);
+      router.push(`/projects/${id}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "创建课题失败，请稍后重试");
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -86,7 +94,7 @@ export function NewProjectFlow() {
           </span>
           <div>
             <h1 className="text-xl font-bold text-ink">新建课题</h1>
-            <p className="mt-0.5 text-xs text-faint">演示流程 · 仅前端原型,不连后端</p>
+            <p className="mt-0.5 text-xs text-faint">创建后自动保存到当前账户</p>
           </div>
         </div>
 
@@ -250,7 +258,7 @@ export function NewProjectFlow() {
                 <Row label="技术栈" value={tech.length ? tech.join("、") : "暂无"} />
               </dl>
               <p className="text-xs text-faint">
-                创建后将进入该课题的工作台(演示态数据);真实后端接入后可改为持久化存储。
+                创建后将进入该课题的工作台。
               </p>
             </div>
           )}
@@ -275,9 +283,9 @@ export function NewProjectFlow() {
               <ArrowRight className="size-4" />
             </Button>
           ) : (
-            <Button onClick={handleCreate}>
+            <Button onClick={() => void handleCreate()} disabled={creating}>
               <Check className="size-4" />
-              创建课题
+              {creating ? "创建中…" : "创建课题"}
             </Button>
           )}
         </div>

@@ -9,6 +9,7 @@ import { ensureSeed, fail, ok } from "@/lib/server/utils";
 import { getDB, jsonParse, mapGraphNode } from "@/lib/server/db";
 import {
   getKnowledgeGraph,
+  recordKnowledgeFallback,
   shouldFallbackToLocal,
   shouldUseRemoteKnowledgeBase,
   type KnowledgeGraph,
@@ -137,6 +138,7 @@ export async function GET(req: NextRequest) {
           if (!shouldFallbackToLocal()) {
             return fail(error instanceof Error ? error.message : "知识底座暂不可用", 502);
           }
+          recordKnowledgeFallback();
         }
       }
       ensureSeed();

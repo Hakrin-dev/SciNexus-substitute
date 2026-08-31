@@ -101,9 +101,10 @@ app = FastAPI(
 )
 
 # ==================== CORS 跨域配置 ====================
+_cors_origins = [item.strip() for item in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if item.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -125,7 +126,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal Server Error", "detail": str(exc), "path": str(request.url)}
+        content={"error": "Internal Server Error", "detail": str(exc) if os.getenv("NODE_ENV") != "production" else "请查看服务端日志", "path": str(request.url)}
     )
 
 @app.exception_handler(HTTPException)
@@ -389,9 +390,15 @@ def _seed_demo_private_data(user_id: str) -> None:
     _USER_NOTIFICATIONS.setdefault(user_id, copy.deepcopy(_DEMO_NOTIFICATIONS))
     _USER_PRIVATE_GRAPHS.setdefault(user_id, copy.deepcopy(_DEMO_PRIVATE_GRAPH))
 
+
+def _require_production_auth_secret() -> None:
+    if not auth_module.production_secret_configured():
+        raise HTTPException(status_code=503, detail="生产认证密钥未配置")
+
 @app.post("/api/auth/login")
 def auth_login(req: LoginRequest):
     """用户登录：返回 token 与用户信息。"""
+    _require_production_auth_secret()
     result = auth_module.login(req.username, req.password)
     if not result:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
@@ -400,6 +407,7 @@ def auth_login(req: LoginRequest):
 @app.post("/api/auth/register")
 def auth_register(req: RegisterRequest):
     """用户注册：成功返回 token 与用户信息，失败返回错误信息。"""
+    _require_production_auth_secret()
     result = auth_module.register({
         "username": req.username,
         "password": req.password,

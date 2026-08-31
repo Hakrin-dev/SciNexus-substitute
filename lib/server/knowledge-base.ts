@@ -67,9 +67,84 @@ export interface KnowledgeGraph {
 
 const DEFAULT_API_URL = "http://47.110.47.12";
 
+type CircuitState = {
+  failures: number;
+  openedAt: number | null;
+  requests: number;
+  successes: number;
+  failuresTotal: number;
+  fallbacks: number;
+  latencies: number[];
+};
+
+const circuit: CircuitState = {
+  failures: 0, openedAt: null, requests: 0, successes: 0, failuresTotal: 0, fallbacks: 0, latencies: [],
+};
+
 function integerEnv(name: string, fallback: number): number {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+}
+
+function isProduction() {
+  return process.env.NODE_ENV === "production";
+}
+
+function remoteBaseUrl(): string {
+  const value = (process.env.RETRIEVAL_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new KnowledgeBaseError("RETRIEVAL_API_URL 必须是有效的 http(s) 地址");
+  }
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new KnowledgeBaseError("RETRIEVAL_API_URL 仅支持 http(s) 协议");
+  }
+  const allowInsecure = ["1", "true", "yes"].includes((process.env.RETRIEVAL_ALLOW_INSECURE_HTTP || "").toLowerCase());
+  if (isProduction() && url.protocol !== "https:" && !allowInsecure) {
+    throw new KnowledgeBaseError("生产环境知识底座必须使用 HTTPS；仅受控内网可设置 RETRIEVAL_ALLOW_INSECURE_HTTP=true");
+  }
+  return url.toString().replace(/\/$/, "");
+}
+
+function circuitOpen(): boolean {
+  if (!circuit.openedAt) return false;
+  const resetMs = integerEnv("RETRIEVAL_CIRCUIT_RESET_SECONDS", 30) * 1000;
+  if (Date.now() - circuit.openedAt >= resetMs) {
+    circuit.openedAt = null;
+    circuit.failures = 0;
+    return false;
+  }
+  return true;
+}
+
+function recordRequest(success: boolean, startedAt: number, fallback = false) {
+  circuit.requests += 1;
+  circuit.latencies.push(Date.now() - startedAt);
+  if (circuit.latencies.length > 200) circuit.latencies.shift();
+  if (fallback) circuit.fallbacks += 1;
+  if (success) {
+    circuit.successes += 1;
+    circuit.failures = 0;
+    return;
+  }
+  circuit.failuresTotal += 1;
+  circuit.failures += 1;
+  if (circuit.failures >= integerEnv("RETRIEVAL_CIRCUIT_FAILURE_THRESHOLD", 3)) circuit.openedAt = Date.now();
+}
+
+export function knowledgeBaseRuntimeStatus() {
+  const sorted = [...circuit.latencies].sort((a, b) => a - b);
+  const p95 = sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] : null;
+  return {
+    circuit: circuitOpen() ? "open" : "closed",
+    requests: circuit.requests,
+    successes: circuit.successes,
+    failures: circuit.failuresTotal,
+    fallbackRate: circuit.requests ? circuit.fallbacks / circuit.requests : 0,
+    p95Ms: p95,
+  };
 }
 
 export function retrievalProvider(): RetrievalProvider {
@@ -164,9 +239,11 @@ class KnowledgeBaseError extends Error {
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const base = (process.env.RETRIEVAL_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
+  if (circuitOpen()) throw new KnowledgeBaseError("知识底座熔断中，等待恢复探测");
+  const base = remoteBaseUrl();
   const timeoutMs = integerEnv("RETRIEVAL_TIMEOUT_SECONDS", 30) * 1000;
   const retries = integerEnv("RETRIEVAL_RETRY_COUNT", 2);
+  const startedAt = Date.now();
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -175,7 +252,11 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     try {
       const response = await fetch(`${base}${path}`, {
         ...init,
-        headers: { Accept: "application/json", ...(init?.headers || {}) },
+        headers: {
+          Accept: "application/json",
+          ...(process.env.RETRIEVAL_API_TOKEN ? { Authorization: `Bearer ${process.env.RETRIEVAL_API_TOKEN}` } : {}),
+          ...(init?.headers || {}),
+        },
         signal: controller.signal,
         cache: "no-store",
       });
@@ -188,7 +269,9 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
         if (![500, 503].includes(response.status) || attempt === retries) throw error;
         lastError = error;
       } else {
-        return (await response.json()) as T;
+        const data = (await response.json()) as T;
+        recordRequest(true, startedAt);
+        return data;
       }
     } catch (error) {
       lastError = error;
@@ -201,7 +284,12 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     }
   }
   const message = lastError instanceof Error ? lastError.message : String(lastError || "未知错误");
+  recordRequest(false, startedAt);
   throw new KnowledgeBaseError(`知识底座暂不可用: ${message}`);
+}
+
+export function recordKnowledgeFallback() {
+  circuit.fallbacks += 1;
 }
 
 export async function searchKnowledgeBase(input: KnowledgeSearchInput): Promise<KnowledgeSearchResult> {

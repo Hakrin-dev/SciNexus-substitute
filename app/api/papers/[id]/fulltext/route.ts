@@ -7,6 +7,7 @@ import { ensureSeed, fail } from "@/lib/server/utils";
 import { getDB } from "@/lib/server/db";
 import {
   getKnowledgePaper,
+  recordKnowledgeFallback,
   shouldFallbackToLocal,
   shouldUseRemoteKnowledgeBase,
 } from "@/lib/server/knowledge-base";
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (!shouldFallbackToLocal()) {
         return fail(error instanceof Error ? error.message : "知识底座暂不可用", 502);
       }
+      recordKnowledgeFallback();
     }
   }
 

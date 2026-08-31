@@ -19,6 +19,7 @@ import { getDB, jsonParse, mapPaper } from "@/lib/server/db";
 import { chatText } from "@/lib/server/llm";
 import {
   searchKnowledgeBase,
+  recordKnowledgeFallback,
   shouldFallbackToLocal,
   shouldUseRemoteKnowledgeBase,
   toFrontendKnowledgePaper,
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
         if (!shouldFallbackToLocal()) {
           return fail(error instanceof Error ? error.message : "知识底座暂不可用", 502);
         }
+        recordKnowledgeFallback();
       }
     }
 

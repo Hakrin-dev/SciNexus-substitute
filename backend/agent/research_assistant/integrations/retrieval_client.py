@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from research_assistant.config import settings
@@ -33,19 +35,44 @@ class KnowledgeBaseClient:
         self.base_url = (base_url or settings.retrieval_api_url).rstrip("/")
         self.timeout = timeout if timeout is not None else settings.retrieval_timeout_seconds
         self.retries = retries if retries is not None else settings.retrieval_retry_count
+        self.failures = 0
+        self.opened_at: float | None = None
+
+    def _validate_base_url(self) -> None:
+        parts = urlsplit(self.base_url)
+        if parts.scheme not in {"http", "https"} or not parts.netloc:
+            raise KnowledgeBaseError("RETRIEVAL_API_URL 必须是有效的 http(s) 地址")
+        production = os.getenv("NODE_ENV", "").lower() == "production" or os.getenv("ENV", "").lower() == "production"
+        if production and parts.scheme != "https" and not settings.retrieval_allow_insecure_http:
+            raise KnowledgeBaseError("生产环境知识底座必须使用 HTTPS")
+
+    def _circuit_open(self) -> bool:
+        if self.opened_at is None:
+            return False
+        if time.monotonic() - self.opened_at >= settings.retrieval_circuit_reset_seconds:
+            self.opened_at = None
+            self.failures = 0
+            return False
+        return True
 
     def _request(self, path: str, *, payload: dict[str, Any] | None = None) -> Any:
+        self._validate_base_url()
+        if self._circuit_open():
+            raise KnowledgeBaseError("知识底座熔断中，等待恢复探测")
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
         request = Request(
             f"{self.base_url}{path}",
             data=data,
             method="POST" if data is not None else "GET",
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            headers={"Accept": "application/json", "Content-Type": "application/json", **(
+                {"Authorization": f"Bearer {settings.retrieval_api_token}"} if settings.retrieval_api_token else {}
+            )},
         )
         last_error: Exception | None = None
         for attempt in range(self.retries + 1):
             try:
                 with urlopen(request, timeout=self.timeout) as response:  # noqa: S310 - configured service URL
+                    self.failures = 0
                     return json.loads(response.read().decode("utf-8"))
             except HTTPError as exc:
                 detail = exc.read().decode("utf-8", errors="replace")[:200]
@@ -59,6 +86,9 @@ class KnowledgeBaseClient:
                     break
             if attempt < self.retries:
                 time.sleep(min(0.2 * (2**attempt), 1.0))
+        self.failures += 1
+        if self.failures >= max(1, settings.retrieval_circuit_failure_threshold):
+            self.opened_at = time.monotonic()
         raise KnowledgeBaseError(f"知识底座暂不可用: {last_error}") from last_error
 
     def search(

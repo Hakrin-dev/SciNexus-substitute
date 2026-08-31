@@ -1,0 +1,2 @@
+# 复制为 knowledge-retrieval.jsonl 后，用人工确认过的远程 paper_id 填充；示例不应作为评测数据。
+# {"query":"graph neural network","relevantPaperIds":["paper:replace-with-verified-id"],"topK":10}

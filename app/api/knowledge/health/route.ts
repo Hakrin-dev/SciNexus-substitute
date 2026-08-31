@@ -1,6 +1,6 @@
 /** GET /api/knowledge/health - 服务端代理知识底座健康状态。 */
 import { NextResponse } from "next/server";
-import { getKnowledgeHealth, retrievalProvider } from "@/lib/server/knowledge-base";
+import { getKnowledgeHealth, knowledgeBaseRuntimeStatus, retrievalProvider } from "@/lib/server/knowledge-base";
 
 export const runtime = "nodejs";
 
@@ -17,6 +17,7 @@ export async function GET() {
         source: "remote_knowledge_base",
         checkedAt,
         tookMs: Date.now() - started,
+        runtime: knowledgeBaseRuntimeStatus(),
         checks: {
           service: { ok: true, data: data.service },
           retrieval: { ok: true, data: data.retrieval },
@@ -35,6 +36,7 @@ export async function GET() {
           provider: retrievalProvider(),
           checkedAt,
           tookMs: Date.now() - started,
+          runtime: knowledgeBaseRuntimeStatus(),
           checks: { knowledgeBase: { ok: false, error: message } },
         },
       },

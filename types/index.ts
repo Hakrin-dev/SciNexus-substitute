@@ -19,6 +19,8 @@ export interface FeedPaper {
   rank?: number | null;
   knowledgeScore?: number | null;
   fallbackUsed?: boolean;
+  /** 上游提供时可直接打开的原始 PDF，不等同于已解析全文。 */
+  pdfUrl?: string | null;
   thumb: string;
 }
 

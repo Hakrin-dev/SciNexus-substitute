@@ -73,6 +73,7 @@ export function PaperReaderView({ id }: { id: string }) {
               <Link href={`/papers/${encodeURIComponent(paper.id)}/graph`} className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">
                 查看引用图谱
               </Link>
+              {paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">查看原始 PDF</a>}
             </div>
 
             <hr className="mx-auto mt-6 w-16 border-line" />
@@ -94,7 +95,7 @@ export function PaperReaderView({ id }: { id: string }) {
               </>
             ) : (
               <div className="mt-8 rounded-xl border border-line bg-panel p-4 text-sm text-muted">
-                当前知识底座提供的是论文元数据和摘要，尚未取得可验证的全文/PDF 分块；因此不会把摘要伪装成完整章节。
+                当前知识底座提供的是论文元数据和摘要，尚未取得可验证的全文/PDF 分块；因此不会把摘要伪装成完整章节。{paper.pdfUrl ? " 可打开上方原始 PDF 链接阅读。" : ""}
               </div>
             )}
             </article>

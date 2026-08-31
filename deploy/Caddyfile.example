@@ -1,5 +1,5 @@
-# 将 app.example.com 改为已解析到服务器的真实域名；Caddy 自动申请并续期 TLS 证书。
-app.example.com {
+# 通过 DOMAIN 环境变量提供已解析到服务器的真实域名；Caddy 自动申请并续期 TLS 证书。
+{$DOMAIN} {
     encode zstd gzip
     reverse_proxy web:3000
     header {

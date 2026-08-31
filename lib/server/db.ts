@@ -394,6 +394,44 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_memory_entries_user ON memory_entries(user_id, created_at);
+    -- 知识库·笔记
+    CREATE TABLE IF NOT EXISTS notes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT,
+      content TEXT,
+      tags_json TEXT DEFAULT '[]',
+      paper_id TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id, updated_at);
+
+    -- 精读包缓存（翻译/图表按论文+语言全局缓存，与用户无关）
+    CREATE TABLE IF NOT EXISTS reading_packs (
+      paper_id TEXT NOT NULL,
+      lang TEXT NOT NULL DEFAULT 'zh',
+      status TEXT CHECK(status IN ('ready','partial','failed')),
+      sections_json TEXT,
+      figures_json TEXT,
+      paper_meta_json TEXT,
+      updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+      PRIMARY KEY (paper_id, lang)
+    );
+
+    -- 论文精读批注（用户维度）
+    CREATE TABLE IF NOT EXISTS paper_annotations (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      paper_id TEXT NOT NULL,
+      paragraph_id TEXT,
+      quote TEXT,
+      note TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_paper_annotations ON paper_annotations(user_id, paper_id, created_at);
   `);
 }
 

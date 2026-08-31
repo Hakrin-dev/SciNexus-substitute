@@ -347,6 +347,25 @@ class MemoryEntryEditRequest(BaseModel):
 class MemorySettingsRequest(BaseModel):
     """AI 记忆总开关请求"""
     enabled: bool
+class NoteCreateRequest(BaseModel):
+    """新增笔记请求"""
+    title: str = ""
+    content: str = ""
+    tags: Optional[list[str]] = None
+    paper_id: Optional[str] = None
+
+class NoteEditRequest(BaseModel):
+    """编辑笔记请求(字段可覆盖;None 不变更)"""
+    title: Optional[str] = None
+    content: Optional[str] = None
+    tags: Optional[list[str]] = None
+    paper_id: Optional[str] = None
+
+class AnnotationCreateRequest(BaseModel):
+    """新增论文批注请求"""
+    note: str
+    quote: Optional[str] = ""
+    paragraph_id: Optional[str] = None
 # ==================== 根路径 ====================
 @app.get("/")
 def root():
@@ -389,6 +408,78 @@ _USER_FAVORITES: dict[str, list[dict]] = {}
 _USER_PRIVATE_GRAPHS: dict[str, dict] = {}
 _USER_MEMORY_ENTRIES: dict[str, list[dict]] = {}
 _USER_MEMORY_SETTINGS: dict[str, dict] = {}
+_USER_NOTES: dict[str, list[dict]] = {}
+_USER_ANNOTATIONS: dict[str, list[dict]] = {}
+
+# 知识库·笔记演示数据(与前端 lib/data/notes.ts notesMock 对齐;仅播种演示账户)
+_DEMO_NOTES: list[dict] = [
+    {
+        "id": "n1",
+        "title": "综述管线的两条正确性指标",
+        "content": "读 review.py 三阶段管线后的归纳:\n1. 引用真实性 —— 输出引用必须一一对应检索阶段 ref_id 集合,resolve_citations 重编号 + 悬空剔除;\n2. 论断不丢失 —— 全分划聚类保证每条论断必属且仅属一个维度。\n后续实验设计都围绕这两个指标展开。",
+        "tags": ["综述管线", "正确性"],
+        "paper_id": "rdt-1b",
+        "created_at": "2026-08-22T10:00:00",
+        "updated_at": "2026-08-22T10:00:00",
+    },
+    {
+        "id": "n2",
+        "title": "扩散策略 vs VLA 选型对比",
+        "content": "扩散策略:动作空间生成,推理延迟敏感但可控性好;\nVLA:语言条件泛化强,算力要求高。\n机器人操控场景优先 diffusion policy,VLA 适合开放指令任务。",
+        "tags": ["选型", "机器人"],
+        "paper_id": None,
+        "created_at": "2026-08-20T15:30:00",
+        "updated_at": "2026-08-20T15:30:00",
+    },
+    {
+        "id": "n3",
+        "title": "跨章节引用编号漂移的修复思路",
+        "content": "失败用例归因:长文档中 [12] 被重编号后正文未同步。\n候选方案:\na) 全局编号池(编译期分配);\nb) 两遍渲染:先收集再回填。\n倾向 b,改动面小。",
+        "tags": ["引用对齐", "修复思路"],
+        "paper_id": None,
+        "created_at": "2026-08-18T09:10:00",
+        "updated_at": "2026-08-18T09:10:00",
+    },
+    {
+        "id": "n4",
+        "title": "NeurIPS 2026 rebuttal 要点清单",
+        "content": "审稿人 2 关注聚类漏归场景。准备材料:\n- 补聚回归实验数据 v2(48MB 数据集)\n- 分划不变式形式化描述\n- 反例边界说明。",
+        "tags": ["投稿", "rebuttal"],
+        "paper_id": None,
+        "created_at": "2026-08-15T20:00:00",
+        "updated_at": "2026-08-15T20:00:00",
+    },
+    {
+        "id": "n5",
+        "title": "结构化输出 schema 设计原则",
+        "content": "给 LLM 的 JSON schema:\n1. 字段名用领域词汇而非通用 value/data;\n2. 枚举值前置约束;\n3. 必填字段 ≤5 个,可选字段给 default。\n违反这三条的输出解析失败率明显更高。",
+        "tags": ["prompt", "方法论"],
+        "paper_id": None,
+        "created_at": "2026-08-12T11:00:00",
+        "updated_at": "2026-08-12T11:00:00",
+    },
+]
+
+# 论文精读批注演示数据(与 lib/data/reader.ts readerAnnotations 对齐)
+_DEMO_ANNOTATIONS: list[dict] = [
+    {
+        "id": "a1",
+        "paper_id": "rdt-1b",
+        "paragraph_id": "abstract-p1",
+        "quote": "iteratively refines a noisy action trajectory",
+        "note": "与图像扩散的对应关系:动作序列 ≈ 像素,去噪步数 K 是推理延迟的主因,可参考 DDIM 加速。",
+        "created_at": "2026-08-30T21:14:00",
+    },
+    {
+        "id": "a2",
+        "paper_id": "rdt-1b",
+        "paragraph_id": "abstract-p2",
+        "quote": "executes only the first few steps before replanning",
+        "note": "开环步数 h 是超参:论文取 8/16。做机械臂实验时先从 h=4 试起。",
+        "created_at": "2026-08-31T09:32:00",
+    },
+]
+
 
 # AI 长期记忆演示数据（与前端 lib/data/memory.ts memoryMock 对齐；仅播种演示账户）
 _DEMO_MEMORY_ENTRIES: list[dict] = [
@@ -456,6 +547,8 @@ def _seed_demo_private_data(user_id: str) -> None:
     _USER_PRIVATE_GRAPHS.setdefault(user_id, copy.deepcopy(_DEMO_PRIVATE_GRAPH))
     _USER_MEMORY_ENTRIES.setdefault(user_id, copy.deepcopy(_DEMO_MEMORY_ENTRIES))
     _USER_MEMORY_SETTINGS.setdefault(user_id, {"enabled": True})
+    _USER_NOTES.setdefault(user_id, copy.deepcopy(_DEMO_NOTES))
+    _USER_ANNOTATIONS.setdefault(user_id, copy.deepcopy(_DEMO_ANNOTATIONS))
 
 
 def _require_production_auth_secret() -> None:
@@ -1675,6 +1768,146 @@ def toggle_memory_entry(entry_id: str, request: Request):
             m["enabled"] = not m.get("enabled", True)
             return {"success": True, "data": _serialize_memory_entry(m)}
     raise HTTPException(status_code=404, detail="记忆条目未找到")
+
+# ==================== 知识库 · 笔记 ====================
+def _serialize_note(n: dict) -> dict:
+    """输出前端对齐的笔记条目(camelCase;paper_id 为主键弱引用,paperTitle 联查实时返回)。"""
+    paper_title = n.get("paper_title")
+    if paper_title is None and n.get("paper_id"):
+        for p in PAPERS:
+            if p.get("id") == n["paper_id"]:
+                paper_title = p.get("title")
+                break
+    return {
+        "id": n["id"],
+        "title": n.get("title", ""),
+        "content": n.get("content", ""),
+        "tags": n.get("tags", []),
+        "paperId": n.get("paper_id"),
+        "paperTitle": paper_title,
+        "createdAt": n.get("created_at"),
+        "updatedAt": n.get("updated_at"),
+    }
+
+
+@app.get("/api/notes")
+def get_notes(request: Request, keyword: Optional[str] = None, tag: Optional[str] = None):
+    """笔记列表(keyword 匹配标题/内容,tag 筛选)。"""
+    user_id = _require_login(request)
+    notes = _user_items(_USER_NOTES, user_id)
+    result = []
+    for n in notes:
+        if keyword and keyword.lower() not in f"{n.get('title', '')} {n.get('content', '')}".lower():
+            continue
+        if tag and tag not in n.get("tags", []):
+            continue
+        result.append(n)
+    result.sort(key=lambda n: str(n.get("updated_at") or n.get("created_at") or ""), reverse=True)
+    return {"success": True, "data": [_serialize_note(n) for n in result]}
+
+
+@app.post("/api/notes")
+def create_note(req: NoteCreateRequest, request: Request):
+    """新建笔记。"""
+    user_id = _require_login(request)
+    title = (req.title or "").strip()
+    content = (req.content or "").strip()
+    if not title and not content:
+        raise HTTPException(status_code=400, detail="标题和内容至少填一项")
+    note = {
+        "id": _gen_id("n_"),
+        "title": title or "无标题笔记",
+        "content": content,
+        "tags": [t.strip() for t in (req.tags or []) if t and t.strip()][:10],
+        "paper_id": req.paper_id,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    _user_items(_USER_NOTES, user_id).append(note)
+    return {"success": True, "data": _serialize_note(note)}
+
+
+@app.put("/api/notes/{note_id}")
+def edit_note(note_id: str, req: NoteEditRequest, request: Request):
+    """编辑笔记(可更新标题/内容/标签/关联论文)。"""
+    user_id = _require_login(request)
+    for n in _user_items(_USER_NOTES, user_id):
+        if n["id"] == note_id:
+            if req.title is not None:
+                n["title"] = req.title.strip() or "无标题笔记"
+            if req.content is not None:
+                n["content"] = req.content.strip()
+            if req.tags is not None:
+                n["tags"] = [t.strip() for t in req.tags if t and t.strip()][:10]
+            if req.paper_id is not None:
+                n["paper_id"] = req.paper_id or None
+            n["updated_at"] = datetime.now().isoformat(timespec="seconds")
+            return {"success": True, "data": _serialize_note(n)}
+    raise HTTPException(status_code=404, detail="笔记未找到")
+
+
+@app.delete("/api/notes/{note_id}")
+def delete_note(note_id: str, request: Request):
+    """删除笔记。"""
+    user_id = _require_login(request)
+    notes = _user_items(_USER_NOTES, user_id)
+    before = len(notes)
+    notes[:] = [n for n in notes if n["id"] != note_id]
+    if len(notes) == before:
+        raise HTTPException(status_code=404, detail="笔记未找到")
+    return {"success": True, "data": {"id": note_id}}
+
+
+# ==================== 论文精读批注 ====================
+def _serialize_annotation(a: dict) -> dict:
+    return {
+        "id": a["id"],
+        "paperId": a.get("paper_id"),
+        "paragraphId": a.get("paragraph_id"),
+        "quote": a.get("quote", ""),
+        "note": a["note"],
+        "createdAt": a.get("created_at"),
+    }
+
+
+@app.get("/api/papers/{paper_id}/annotations")
+def get_annotations(paper_id: str, request: Request):
+    """当前用户在该论文的批注列表。"""
+    user_id = _require_login(request)
+    rows = [a for a in _user_items(_USER_ANNOTATIONS, user_id) if a.get("paper_id") == paper_id]
+    rows.sort(key=lambda a: str(a.get("created_at") or ""), reverse=True)
+    return {"success": True, "data": [_serialize_annotation(a) for a in rows]}
+
+
+@app.post("/api/papers/{paper_id}/annotations")
+def create_annotation(paper_id: str, req: AnnotationCreateRequest, request: Request):
+    """新增论文批注。"""
+    user_id = _require_login(request)
+    note = (req.note or "").strip()
+    if not note:
+        raise HTTPException(status_code=400, detail="批注内容不能为空")
+    ann = {
+        "id": _gen_id("anno_"),
+        "paper_id": paper_id,
+        "paragraph_id": req.paragraph_id,
+        "quote": (req.quote or "").strip(),
+        "note": note,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    _user_items(_USER_ANNOTATIONS, user_id).append(ann)
+    return {"success": True, "data": _serialize_annotation(ann)}
+
+
+@app.delete("/api/annotations/{ann_id}")
+def delete_annotation(ann_id: str, request: Request):
+    """删除批注(仅本人)。"""
+    user_id = _require_login(request)
+    rows = _user_items(_USER_ANNOTATIONS, user_id)
+    before = len(rows)
+    rows[:] = [a for a in rows if a["id"] != ann_id]
+    if len(rows) == before:
+        raise HTTPException(status_code=404, detail="批注未找到")
+    return {"success": True, "data": {"id": ann_id}}
 
 # ==================== 开题报告 / 综述生成 ====================
 @app.post("/api/proposal/generate")

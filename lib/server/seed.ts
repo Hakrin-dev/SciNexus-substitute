@@ -801,6 +801,59 @@ function seedMemory(db: Database.Database): void {
   }
   db.prepare("INSERT OR IGNORE INTO memory_settings (user_id, enabled) VALUES ('user_demo', 1)").run();
 }
+// ====== 知识库·笔记演示数据（与 lib/data/notes.ts notesMock 对齐） ======
+const defaultNotes = [
+  { id: "n1", title: "综述管线的两条正确性指标", content: "读 review.py 三阶段管线后的归纳:\\n1. 引用真实性 —— 输出引用必须一一对应检索阶段 ref_id 集合,resolve_citations 重编号 + 悬空剔除;\\n2. 论断不丢失 —— 全分划聚类保证每条论断必属且仅属一个维度。\\n后续实验设计都围绕这两个指标展开。", tags: ["综述管线", "正确性"], paperId: "rdt-1b" },
+  { id: "n2", title: "扩散策略 vs VLA 选型对比", content: "扩散策略:动作空间生成,推理延迟敏感但可控性好;\\nVLA:语言条件泛化强,算力要求高。\\n机器人操控场景优先 diffusion policy,VLA 适合开放指令任务。", tags: ["选型", "机器人"], paperId: null },
+  { id: "n3", title: "跨章节引用编号漂移的修复思路", content: "失败用例归因:长文档中 [12] 被重编号后正文未同步。\\n候选方案:\\na) 全局编号池(编译期分配);\\nb) 两遍渲染:先收集再回填。\\n倾向 b,改动面小。", tags: ["引用对齐", "修复思路"], paperId: null },
+  { id: "n4", title: "NeurIPS 2026 rebuttal 要点清单", content: "审稿人 2 关注聚类漏归场景。准备材料:\\n- 补聚回归实验数据 v2(48MB 数据集)\\n- 分划不变式形式化描述\\n- 反例边界说明。", tags: ["投稿", "rebuttal"], paperId: null },
+  { id: "n5", title: "结构化输出 schema 设计原则", content: "给 LLM 的 JSON schema:\\n1. 字段名用领域词汇而非通用 value/data;\\n2. 枚举值前置约束;\\n3. 必填字段 ≤5 个,可选字段给 default。\\n违反这三条的输出解析失败率明显更高。", tags: ["prompt", "方法论"], paperId: null },
+];
+
+/** 知识库·笔记种子（幂等：仅当演示用户尚无笔记时写入） */
+function seedNotes(db: Database.Database): void {
+  const existing = db
+    .prepare("SELECT COUNT(*) as n FROM notes WHERE user_id = 'user_demo'")
+    .get() as { n: number };
+  if (existing.n > 0) return;
+
+  const insertNote = db.prepare(
+    `INSERT INTO notes (id, user_id, title, content, tags_json, paper_id, updated_at)
+     VALUES (@id, 'user_demo', @title, @content, @tags_json, @paper_id, @updated_at)`
+  );
+  for (const n of defaultNotes) {
+    insertNote.run({
+      id: n.id,
+      title: n.title,
+      content: n.content,
+      tags_json: jsonStringify(n.tags),
+      paper_id: n.paperId,
+      updated_at: "2026-08-22T10:00:00",
+    });
+  }
+}
+
+// ====== 论文精读批注演示数据（与 lib/data/reader.ts readerAnnotations 对齐） ======
+const defaultAnnotations = [
+  { id: "a1", quote: "iteratively refines a noisy action trajectory", note: "与图像扩散的对应关系:动作序列 ≈ 像素,去噪步数 K 是推理延迟的主因,可参考 DDIM 加速。", created_at: "2026-08-30T21:14:00" },
+  { id: "a2", quote: "executes only the first few steps before replanning", note: "开环步数 h 是超参:论文取 8/16。做机械臂实验时先从 h=4 试起。", created_at: "2026-08-31T09:32:00" },
+];
+
+/** 论文精读批注种子（幂等：仅当演示用户尚无批注时写入） */
+function seedAnnotations(db: Database.Database): void {
+  const existing = db
+    .prepare("SELECT COUNT(*) as n FROM paper_annotations WHERE user_id = 'user_demo'")
+    .get() as { n: number };
+  if (existing.n > 0) return;
+
+  const insertAnno = db.prepare(
+    `INSERT INTO paper_annotations (id, user_id, paper_id, quote, note, created_at)
+     VALUES (@id, 'user_demo', 'rdt-1b', @quote, @note, @created_at)`
+  );
+  for (const a of defaultAnnotations) {
+    insertAnno.run(a);
+  }
+}
 export function runSeed() {
   const db = getDB();
   const tx = db.transaction(() => {
@@ -810,6 +863,8 @@ export function runSeed() {
       // 老库升级:工作台表后加入,若为空则单独补种(幂等)
       seedWorkbench(db);
             seedMemory(db);
+      seedNotes(db);
+      seedAnnotations(db);
 console.log("[seed] 数据库已有数据，跳过初始化");
       return;
     }
@@ -1057,6 +1112,9 @@ console.log("[seed] 数据库已有数据，跳过初始化");
     seedWorkbench(db);
 
         seedMemory(db);
+
+    seedNotes(db);
+    seedAnnotations(db);
 
 console.log("[seed] 种子数据写入完成 ✅");
   });

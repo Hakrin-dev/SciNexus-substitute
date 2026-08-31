@@ -168,6 +168,7 @@ class ScoutAgent(BaseAgent):
                     match_label=level.lower(),
                     keywords=hit.get("keywords", []),
                     relevance_score=float(hit.get("_score", 0.0)),
+                    pdf_url=hit.get("pdf_url"),
                 )
             )
 

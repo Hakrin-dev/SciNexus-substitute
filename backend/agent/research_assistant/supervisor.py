@@ -138,7 +138,7 @@ DEFAULT_INTENT = "paper_search"
 # mock 路径的离线授权数据。真实路径由 Supervisor LLM 在受约束 schema 内生成。
 MOCK_AGENT_TOOLS: dict[str, list[str]] = {
     "scout": ["vector_rag", "graph_rag"],
-    "synthesis": ["pdf_parser", "evidence_retrieve"],
+    "synthesis": ["pdf_parser", "evidence_retrieve", "pdf_ingest"],
     "librarian": ["graph_expand"],
     "research_design": [],
     "code_assistant": [],
@@ -160,7 +160,7 @@ SUPERVISOR_PROMPT = """你是科研助手的 Supervisor 控制平面，不执行
 vector_rag、graph_rag、pdf_parser、graph_expand、venue_db、evidence_check、dpo_align、evidence_retrieve、pdf_ingest。
 各 agent 硬编码依赖的最小工具集（授权时必须包含，否则该 agent 会因缺少工具而执行失败）：
 - scout: vector_rag, graph_rag
-- synthesis: pdf_parser, evidence_retrieve
+- synthesis: pdf_parser, evidence_retrieve；远程论文有公开 pdf_url 时还需要 pdf_ingest
 - librarian: graph_expand
 - research_design: （无需工具）
 - code_assistant: （无需工具）
@@ -543,6 +543,15 @@ def _synthesis_result_markdown(out: dict) -> list[str]:
         return ["", "## 综合回答", out.get("qa_response", "未生成结构化研读结果。")]
     core = elements.get("core_innovation") or {}
     lines = ["", "## 研读结果"]
+    sources = out.get("evidence_sources") or []
+    if sources:
+        lines.append("**证据来源**")
+        for source in sources:
+            status = "已取得全文" if source.get("status") == "fulltext" else "仅元数据/摘要"
+            lines.append(
+                f"- {source.get('paper_id', '未知 ID')}《{source.get('title', 'Untitled')}》"
+                f"：{status}；来源 {source.get('source', 'unknown')}"
+            )
     if elements.get("summary"):
         lines.append(f"**速读摘要**：{elements['summary']}")
     if core.get("text"):

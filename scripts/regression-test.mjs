@@ -16,7 +16,12 @@ test("Next authentication uses the fixed fallback when production AUTH_SECRET is
   );
 });
 
-test("FastAPI authentication starts with the fixed fallback when AUTH_SECRET is missing", () => {
+const pythonProbe = spawnSync("python", ["--version"], { encoding: "utf8" });
+const pythonUnavailable = pythonProbe.error?.code === "ENOENT" || pythonProbe.status !== 0;
+
+test("FastAPI authentication starts with the fixed fallback when AUTH_SECRET is missing", {
+  skip: pythonUnavailable ? "Python runtime is not installed on this machine" : false,
+}, () => {
   const result = spawnSync(
     "python",
     [

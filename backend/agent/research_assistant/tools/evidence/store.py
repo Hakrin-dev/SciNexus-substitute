@@ -64,6 +64,20 @@ class DocumentStore:
             return False
         return metadata.get("cache_schema_version") == CACHE_SCHEMA_VERSION
 
+    def find_by_source_url(self, url: str) -> dict[str, Any] | None:
+        """按原始或最终 PDF 地址命中已验证的缓存，避免每次精读重复下载。"""
+        if not url or not self.root.exists():
+            return None
+        for metadata_path in self.root.glob("*/metadata.json"):
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+            paper_id = str(metadata.get("paper_id") or "")
+            if url in {metadata.get("source_url"), metadata.get("resolved_pdf_url")} and self.exists(paper_id):
+                return metadata
+        return None
+
     def ingest_pdf(self, pdf_bytes: bytes, *, filename: str, source_url: str | None = None,
                    resolved_pdf_url: str | None = None) -> tuple[dict[str, Any], bool]:
         if not pdf_bytes.startswith(b"%PDF"):

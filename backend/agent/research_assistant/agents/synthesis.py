@@ -34,7 +34,7 @@ QA_SYSTEM_PROMPT = (
     "请严格依据【提供的证据与结构化分析】回答用户问题：\n"
     "\n"
     "1. 只依据给定证据作答，严禁编造证据中不存在的数据、结论、引用或页码；\n"
-    "2. 引用证据时必须标注来源（chunk_id / 页码），例如「（p1·第3页·p1-p3-c2）」；\n"
+    "2. 引用证据时必须标注论文 ID、标题和来源页码/chunk_id，例如「（paper:1《标题》·第3页·p3-c2）」；\n"
     "3. 若证据不足以回答，如实说明「现有证据不足以回答该问题」，并指出缺少哪方面信息；\n"
     "4. 结合对话历史理解追问（如「它的创新点呢」「和上一篇比呢」），但结论仍只以证据为准；\n"
     "5. 使用中文，客观、精炼、结构化，可直接展示给用户。"
@@ -89,6 +89,53 @@ class SynthesisAgent(BaseAgent):
             parts.append(f"关键词包括：{keywords}。")
         parts.append("当前库中缺少完整摘要，以下研读基于题名、发表信息、关键词与可用证据生成。")
         return "".join(parts)
+
+    @staticmethod
+    def _paper_info(state: dict, paper_id: str) -> dict:
+        """读取论文元数据；远程论文按需补取，以便取得其公开 PDF 地址。"""
+        outputs = (state.get("working_memory") or {}).get("agent_outputs") or {}
+        for paper in (outputs.get("scout") or {}).get("retrieved_papers") or []:
+            if paper.get("paper_id") == paper_id:
+                return dict(paper)
+        paper = backend.get_paper(paper_id) or {}
+        if not paper and settings.retrieval_provider in ("remote", "hybrid"):
+            try:
+                from research_assistant.integrations.retrieval_client import client
+
+                paper = client.get_paper(paper_id).to_agent()
+            except Exception:
+                paper = {}
+        return dict(paper)
+
+    def _collect_paper_evidence(self, state: dict, paper_id: str, question: str) -> tuple[list[dict], dict[str, str]]:
+        """只返回由真实 PDF 产生的证据，绝不把摘要/分析回退标成全文证据。"""
+        info = self._paper_info(state, paper_id)
+        title = str(info.get("title") or paper_id)
+        source = str(info.get("db_source") or "local")
+        parsed = tools.call("pdf_parser", paper_id=paper_id)
+        parsed_source = str(parsed.get("source") or "")
+        if parsed_source not in {"abstract_fallback", "analysis_fallback"}:
+            evidence = tools.call("evidence_retrieve", paper_id=paper_id, question=question, limit=3).get("evidence", [])
+            return evidence, {"paper_id": paper_id, "title": title, "source": source, "status": "fulltext"}
+
+        pdf_url = str(info.get("pdf_url") or "").strip()
+        if not pdf_url:
+            return [], {"paper_id": paper_id, "title": title, "source": source, "status": "metadata_only"}
+        try:
+            ingested = tools.call("pdf_ingest", url=pdf_url)
+            document_id = str(ingested.get("document_id") or (ingested.get("metadata") or {}).get("paper_id") or "")
+            if not document_id:
+                raise RuntimeError("PDF 缓存未返回文档 ID")
+            evidence = tools.call("evidence_retrieve", paper_id=document_id, question=question, limit=3).get("evidence", [])
+            return evidence, {
+                "paper_id": paper_id,
+                "title": title,
+                "source": "remote_pdf_cache",
+                "status": "fulltext",
+            }
+        except Exception:
+            # 下载失败、无权限或非文本 PDF 都只能按元数据处理，不能杜撰页码结论。
+            return [], {"paper_id": paper_id, "title": title, "source": source, "status": "metadata_only"}
 
     @staticmethod
     def _usable_text(text: str | None) -> str:
@@ -198,14 +245,17 @@ class SynthesisAgent(BaseAgent):
     def _mock_qa_answer(self, question: str, plan: SynthesisPlan, evidence_all: list[dict],
                         analyses: dict[str, dict], page_note: str) -> str:
         """mock 模式兜底：用实际证据与结构化分析拼装回答，而不是固定 FAQ 模板。"""
-        lines = [f"已基于证据链中 {len(plan.paper_ids)} 篇论文的证据回答你的问题：「{question}」。"]
+        lines = [f"已基于 {len(plan.paper_ids)} 篇论文的可用资料回答你的问题：「{question}」。"]
         if evidence_all:
             lines.append("\n**直接证据片段**")
             for item in evidence_all[:5]:
                 pid = item.get("paper_id", "")
+                title = item.get("paper_title", "")
                 page = item.get("page", "?")
                 cid = item.get("chunk_id", "")
-                lines.append(f"- [{pid}·第{page}页·{cid}] {self._evidence_snippet(item)}")
+                lines.append(f"- [{pid}《{title}》·第{page}页·{cid}] {self._evidence_snippet(item)}")
+        else:
+            lines.append("\n未取得可验证的 PDF 全文片段；以下内容仅基于论文元数据或摘要，不能作为页码级证据。")
         for pid, analysis in analyses.items():
             innovation = self._usable_text(analysis.get("core_innovation", {}).get("content"))
             methodology = self._usable_text(analysis.get("methodology", {}).get("content"))
@@ -266,15 +316,16 @@ class SynthesisAgent(BaseAgent):
 
         evidence_all: list[dict] = []
         analyses: dict[str, dict] = {}
+        evidence_sources: list[dict[str, str]] = []
         for pid in plan.paper_ids:
-            parsed = tools.call("pdf_parser", paper_id=pid)
-            chunks = parsed.get("chunks", [])
-            if chunks:
-                analyses[pid] = build_structured_analysis(chunks)
-            ev_hits = tools.call("evidence_retrieve", paper_id=pid, question=query, limit=3).get("evidence", [])
+            ev_hits, provenance = self._collect_paper_evidence(state, pid, query)
+            evidence_sources.append(provenance)
             for item in ev_hits:
                 item["paper_id"] = pid
+                item["paper_title"] = provenance["title"]
                 evidence_all.append(item)
+            if ev_hits:
+                analyses[pid] = build_structured_analysis(ev_hits)
         evidence_all.sort(key=lambda e: -e.get("rrf_score", 0))
         target_chunks = [e["chunk_id"] for e in evidence_all[:6]]
         anchors = [f"{e.get('paper_id', '')}·第{e['page']}页·{e['chunk_id']}" for e in evidence_all[:3]]
@@ -283,7 +334,7 @@ class SynthesisAgent(BaseAgent):
         first = evidence_all[0] if evidence_all else {}
         first_text = first.get("text", "")
         if not first_text or first_text == "（无摘要）":
-            first_text = self._paper_context(plan.paper_ids[0]) if plan.paper_ids else ""
+            first_text = "暂无可验证的全文证据；请提供公开 PDF 或稍后重试。"
         question = self._clean_question(query)
         comparison_table = "\n".join(
             f"| {pid} | 创新点 | 实验设计 | 结论 |" for pid in plan.paper_ids
@@ -298,12 +349,12 @@ class SynthesisAgent(BaseAgent):
             methodology="\n\n".join(
                 f"### {pid}\n{self._usable_text(a.get('methodology', {}).get('content')) or self._paper_context(pid)}"
                 for pid, a in analyses.items()
-            ) or "\n\n".join(f"### {pid}\n{self._paper_context(pid)}" for pid in plan.paper_ids) or "## 方法\n暂无足够证据。",
+            ) or "## 方法\n暂无可验证的全文证据，不能据此推断方法细节。",
             experimental_results=f"## 实验\n跨文档对比表：\n{comparison_table}",
             key_challenges="\n\n".join(
                 f"### {pid}\n{self._usable_text(a.get('limitations', {}).get('content')) or '建议重点核查论文是否报告强基线、消融实验、泛化设置和失败案例。'}"
                 for pid, a in analyses.items()
-            ) or "## 局限\n建议重点核查论文是否报告强基线、消融实验、泛化设置和失败案例。",
+            ) or "## 局限\n暂无可验证的全文证据，不能推断论文的局限、基线或实验设置。",
         )
         page_note = "、".join(anchors) or "无"
         # 阶段4. 问答生成：单独一步，只依据证据与结构化分析回答用户问题（见 _build_qa_answer）
@@ -323,6 +374,10 @@ class SynthesisAgent(BaseAgent):
         output: SynthesisOutput = self.generate(payload, SynthesisOutput, draft)
         # 问答回复以专门问答步骤的结果为准，覆盖通用生成可能不基于证据的内容
         output.qa_response = qa_answer
-        result = output.model_dump() | {"target_chunks": target_chunks, "evidence": evidence_all[:6]}
+        result = output.model_dump() | {
+            "target_chunks": target_chunks,
+            "evidence": evidence_all[:6],
+            "evidence_sources": evidence_sources,
+        }
         wm = self.remember(state, "read & structure papers", result, paper_ids=list(plan.paper_ids))
         return {"last_output": result, "working_memory": wm}

@@ -1,5 +1,10 @@
 # 后端服务目录
 
+远程知识底座已接入 `/api/search`、`/api/papers/{paper_id}`、
+`/api/graph/public?paper_id=...` 和 `/api/knowledge/health`。服务端统一处理 30 秒超时、
+500/503 有限重试与本地降级；具体环境变量和响应元信息见
+[`docs/dev/知识底座API接入.md`](../../docs/dev/知识底座API接入.md)。
+
 FastAPI 后端服务（`main.py`），提供论文检索、AI 对话、投稿匹配、文献库等 REST API。
 
 ## 启动

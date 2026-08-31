@@ -1,0 +1,24 @@
+services:
+  web:
+    image: ghcr.io/hakrin-dev/scinexus-frontend:latest
+    expose: ["3000"]
+    environment:
+      NODE_ENV: production
+      AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required}"
+      RETRIEVAL_API_URL: "${RETRIEVAL_API_URL:?RETRIEVAL_API_URL is required}"
+      RETRIEVAL_API_TOKEN: "${RETRIEVAL_API_TOKEN:?RETRIEVAL_API_TOKEN is required}"
+    restart: unless-stopped
+  caddy:
+    image: caddy:2.8-alpine
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: "${DOMAIN:?DOMAIN is required}"
+    volumes:
+      - ./deploy/Caddyfile.example:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+    restart: unless-stopped
+volumes:
+  caddy_data:
+  caddy_config:

@@ -35,6 +35,11 @@ if _is_production and not os.environ.get("AUTH_SECRET"):
         stacklevel=2,
     )
 
+
+def production_secret_configured() -> bool:
+    """生产环境禁止使用仓库内置的演示签名密钥。"""
+    return not _is_production or bool(os.environ.get("AUTH_SECRET"))
+
 _AVATAR_COLORS = ["#5046E5", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#06B6D4"]
 
 # 内存用户表:user_id -> {id, username, email, display_name, avatar_color, password_hash, token_version}

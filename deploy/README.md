@@ -126,6 +126,10 @@ docker compose up -d --no-deps web ghcr.io/hakrin-dev/scinexus-frontend:<旧sha>
 ### 6.3 HTTPS + 域名
 - 加 nginx/caddy service 到 compose,443 已在安全组放行
 
+仓库提供 [`Caddyfile.example`](./Caddyfile.example)。部署方填写已解析的真实域名后，将 web 的 `80:3000` 改为仅内部暴露，并由 Caddy 对外发布 `80/443`。证书由 Caddy 自动申请和续期；域名、DNS 和安全组由部署方负责，不能用示例域名直接上线。
+
+部署前先在宿主机设置 `DOMAIN`、`AUTH_SECRET`、`RETRIEVAL_API_URL`、`RETRIEVAL_API_TOKEN` 和 `CORS_ALLOW_ORIGINS`，执行 `node scripts/production-preflight.mjs`。通过后使用 `docker compose -f docker-compose.production.yml up -d`；配置缺失会拒绝启动。
+
 ---
 
 ## 七、常见问题

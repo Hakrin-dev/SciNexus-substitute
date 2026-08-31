@@ -1,5 +1,9 @@
 # 研枢后端（FastAPI）
 
+> 远程知识底座的配置、检索/详情/图谱接口与降级策略见
+> [`docs/dev/知识底座API接入.md`](../docs/dev/知识底座API接入.md)。默认 `RETRIEVAL_PROVIDER=remote`，
+> 可用 `local` 保持原有本地数据源行为，或用 `hybrid` 启用加权 RRF 融合。
+
 从 `SciNexus-proto` 复制而来的后端：`server/`（API + 序列化 + mock 数据）+ `agent/`（多智能体框架 + 本地语料）。
 
 ## 启动

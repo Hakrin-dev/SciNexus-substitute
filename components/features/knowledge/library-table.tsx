@@ -70,7 +70,7 @@ export function LibraryTable() {
   const heading = folderName;
 
   return (
-    <div className="min-h-[calc(100vh)] w-full min-w-0 p-8">
+    <div className="mx-auto min-h-[calc(100vh)] w-full max-w-[1440px] min-w-0 px-8 py-8 2xl:px-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-ink">

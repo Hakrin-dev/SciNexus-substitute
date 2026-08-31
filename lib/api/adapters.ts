@@ -39,6 +39,12 @@ export interface BackendPaper {
   citations: number;
   doi?: string | null;
   relevance?: number | null;
+  keywords?: string[];
+  subjects?: string[];
+  knowledgeScore?: number | null;
+  rank?: number | null;
+  source?: "remote_knowledge_base" | "local" | "hybrid" | string;
+  fallbackUsed?: boolean;
 }
 
 export interface BackendVenue {
@@ -173,18 +179,28 @@ function deadlineOffsetMs(deadline?: string | null): number {
 // ==================== 归一化转换（兜底空值） ====================
 
 export function toFeedPaper(p: BackendPaper): FeedPaper {
+  const year = typeof p.year === "number" && Number.isFinite(p.year) ? p.year : null;
+  const citations = typeof p.citations === "number" && Number.isFinite(p.citations) ? p.citations : 0;
+  const date = p.source === "remote_knowledge_base" && year && p.date === `${year}-01-01`
+    ? String(year)
+    : p.date ?? (year ? String(year) : "");
   return {
     id: p.id,
-    date: p.date ?? (p.year ? `${p.year}-01-01` : ""),
+    // 远程 API 只有年份时，不伪造为精确到 1 月 1 日的日期。
+    date,
     venue: p.venue || "arXiv",
     venueTone: ccfTone(p.ccf),
-    authors: p.authors || "佚名",
+    authors: p.authors || "未提供作者",
     title: p.title,
     abstract: p.abstract || "",
     aiLink: "AI 深度解读",
-    tags: p.tags ?? [],
+    tags: p.tags ?? [...(p.keywords ?? []), ...(p.subjects ?? [])],
     likes: 0,
-    citations: p.citations ?? 0,
+    citations,
+    source: p.source,
+    rank: typeof p.rank === "number" && Number.isFinite(p.rank) ? p.rank : null,
+    knowledgeScore: typeof p.knowledgeScore === "number" && Number.isFinite(p.knowledgeScore) ? p.knowledgeScore : null,
+    fallbackUsed: p.fallbackUsed === true,
     thumb: p.venue || p.tags?.[0] || "论文",
   };
 }
@@ -283,19 +299,21 @@ export function toPaperDetail(
     id: p.id || id,
     title: p.title,
     authors,
-    affiliation: p.affiliation ?? "未知机构",
+    affiliation: p.affiliation ?? "知识底座未提供机构信息",
     likes: 0,
     page: { current: 1, total: totalPage },
-    toc: [
-      { id: "abstract", label: "摘要 Abstract", active: true },
-      { id: "intro", label: "1. 引言" },
-      { id: "related", label: "2. 相关工作" },
-      { id: "method", label: "3. 方法" },
-      { id: "exp", label: "4. 实验" },
-      { id: "conclusion", label: "5. 结论" },
-    ],
+    toc: chunks.length
+      ? [
+          { id: "abstract", label: "摘要 Abstract", active: true },
+          { id: "intro", label: "1. 引言" },
+        ]
+      : [{ id: "abstract", label: "摘要 Abstract", active: true }],
     abstract: p.abstract || "",
     introduction: intro,
+    source: p.source,
+    fallbackUsed: p.fallbackUsed === true,
+    pdfUrl: typeof (p as any).pdf_url === "string" ? (p as any).pdf_url : null,
+    hasFulltext: chunks.length > 0,
   };
 }
 

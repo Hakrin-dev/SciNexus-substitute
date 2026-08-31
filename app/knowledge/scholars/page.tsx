@@ -5,7 +5,7 @@ import { ScholarsBrowser } from "@/components/features/scholar/scholars-browser"
 export default function KnowledgeScholarsPage() {
   return (
     <AppShell>
-      <div className="flex min-h-[calc(100vh)] items-stretch">
+      <div className="min-h-[calc(100vh)]">
         <ScholarsBrowser />
       </div>
     </AppShell>

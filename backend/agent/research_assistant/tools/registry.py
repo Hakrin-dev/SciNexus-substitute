@@ -173,11 +173,18 @@ class ToolRegistry:
         """安全下载 PDF 并缓存（SSRF/大小/头校验）。"""
         from research_assistant.tools.evidence import DocumentStore, download_pdf  # noqa: PLC0415
 
+        store = DocumentStore()
+        cached = store.find_by_source_url(url)
+        if cached:
+            return {"metadata": cached, "cache_hit": True, "document_id": cached["paper_id"]}
         pdf_bytes, resolved_url = download_pdf(url)
-        metadata, cache_hit = DocumentStore().ingest_pdf(
-            pdf_bytes, filename=resolved_url.rsplit("/", 1)[-1] or "paper.pdf", resolved_pdf_url=resolved_url
+        metadata, cache_hit = store.ingest_pdf(
+            pdf_bytes,
+            filename=resolved_url.rsplit("/", 1)[-1] or "paper.pdf",
+            source_url=url,
+            resolved_pdf_url=resolved_url,
         )
-        return {"metadata": metadata, "cache_hit": cache_hit}
+        return {"metadata": metadata, "cache_hit": cache_hit, "document_id": metadata["paper_id"]}
 
 
 # 全局工具单例，由 Supervisor 统一调度

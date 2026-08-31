@@ -7,6 +7,14 @@
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok } from "@/lib/server/utils";
 import { getDB, jsonParse, mapGraphNode } from "@/lib/server/db";
+import {
+  getKnowledgeGraph,
+  recordKnowledgeFallback,
+  shouldFallbackToLocal,
+  shouldUseRemoteKnowledgeBase,
+  type KnowledgeGraph,
+  type KnowledgeGraphNode,
+} from "@/lib/server/knowledge-base";
 
 export const runtime = "nodejs";
 
@@ -20,6 +28,47 @@ interface GraphPaperRow {
   citations: number | null;
   abstract: string | null;
   tags_json: string | null;
+}
+
+function toPaperGraph(graph: KnowledgeGraph, paperId: string) {
+  const paperNodes = graph.nodes.filter((node) =>
+    node.id === graph.rootId || node.type.toUpperCase().includes("PAPER") || !!node.title,
+  );
+  const byId = new Map(paperNodes.map((node) => [node.id, node]));
+  const root = byId.get(graph.rootId) ?? byId.get(paperId) ?? paperNodes[0];
+  const toNode = (node: KnowledgeGraphNode | undefined, weight: number) => ({
+    id: node?.id || paperId,
+    labelLines: [String(node?.year ?? ""), node?.venue || "知识底座"],
+    weight,
+    year: node?.year ?? 0,
+    title: node?.title || node?.label || paperId,
+    authors: node?.authors.join(", ") || "未知作者",
+    venue: node?.venue || "知识底座",
+    citations: "0",
+    abstract: node?.abstract || "",
+    paperId: node?.id || paperId,
+    layer: "public",
+  });
+  const origin = toNode(root, 1);
+  const nodes = paperNodes.filter((node) => node.id !== origin.id);
+  const allowedIds = new Set([origin.id, ...nodes.map((node) => node.id)]);
+  return {
+    origin,
+    nodes: nodes.map((node, index) => toNode(node, Math.max(0.18, 0.9 - index * 0.06))),
+    // 保留 API 的 from -> to 引用方向，不把引用边当作无向边处理。
+    edges: graph.lines
+      .filter((line) => allowedIds.has(line.from) && allowedIds.has(line.to))
+      .map((line) => ({
+        source: line.from,
+        target: line.to,
+        strength: 0.65,
+        crossLayer: false,
+        relation: line.text || String(line.data.type || "RELATED"),
+      })),
+    relatedIds: nodes.map((node) => node.id),
+    source: "remote_knowledge_base",
+    fallbackUsed: false,
+  };
 }
 
 /** 以指定论文为中心动态构建演示级引用图谱 */
@@ -77,17 +126,31 @@ function buildGraphAround(db: ReturnType<typeof getDB>, paperId: string) {
 }
 
 export async function GET(req: NextRequest) {
-  ensureSeed();
   try {
-    const db = getDB();
     const paperId = new URL(req.url).searchParams.get("paper_id");
 
     if (paperId) {
+      if (shouldUseRemoteKnowledgeBase()) {
+        try {
+          return ok(toPaperGraph(await getKnowledgeGraph(paperId, 1), paperId));
+        } catch (error) {
+          console.warn(`[scinexus] 远程论文图谱失败: ${paperId}`, error);
+          if (!shouldFallbackToLocal()) {
+            return fail(error instanceof Error ? error.message : "知识底座暂不可用", 502);
+          }
+          recordKnowledgeFallback();
+        }
+      }
+      ensureSeed();
+      const db = getDB();
       const built = buildGraphAround(db, paperId);
-      if (built) return ok(built);
-      // 未命中论文则继续走下方演示图谱兜底
+      if (built) return ok({ ...built, source: "local", fallbackUsed: true });
+      // 请求了特定论文却无法取得其图谱时，不能回落到无关的默认演示图谱。
+      return fail("当前论文暂无可用图谱数据", 404);
     }
 
+    ensureSeed();
+    const db = getDB();
     const graphType = "public";
     const nodes = db
       .prepare("SELECT * FROM graph_nodes WHERE graph_type = ? ORDER BY weight DESC")
@@ -113,6 +176,8 @@ export async function GET(req: NextRequest) {
         crossLayer: !!e.cross_layer,
       })),
       relatedIds: relatedRows.map((r) => r.node_id),
+      source: "local",
+      fallbackUsed: shouldUseRemoteKnowledgeBase(),
     };
     return ok(data);
   } catch (e) {

@@ -51,6 +51,7 @@ class RetrievedPaper(BaseModel):
     match_label: str | None = None
     keywords: list[str] = Field(default_factory=list)
     relevance_score: float = 0.0
+    pdf_url: str | None = None
 
 
 class ScoutOutput(BaseModel):
@@ -92,6 +93,7 @@ class SynthesisOutput(BaseModel):
     status: Status
     structured_elements: StructuredElements
     qa_response: str
+    evidence_sources: list[dict] = Field(default_factory=list)
 
 
 class QAAnswer(BaseModel):

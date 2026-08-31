@@ -178,7 +178,7 @@ export function PaperRightPanel({ paperId }: { paperId?: string }) {
               知识图谱
             </h3>
             <Link
-              href="/papers/rdt-1b/graph"
+              href={`/papers/${encodeURIComponent(paperId ?? "")}/graph`}
               className="mt-2.5 flex items-center gap-3 rounded-lg bg-panel p-3 transition-colors hover:bg-primary-soft"
             >
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
@@ -189,7 +189,7 @@ export function PaperRightPanel({ paperId }: { paperId?: string }) {
                   公域引用关系图谱
                 </span>
                 <span className="mt-0.5 block text-[11px] text-faint">
-                  14 篇关联论文 · 圆圈大小 = 关系强度 →
+                  打开当前论文的真实引用关系图谱 →
                 </span>
               </span>
             </Link>

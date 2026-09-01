@@ -1,0 +1,75 @@
+name: verify-vercel
+
+# 临时冒烟验证工作流(境外 Runner 访问 vercel.app):
+# 推送本文件即触发;结果写回 verify-results.md 提交到仓库供本地读取。
+# 验证完成后应删除本文件及 verify-results.md。
+on:
+  push:
+    paths:
+      - .github/workflows/verify-vercel.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Smoke test Vercel deployment
+        run: |
+          BASE="https://scinexus-five.vercel.app"
+          {
+            echo "# Vercel 冒烟验证结果"
+            echo ""
+            echo "- 时间(UTC): $(date -u)"
+            echo ""
+            echo "## 1. /api/health"
+            echo '```json'
+            curl -s -m 30 "$BASE/api/health" || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+            echo ""
+            echo "## 2. /api/papers (前1条)"
+            echo '```json'
+            curl -s -m 30 "$BASE/api/papers?page=1&page_size=1" | head -c 500 || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+            echo ""
+            echo "## 3. 首页"
+            echo '```'
+            curl -s -m 30 -o /dev/null -w "HTTP %{http_code}, TTFB %{time_starttransfer}s, 总耗时 %{time_total}s" "$BASE/" || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+            echo ""
+            echo "## 4. 登录演示账号 (hankairun/yanshu123)"
+            echo '```json'
+            TOKEN=$(curl -s -m 30 -X POST "$BASE/api/auth/login" \
+              -H "Content-Type: application/json" \
+              -d '{"username":"hankairun","password":"yanshu123"}')
+            echo "$TOKEN" | head -c 500
+            echo ""
+            echo '```'
+            echo ""
+            echo "## 5. 带 token 访问 /api/auth/me"
+            echo '```json'
+            T=$(echo "$TOKEN" | python3 -c "import sys,json;print(json.load(sys.stdin).get('data',{}).get('token',''))" 2>/dev/null)
+            if [ -n "$T" ]; then
+              curl -s -m 30 "$BASE/api/auth/me" -H "Authorization: Bearer $T" | head -c 300
+            else
+              echo "TOKEN_EXTRACT_FAILED"
+            fi
+            echo ""
+            echo '```'
+          } > verify-results.md
+          cat verify-results.md
+
+      - name: Commit results back
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add verify-results.md
+          git commit -m "ci: vercel 冒烟验证结果(临时,验证后删除)" || echo "no changes"
+          git push

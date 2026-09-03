@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getDB } from "@/lib/server/db";
-import { requireAuth } from "@/lib/server/auth";
-import { assertProjectOwner } from "@/lib/server/workbench";
+import { getCurrentUser, requireAuth } from "@/lib/server/auth";
+import { canAccessProject } from "@/lib/server/workbench";
 import { ensureSeed, fail, genId, ok, parseBody } from "@/lib/server/utils";
 import { appendRunEvent, findOwnedRun, mapArtifact, nowIso } from "@/lib/server/research-runs";
 
@@ -11,9 +11,7 @@ const KINDS = ["report", "dataset", "code", "note", "metrics", "log", "other"];
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; runId: string }> }) {
   ensureSeed();
   const { id, runId } = await params;
-  const user = requireAuth(req);
-  if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-  if (!assertProjectOwner(id, user.id)) return fail("项目不存在", 404);
+  if (!canAccessProject(id, getCurrentUser(req)?.id, "read")) return fail("项目不存在", 404);
   if (!findOwnedRun(id, runId)) return fail("研究任务不存在", 404, "RUN_NOT_FOUND");
   const rows = getDB().prepare("SELECT * FROM research_artifacts WHERE run_id = ? ORDER BY created_at DESC").all(runId) as Record<string, unknown>[];
   return ok(rows.map(mapArtifact));
@@ -24,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id, runId } = await params;
   const user = requireAuth(req);
   if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-  if (!assertProjectOwner(id, user.id)) return fail("项目不存在", 404);
+  if (!canAccessProject(id, user.id, "write")) return fail("没有项目编辑权限", 403, "FORBIDDEN");
   if (!findOwnedRun(id, runId)) return fail("研究任务不存在", 404, "RUN_NOT_FOUND");
   try {
     const body = await parseBody<{ kind?: string; title?: string; uri?: string; content?: string; metadata?: unknown }>(req);

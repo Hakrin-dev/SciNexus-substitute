@@ -21,9 +21,12 @@ import { CARD_KIND_META, CARD_STATUS_META } from "./workbench-meta";
 import { formatDay } from "@/lib/data/workbench";
 import type {
   ResearchStageKey,
+  ResearchExperiment,
+  ResearchRun,
   ResearchThread,
   Selection,
   ThreadCard,
+  WorkbenchAsset,
 } from "@/lib/data/workbench";
 
 type ResearchPhaseKey = "plan" | "search" | "read" | "synthesize" | "experiment" | "report";
@@ -47,6 +50,9 @@ interface Props {
   onPhaseSelect?: (phaseId: ResearchPhaseKey | null) => void;
   /** 卡片状态流转(todo→doing→done);传入后状态徽章可点击 */
   onStatusChange?: (cardId: string, status: ThreadCard["status"]) => void;
+  latestRun?: ResearchRun;
+  experiments?: ResearchExperiment[];
+  assets?: WorkbenchAsset[];
 }
 
 /** 线程视图 —— 按研究问题分节的垂直卡片流(主工作区默认视图) */
@@ -59,13 +65,29 @@ export function ThreadView({
   onSelectAsset,
   onPhaseSelect,
   onStatusChange,
+  latestRun,
+  experiments = [],
+  assets = [],
 }: Props) {
   const [activePhase, setActivePhase] = useState<ResearchPhaseKey | "all">("all");
-  const displayCards = [...cards, ...localCards];
+  const latestAutoThreadId = latestRun ? `ar_thread_${latestRun.id}` : null;
+  const visibleThreads = latestAutoThreadId && threads.some((thread) => thread.id === latestAutoThreadId)
+    ? threads.filter((thread) => !thread.id.startsWith("ar_thread_") || thread.id === latestAutoThreadId)
+    : threads.filter((thread, index, all) => !thread.id.startsWith("ar_thread_") || index === all.findIndex((candidate) => candidate.id.startsWith("ar_thread_")));
+  const visibleThreadIds = new Set(visibleThreads.map((thread) => thread.id));
+  const displayCards = [...cards, ...localCards].filter((card) => visibleThreadIds.has(card.threadId));
   const completedStages = new Set(
     displayCards.filter((card) => card.status === "done").map((card) => card.stage),
   );
-  const currentStage = displayCards.find((card) => card.status === "doing")?.stage ?? "design";
+  const currentStage = latestRun?.engineStage ?? displayCards.find((card) => card.status === "doing")?.stage ?? "plan";
+  const latestCard = [...displayCards].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  const reportCard = [...displayCards].reverse().find((card) => card.stage === "report" && card.status === "done");
+  const latestExperiment = [...experiments].sort((a, b) => b.round - a.round)[0];
+  const nextCard = [...displayCards].reverse().find((card) => card.kind === "next" && card.status !== "done");
+  const runLabel = latestRun
+    ? ({ queued: "等待执行", running: "正在运行", paused: "已暂停", completed: "运行完成", failed: "运行失败", cancelled: "已取消" } as const)[latestRun.status]
+    : "尚未开始";
+  const metricEntries = Object.entries(latestExperiment?.metrics ?? {});
 
   return (
     <div className="space-y-5">
@@ -142,34 +164,28 @@ export function ThreadView({
             <div>
               <p className="text-[11px] font-medium text-primary">本轮研究汇总</p>
               <p className="mt-1.5 text-sm font-bold leading-relaxed text-ink">
-                受限领域内引用校验有效，但跨领域结论仍缺少足够证据。
+                {reportCard?.summary ?? latestCard?.summary ?? "尚无研究汇总；启动自动研究后将随阶段产物实时更新。"}
               </p>
             </div>
-            <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">更新于 8 月 23 日</span>
+            <span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{latestRun ? `进度 ${latestRun.progress}%` : "等待研究数据"}</span>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-muted">
-            下一步：补充生物医学语料并复跑回归实验，再决定是否更新最终结论。
+            {nextCard ? `下一步：${nextCard.title}——${nextCard.summary}` : latestRun?.decision?.reason ? `闭环判断：${latestRun.decision.reason}` : "下一步将根据当前阶段输出自动生成。"}
           </p>
         </div>
 
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <StatusItem label="执行状态" value="运行完成" tone="success" hint="程序正常结束，输出已保存" />
-          <StatusItem label="证据有效性" value="部分有效" tone="warning" hint="12/13 用例通过，存在失败样本" />
-          <StatusItem label="研究判断" value="尚不能定论" tone="neutral" hint="需要跨领域数据继续验证" />
+          <StatusItem label="执行状态" value={runLabel} tone={latestRun?.status === "completed" ? "success" : latestRun?.status === "failed" ? "warning" : "neutral"} hint={latestRun ? `当前阶段 ${latestRun.engineStage} · 第 ${latestRun.attempt} 轮` : "创建研究任务后实时更新"} />
+          <StatusItem label="实验数据" value={latestExperiment?.status ?? "暂无"} tone={latestExperiment?.status === "passed" ? "success" : "neutral"} hint={metricEntries.length ? metricEntries.slice(0, 2).map(([key, value]) => `${key}=${String(value)}`).join(" · ") : "实验运行后自动读取指标"} />
+          <StatusItem label="研究判断" value={latestRun?.decision?.action ?? "待分析"} tone={latestRun?.decision?.action === "accept" ? "success" : "neutral"} hint={latestRun?.decision?.reason ?? "根据证据、实验与报告动态生成"} />
         </div>
       </section>
 
-      {activePhase === "experiment" && <ExperimentWorkspace onSelectAsset={onSelectAsset} />}
+      {activePhase === "experiment" && (latestRun ? <LiveExperimentWorkspace experiments={experiments} assets={assets} onSelectAsset={onSelectAsset} /> : threads.some((thread) => thread.id === "t1") ? <ExperimentWorkspace onSelectAsset={onSelectAsset} /> : <section className="rounded-2xl bg-card p-8 text-center text-sm text-muted shadow-card">实验尚未开始；设计、代码、运行和分析笔记会在执行过程中自动出现。</section>)}
 
-      {activePhase !== "experiment" && threads.map((thread) => {
+      {activePhase !== "experiment" && visibleThreads.map((thread) => {
         const threadCards = displayCards
           .filter((c) => c.threadId === thread.id)
-          .filter(
-            (c) =>
-              activePhase !== "all" ||
-              c.id.startsWith("local-") ||
-              !["design", "code", "run"].includes(c.stage),
-          )
           .filter(
             (c) =>
               activePhase === "all" ||
@@ -183,7 +199,7 @@ export function ThreadView({
                 <Workflow className="size-5" strokeWidth={1.8} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-[15px] font-bold text-ink">{thread.title}</h2>
+                <div className="flex items-center gap-2"><h2 className="truncate text-[15px] font-bold text-ink">{thread.title}</h2><span className="shrink-0 rounded-full bg-panel px-2 py-0.5 text-[10px] text-muted">{thread.id.startsWith("ar_thread_") ? "自动研究运行" : "原有研究主线"}</span></div>
                 <p className="mt-0.5 text-xs text-muted">
                   {thread.questionId.toUpperCase()} · 当前阶段
                   <span className="ml-1.5 rounded-full bg-chip px-2 py-0.5 text-[11px] font-medium text-muted">
@@ -236,6 +252,33 @@ export function ThreadView({
       })}
 
     </div>
+  );
+}
+
+function LiveExperimentWorkspace({ experiments, assets, onSelectAsset }: { experiments: ResearchExperiment[]; assets: WorkbenchAsset[]; onSelectAsset?: (assetId: string) => void }) {
+  return (
+    <section className="rounded-2xl bg-card p-5 shadow-card">
+      <header><h2 className="flex items-center gap-2 text-[15px] font-bold text-ink"><FlaskConical className="size-5 text-primary" />实时实验</h2><p className="mt-1 text-xs text-muted">数据、运行输出和分析笔记来自当前自动研究运行，每几秒自动刷新。</p></header>
+      <div className="mt-4 space-y-3">
+        {experiments.map((experiment) => {
+          const linked = assets.filter((asset) => asset.artifact?.runId === experiment.runId);
+          const dataAsset = linked.find((asset) => ["metrics", "dataset", "log"].includes(asset.artifact?.kind ?? ""));
+          const noteAsset = linked.find((asset) => asset.artifact?.kind === "note");
+          return (
+            <article key={experiment.id} className="rounded-xl border border-line bg-panel p-4">
+              <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold text-ink">实验 #{experiment.round} · {experiment.title}</h3><span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{experiment.status}</span></div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">{Object.entries(experiment.metrics).map(([key, value]) => <div key={key} className="rounded-lg bg-card p-3"><p className="truncate text-[10px] text-faint">{key}</p><p className="mt-1 text-sm font-bold text-ink">{String(value)}</p></div>)}</div>
+              {(experiment.stdout || experiment.stderr) && <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-card p-3 text-[11px] leading-5 text-muted">{experiment.stdout || experiment.stderr}</pre>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {dataAsset && <button onClick={() => onSelectAsset?.(dataAsset.id)} className="rounded-lg bg-card px-3 py-2 text-xs text-primary">查看实验数据</button>}
+                {noteAsset && <button onClick={() => onSelectAsset?.(noteAsset.id)} className="rounded-lg bg-card px-3 py-2 text-xs text-primary">查看分析笔记</button>}
+              </div>
+            </article>
+          );
+        })}
+        {experiments.length === 0 && <div className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-muted">等待实验阶段生成数据与分析笔记。</div>}
+      </div>
+    </section>
   );
 }
 

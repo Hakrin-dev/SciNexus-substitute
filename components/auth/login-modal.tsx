@@ -85,8 +85,8 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
       setRegError("用户名至少 2 个字符");
       return;
     }
-    if (regPassword.length < 6) {
-      setRegError("密码至少 6 位");
+    if (regPassword.length < 6 || regPassword.length > 12) {
+      setRegError("密码需为 6-12 位");
       return;
     }
     const result = await register({
@@ -247,7 +247,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
             <Field
               label="密码"
               type="password"
-              placeholder="请输入密码(至少 6 位)"
+              placeholder="请输入密码（6-12 位）"
               value={regPassword}
               onChange={(e) => setRegPassword(e.target.value)}
               autoComplete="new-password"

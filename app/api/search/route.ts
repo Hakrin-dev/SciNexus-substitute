@@ -208,7 +208,7 @@ function decomposeIntent(query: string) {
 
 function generateChecklist(query: string) {
   return [
-    "是否与查询主题高度相关？",
+    `是否与查询主题「${query}」高度相关？`,
     "是否发表于CCF推荐的顶级会议/期刊？",
     "方法论是否经过严格实验验证？",
     "是否有足够的引用量支撑影响力？",

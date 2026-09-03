@@ -185,6 +185,8 @@ function initSchema(db: Database.Database) {
       tech_stack_json TEXT DEFAULT '[]',
       members_json TEXT DEFAULT '[]',
       links_json TEXT DEFAULT '[]',
+      visibility TEXT NOT NULL DEFAULT 'private' CHECK(visibility IN ('private','organization','public_readonly')),
+      organization_id TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -235,6 +237,7 @@ function initSchema(db: Database.Database) {
       kind TEXT CHECK(kind IN ('question','literature','hypothesis','experiment','result','analysis','conclusion','next','hint')),
       title TEXT,
       summary TEXT,
+      stage TEXT NOT NULL DEFAULT 'plan',
       status TEXT CHECK(status IN ('todo','doing','done')),
       node_ref TEXT,
       ai_generated INTEGER DEFAULT 0,
@@ -284,15 +287,66 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS organizations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      owner_user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE RESTRICT
+    );
+    CREATE TABLE IF NOT EXISTS organization_members (
+      organization_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('owner','admin','member','viewer')),
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (organization_id, user_id),
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS project_members (
+      project_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('owner','admin','editor','viewer')),
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, user_id),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id, project_id);
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      project_id TEXT,
+      action TEXT NOT NULL,
+      resource_type TEXT NOT NULL,
+      resource_id TEXT,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_project_time ON audit_logs(project_id, created_at);
+
     -- 自动研究运行。executor 固定记录当前执行适配器，现阶段使用 placeholder。
     CREATE TABLE IF NOT EXISTS research_runs (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
+      created_by_user_id TEXT,
       objective TEXT NOT NULL,
       status TEXT NOT NULL CHECK(status IN ('queued','running','paused','completed','failed','cancelled')),
       phase TEXT NOT NULL CHECK(phase IN ('plan','search','read','synthesize','experiment','report')),
       progress INTEGER NOT NULL DEFAULT 0 CHECK(progress BETWEEN 0 AND 100),
       executor TEXT NOT NULL DEFAULT 'placeholder',
+      engine_stage TEXT NOT NULL DEFAULT 'plan',
+      run_dir TEXT,
+      config_json TEXT NOT NULL DEFAULT '{}',
+      control_requested TEXT,
+      worker_id TEXT,
+      heartbeat_at TEXT,
+      attempt INTEGER NOT NULL DEFAULT 1,
+      budget_json TEXT NOT NULL DEFAULT '{}',
+      decision_json TEXT,
       stop_reason TEXT,
       error_message TEXT,
       created_at TEXT NOT NULL,
@@ -300,6 +354,7 @@ function initSchema(db: Database.Database) {
       started_at TEXT,
       finished_at TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      ,FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
     );
     CREATE INDEX IF NOT EXISTS idx_research_runs_project ON research_runs(project_id, created_at);
 
@@ -312,6 +367,7 @@ function initSchema(db: Database.Database) {
       level TEXT NOT NULL DEFAULT 'info' CHECK(level IN ('debug','info','warning','error')),
       message TEXT NOT NULL,
       payload_json TEXT NOT NULL DEFAULT '{}',
+      sequence INTEGER,
       created_at TEXT NOT NULL,
       FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -467,6 +523,35 @@ function runMigrations(db: Database.Database) {
   ensureColumn(db, "scholars", "citation_count", "citation_count INTEGER DEFAULT 0");
   // projects.updated_at:PUT 更新器会 touch 该列,旧库补齐
   ensureColumn(db, "projects", "updated_at", "updated_at TEXT");
+  ensureColumn(db, "projects", "visibility", "visibility TEXT NOT NULL DEFAULT 'private'");
+  ensureColumn(db, "projects", "organization_id", "organization_id TEXT");
+  db.prepare("UPDATE research_artifacts SET kind = 'note' WHERE title = 'report.md' AND uri NOT LIKE '08-report/%' AND kind = 'report'").run();
+  ensureColumn(db, "research_runs", "created_by_user_id", "created_by_user_id TEXT");
+  db.exec("UPDATE projects SET visibility = 'public_readonly' WHERE id = 'scinexus'");
+  db.exec(`UPDATE projects SET name = '多智能体综述的引用可靠性研究',
+    tagline = '从论断提取、证据聚类到引用校验的完整自动研究示例'
+    WHERE id = 'scinexus' AND name = '研枢'`);
+  db.exec(`INSERT OR IGNORE INTO project_members (project_id, user_id, role, created_at)
+    SELECT id, user_id, 'owner', COALESCE(created_at, datetime('now')) FROM projects`);
+  // 自动研究执行器的可恢复运行信息。旧库保留六阶段 phase，新增 engine_stage
+  // 记录 SimpleAutoResearch 的八阶段原始状态。
+  ensureColumn(db, "research_runs", "engine_stage", "engine_stage TEXT NOT NULL DEFAULT 'plan'");
+  ensureColumn(db, "research_runs", "run_dir", "run_dir TEXT");
+  ensureColumn(db, "research_runs", "config_json", "config_json TEXT NOT NULL DEFAULT '{}'");
+  ensureColumn(db, "research_runs", "control_requested", "control_requested TEXT");
+  ensureColumn(db, "research_runs", "worker_id", "worker_id TEXT");
+  ensureColumn(db, "research_runs", "heartbeat_at", "heartbeat_at TEXT");
+  ensureColumn(db, "research_runs", "attempt", "attempt INTEGER NOT NULL DEFAULT 1");
+  ensureColumn(db, "research_runs", "budget_json", "budget_json TEXT NOT NULL DEFAULT '{}'");
+  ensureColumn(db, "research_runs", "decision_json", "decision_json TEXT");
+  ensureColumn(db, "research_run_events", "sequence", "sequence INTEGER");
+  ensureColumn(db, "wb_thread_cards", "stage", "stage TEXT NOT NULL DEFAULT 'plan'");
+  db.exec(`UPDATE wb_thread_cards SET stage = CASE kind
+    WHEN 'literature' THEN 'read' WHEN 'hypothesis' THEN 'synthesize'
+    WHEN 'experiment' THEN 'design' WHEN 'result' THEN 'run' WHEN 'analysis' THEN 'run'
+    WHEN 'conclusion' THEN 'report' WHEN 'next' THEN 'report' WHEN 'hint' THEN 'synthesize'
+    ELSE stage END WHERE stage = 'plan' AND kind <> 'question'`);
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_research_events_sequence ON research_run_events(run_id, sequence) WHERE sequence IS NOT NULL");
   // 会话消息补充 references_json(历史回放时还原参考卡;2026-08 前的旧消息为 NULL,前端优雅降级)
   ensureColumn(
     db,

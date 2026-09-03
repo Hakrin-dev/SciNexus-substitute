@@ -7,6 +7,11 @@ services:
     ports:
       - "80:3000"
     restart: unless-stopped
+    volumes:
+      - scinexus-data:/app/data
+    env_file:
+      - path: .env
+        required: true
     labels:
       - com.centurylinklabs.watchtower.enable=true
     healthcheck:
@@ -15,6 +20,25 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  auto-research-worker:
+    image: ghcr.io/hakrin-dev/scinexus-frontend:latest
+    command: ["python3", "-m", "backend.worker.main"]
+    restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+    environment:
+      SCINEXUS_DB_PATH: /app/data/yanshu.db
+      AUTO_RESEARCH_RUNS_ROOT: /app/data/research-runs
+      AUTO_RESEARCH_LLM_ENABLED: "true"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - scinexus-data:/app/data
+    depends_on:
+      web:
+        condition: service_healthy
 
   watchtower:
     # nicholas-fedor 维护分支:containrrr 官方版已归档,其 client 过老不兼容 Docker 29
@@ -25,3 +49,6 @@ services:
       # GHCR 私有镜像凭证(ECS 上 root 已 docker login ghcr.io)
       - /root/.docker/config.json:/config.json:ro
     command: --interval 60 --cleanup --label-enable
+
+volumes:
+  scinexus-data:

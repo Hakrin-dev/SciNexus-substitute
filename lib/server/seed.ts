@@ -654,8 +654,8 @@ function seedWorkbench(db: Database.Database): void {
   ).run("t1", wb, "q1", "多智能体综述管线如何保证引用真实性与论断不丢失?", "数据分析");
 
   const insertCard = db.prepare(
-    `INSERT INTO wb_thread_cards (id, project_id, thread_id, kind, title, summary, status, node_ref, ai_generated, created_at, asset_refs_json)
-     VALUES (@id, @project_id, @thread_id, @kind, @title, @summary, @status, @node_ref, @ai_generated, @created_at, @asset_refs_json)`
+    `INSERT INTO wb_thread_cards (id, project_id, thread_id, kind, title, summary, stage, status, node_ref, ai_generated, created_at, asset_refs_json)
+     VALUES (@id, @project_id, @thread_id, @kind, @title, @summary, @stage, @status, @node_ref, @ai_generated, @created_at, @asset_refs_json)`
   );
   const cardRows: {
     id: string; kind: string; title: string; summary: string; status: string;
@@ -679,6 +679,7 @@ function seedWorkbench(db: Database.Database): void {
       kind: c.kind,
       title: c.title,
       summary: c.summary,
+      stage: ({ question: "plan", literature: "read", hypothesis: "synthesize", experiment: "design", result: "run", analysis: "run", conclusion: "report", next: "report", hint: "synthesize" } as Record<string, string>)[c.kind] || "plan",
       status: c.status,
       node_ref: c.nodeRef ?? null,
       ai_generated: c.aiGenerated ? 1 : 0,
@@ -767,6 +768,29 @@ function seedWorkbench(db: Database.Database): void {
   }
 }
 
+/** 公共示例的可浏览自动研究历史；真实运行存在时不会覆盖。 */
+function seedDemoResearchRun(db: Database.Database): void {
+  const runId = "run_demo_citation_reliability";
+  db.prepare(`INSERT OR IGNORE INTO research_runs
+    (id, project_id, created_by_user_id, objective, status, phase, progress, executor, engine_stage, config_json, budget_json, decision_json, stop_reason, created_at, updated_at, started_at, finished_at)
+    VALUES (?, 'scinexus', 'user_demo', ?, 'completed', 'report', 100, 'simple-autoresearch', 'report', ?, '{}', ?, '八阶段研究闭环已完成', ?, ?, ?, ?)`)
+    .run(runId, "验证多智能体综述中论断聚类与引用校验能否避免证据丢失和幽灵引用",
+      jsonStringify({ research_profile: "standard", max_papers: 12 }),
+      jsonStringify({ action: "accept", reason: "受限域实验支持核心假设，并明确记录跨领域验证边界", progressed: true }),
+      "2026-08-19T09:00:00+08:00", "2026-08-23T18:00:00+08:00", "2026-08-19T09:00:12+08:00", "2026-08-23T18:00:00+08:00");
+  const stages = [
+    ["plan", "完成研究问题拆解与评价指标定义"], ["search", "完成混合检索，筛选 28 篇候选文献"],
+    ["read", "完成关键文献结构化阅读与论断提取"], ["synthesize", "完成证据聚类并形成 3 个可检验假设"],
+    ["design", "完成引用可靠性回归实验设计"], ["code", "完成全局引用编号池与校验脚本"],
+    ["run", "完成 13 组回归测试，其中 12 组通过"], ["report", "生成研究报告并记录适用边界"],
+  ];
+  const insert = db.prepare(`INSERT OR IGNORE INTO research_run_events
+    (id, run_id, project_id, kind, level, message, payload_json, sequence, created_at)
+    VALUES (?, ?, 'scinexus', 'checkpoint', 'info', ?, ?, ?, ?)`);
+  stages.forEach(([stage, message], index) => insert.run(`re_demo_${stage}`, runId, message,
+    jsonStringify({ engineStage: stage, completed: true }), index + 1, `2026-08-${String(19 + Math.min(index, 4)).padStart(2, "0")}T${String(10 + index).padStart(2, "0")}:00:00+08:00`));
+}
+
 export function runSeed() {
   const db = getDB();
   const tx = db.transaction(() => {
@@ -775,6 +799,7 @@ export function runSeed() {
     if (paperCount > 0) {
       // 老库升级:工作台表后加入,若为空则单独补种(幂等)
       seedWorkbench(db);
+      seedDemoResearchRun(db);
       console.log("[seed] 数据库已有数据，跳过初始化");
       return;
     }
@@ -991,8 +1016,8 @@ export function runSeed() {
        VALUES (?, 'user_demo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       projectId,
-      "研枢",
-      "SciNexus —— 面向 AI 领域的个性化自主科研知识智能体平台",
+      "多智能体综述的引用可靠性研究",
+      "从论断提取、证据聚类到引用校验的完整自动研究示例",
       "进行中",
       68,
       "2025-11-02",
@@ -1020,6 +1045,7 @@ export function runSeed() {
     }
 
     seedWorkbench(db);
+    seedDemoResearchRun(db);
 
     console.log("[seed] 种子数据写入完成 ✅");
   });

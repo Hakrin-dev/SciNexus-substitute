@@ -20,7 +20,12 @@ export async function POST(req: NextRequest) {
     if (!result) {
       return fail("用户名或密码错误", 401);
     }
-    return ok(result);
+    const response = ok({ user: result.user });
+    response.cookies.set("yanshu_session", result.token, {
+      httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
+      path: "/", maxAge: 7 * 24 * 60 * 60,
+    });
+    return response;
   } catch (e: any) {
     return fail(e.message || "登录失败");
   }

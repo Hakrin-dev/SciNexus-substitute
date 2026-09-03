@@ -1,0 +1,85 @@
+# Standalone code-task example.
+#
+# Pipeline-only sections such as [run], [search], [research], [experiment],
+# and [report] are intentionally omitted here. Use this file with:
+#
+#   uv run simple-ar code-task init --config examples/code_task_medium_review/configs/code_task.toml
+#   uv run simple-ar code-task execute runs/<run-id> --config examples/code_task_medium_review/configs/code_task.toml
+#
+# The project layout mirrors a user-owned repository: task.md describes the
+# requested change, project/ contains the editable code, and this config keeps
+# benchmark, workspace, model, and safety settings in one place.
+
+[code_task]
+code_root = "examples/code_task_medium_review/project"
+task_file = "examples/code_task_medium_review/task.md"
+output_root = "runs"
+name = "medium-review-pipeline"
+
+[benchmark]
+command = "python main.py --config configs/experiment.json --show-progress"
+primary_metric = "accuracy"
+
+[benchmark.metric_directions]
+accuracy = "higher"
+macro_f1 = "higher"
+train_time_sec = "resource"
+inference_time_ms = "resource"
+model_size = "resource"
+feature_family_count = "resource"
+eval_examples = "ignore"
+
+[environment]
+mode = "current"
+
+[execute]
+to_step = "run"
+use_llm = true
+timeout_sec = 60
+repair_rounds = 1
+max_files = 10
+max_source_chars_per_file = 7000
+stream_benchmark_output = "auto"
+# auto/run executes the unchanged benchmark; use skip/none for expensive
+# baselines, or provided + baseline_metrics_file for already-known metrics.
+baseline_policy = "auto"
+# baseline_metrics_file = "baseline_metrics.json"
+apply_proposed_edits = false
+allow_large_edits = false
+allow_planning_fallback = false
+llm_retry_attempts = 2
+
+[models.code_task]
+# Leave empty to use SIMPLE_AR_MODEL or --model.
+
+[budget]
+profile = "large"
+max_batches = 4
+
+[budget.large]
+max_files = 4
+max_edits = 8
+max_old_chars = 7000
+max_new_chars = 12000
+max_total_edit_chars = 24000
+max_proposal_chars = 42000
+
+[workspace]
+# auto prefers git_worktree for committed Git projects and falls back to copy
+# with a recorded reason when Git isolation is not available. Use explicit
+# "copy" when you need uncommitted filesystem state; use explicit
+# "git_worktree" when fallback should be treated as an error.
+mode = "auto"
+reuse_source_venv = false
+setup_hook = ""
+
+[edit_scope]
+# Allow the application modules, entrypoint, and experiment config to change.
+# This task may need to enable a newly implemented feature family in the config;
+# tests, evaluation data, secrets, and benchmark-like files remain protected by
+# the built-in safety rules.
+allowed_patterns = ["review_pipeline/**", "main.py", "configs/experiment.json"]
+protected_patterns = []
+
+[safety]
+max_file_bytes = 2000000

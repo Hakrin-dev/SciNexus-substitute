@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import client, { setToken, getToken } from "@/lib/api/client";
+import client, { setToken } from "@/lib/api/client";
 
 export interface AuthUser {
   id: string;
@@ -14,7 +14,7 @@ export interface AuthUser {
 interface AuthState {
   /** 是否正在加载 */
   loading: boolean;
-  /** 登录 token（持久化到 localStorage） */
+  /** 仅表示当前会话已认证；真实 token 存在 HttpOnly Cookie 中。 */
   token: string | null;
   /** 当前登录用户（未登录为 null） */
   user: AuthUser | null;
@@ -30,7 +30,7 @@ interface AuthState {
     displayName?: string;
   }) => Promise<{ ok: boolean; error?: string }>;
   /** 登出 */
-  logout: () => void;
+  logout: () => Promise<void>;
   /** 拉取当前用户（页面初始化调用） */
   restore: () => Promise<void>;
   /** 演示登录（优先真实接口,失败退回纯前端演示态） */
@@ -39,7 +39,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   loading: false,
-  token: typeof window !== "undefined" ? getToken() : null,
+  token: null,
   user: null,
   userName: null,
 
@@ -48,11 +48,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.login(username, password);
       if (!resp.success) return { ok: false, error: resp.error || "登录失败" };
-      const token = resp.data!.token;
       const user = resp.data!.user as AuthUser;
-      setToken(token);
+      setToken(null);
       set({
-        token,
+        token: "cookie-session",
         user,
         userName: user.display_name || user.username,
         loading: false,
@@ -69,11 +68,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.register(params);
       if (!resp.success) return { ok: false, error: resp.error || "注册失败" };
-      const token = resp.data!.token;
       const user = resp.data!.user as AuthUser;
-      setToken(token);
+      setToken(null);
       set({
-        token,
+        token: "cookie-session",
         user,
         userName: user.display_name || user.username,
         loading: false,
@@ -85,21 +83,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  logout: () => {
+  logout: async () => {
+    try { await client.auth.logout(); } catch { /* 本地状态仍需清除 */ }
     setToken(null);
     set({ token: null, user: null, userName: null });
   },
 
   restore: async () => {
-    const token = getToken();
-    if (!token) return;
     try {
       set({ loading: true });
       const resp = await client.auth.me();
       if (resp.success && resp.data) {
         const user = resp.data as AuthUser;
         set({
-          token,
+          token: "cookie-session",
           user,
           userName: user.display_name || user.username,
           loading: false,

@@ -2,20 +2,18 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Archive, ArchiveRestore, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Eye, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useProjects } from "@/lib/api/services";
 import { apiDelete, apiPut } from "@/lib/api/client";
-import { useDemoState } from "@/stores/demo-state";
 import { toast } from "@/stores/toast";
 
 /** 归档项目 `/my-projects` —— 已完成/已搁置的项目,可一键恢复为进行中(真实接口) */
 export function ArchivedProjects() {
   const { data: projects = [], isLoading } = useProjects();
   const queryClient = useQueryClient();
-  const deleteProject = useDemoState((s) => s.deleteDemoProject);
   const [restoringId, setRestoringId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
@@ -38,16 +36,16 @@ export function ArchivedProjects() {
     if (typeof window !== "undefined" && !window.confirm(`确定删除「${name}」吗？此操作不可撤销。`))
       return;
     setDeletingId(projectId);
-    deleteProject(projectId);
     try {
       await apiDelete(`/api/projects/${projectId}`);
-    } catch {
-      /* 演示态项目无后端记录,忽略接口错误 */
+      await queryClient.invalidateQueries({ queryKey: ["api", "projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["api", "project", projectId] });
+      toast.success(`「${name}」已删除`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "删除失败，请稍后重试");
+    } finally {
+      setDeletingId(null);
     }
-    await queryClient.invalidateQueries({ queryKey: ["api", "projects"] });
-    await queryClient.invalidateQueries({ queryKey: ["api", "project", projectId] });
-    toast.success(`「${name}」已删除`);
-    setDeletingId(null);
   };
 
   if (isLoading) return null;
@@ -130,9 +128,10 @@ export function ArchivedProjects() {
             <span className="text-xs tabular-nums text-muted">{project.progress}%</span>
             <Link
               href={`/projects/${project.id}`}
-              className="ml-auto text-xs font-medium text-primary hover:underline"
+              prefetch={false}
+              className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary-soft px-3 text-xs font-medium text-primary hover:bg-primary/15"
             >
-              打开工作台 →
+              <Eye className="size-3.5" />查看工作台
             </Link>
           </div>
         </article>

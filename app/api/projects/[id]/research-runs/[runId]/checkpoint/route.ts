@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getDB } from "@/lib/server/db";
 import { requireAuth } from "@/lib/server/auth";
-import { assertProjectOwner } from "@/lib/server/workbench";
+import { canAccessProject } from "@/lib/server/workbench";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
 import { appendRunEvent, findOwnedRun, mapRun, nowIso, RESEARCH_PHASES } from "@/lib/server/research-runs";
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id, runId } = await params;
   const user = requireAuth(req);
   if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-  if (!assertProjectOwner(id, user.id)) return fail("项目不存在", 404);
+  if (!canAccessProject(id, user.id, "write")) return fail("没有项目编辑权限", 403, "FORBIDDEN");
   const existing = findOwnedRun(id, runId);
   if (!existing) return fail("研究任务不存在", 404, "RUN_NOT_FOUND");
   try {

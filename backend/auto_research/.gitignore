@@ -1,0 +1,50 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Local editor workspace settings
+.vscode/settings.json
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tmp_tests/
+.simple_ar_cache/
+
+# Runtime outputs
+runs/
+artifacts/
+.researchclaw_cache/
+benchmark/arc_bench/__pycache__/
+benchmark/arc_bench/runs/
+benchmark/arc_bench/submissions/
+benchmark/arc_bench/prepared/
+benchmark/arc_bench/prepared_rubric_sensitivity/
+benchmark/arc_bench/runs_rubric_sensitivity/
+benchmark/arc_bench/submissions_rubric_sensitivity/
+benchmark/arc_bench/batch_logs/
+benchmark/arc_bench/batch_state/
+benchmark/survey_bench/__pycache__/
+benchmark/survey_bench/results/
+benchmark/survey_bench/submissions/
+
+# Local planning notes
+MDfiles/
+
+# Reference project; keep it locally for study, but do not vendor it into this repo.
+AutoResearchClaw/
+Auto-claude-code-research-in-sleep/
+SurveyBench/

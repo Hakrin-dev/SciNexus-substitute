@@ -23,9 +23,10 @@ export function getToken(): string | null {
 }
 
 export function setToken(token: string | null) {
+  void token;
   if (typeof window === "undefined") return;
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  // 新会话使用 HttpOnly Cookie；这里只清理旧版本遗留的 localStorage token。
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 export interface ApiResp<T = any> {
@@ -122,7 +123,7 @@ export const client = {
   // ---------- 认证 ----------
   auth: {
     login: (username: string, password: string) =>
-      request<{ token: string; user: any }>("POST", "/api/auth/login", {
+      request<{ user: any }>("POST", "/api/auth/login", {
         body: { username, password },
         skipAuth: true,
       }),
@@ -132,11 +133,12 @@ export const client = {
       email?: string;
       displayName?: string;
     }) =>
-      request<{ token: string; user: any }>("POST", "/api/auth/register", {
+      request<{ user: any }>("POST", "/api/auth/register", {
         body: params,
         skipAuth: true,
       }),
     me: () => request<any>("GET", "/api/auth/me"),
+    logout: () => request<void>("POST", "/api/auth/logout"),
   },
 
   // ---------- 论文 ----------

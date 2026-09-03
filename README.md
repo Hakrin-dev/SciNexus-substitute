@@ -1,6 +1,6 @@
 # 研枢 SciNexus
 
-> 研枢是面向人工智能领域学术科研的**个性化自主科研知识智能体平台**,提供论文检索、投稿筛选与深度研究问答。前后端一体:Next.js 前端 + FastAPI 多智能体后端。
+> 研枢是面向人工智能领域学术科研的**个性化自主科研知识智能体平台**,提供论文检索、投稿筛选与自动研究闭环。当前产品 API 以 Next.js Route Handlers 为唯一数据与权限入口；Python 负责自动研究 worker，旧 FastAPI 服务仅保留兼容能力。
 
 ---
 
@@ -18,17 +18,15 @@ pnpm lint           # ESLint
 
 打开 http://localhost:3000 。URL 加 `?theme=dark` / `?theme=light` 可强制日/夜模式(用于调试与分享)。
 
-**后端**([backend/](backend/) 目录,详见 [backend/README.md](backend/README.md)):
+**自动研究 worker**（开发服务器可按任务自动启动，也可常驻运行）:
 
 ```bash
-cd backend
-pip install -r requirements.txt                          # 首次
-python -m uvicorn server.main:app --host 0.0.0.0 --port 8000
+uv run --project backend/auto_research python -m backend.worker.main
 ```
 
-- 接口文档:http://localhost:8000/docs ;健康检查:`/api/health`
-- 前端经 `NEXT_PUBLIC_API_URL`(默认 http://localhost:8000,见 [.env.example](.env.example))指向后端;**后端不可达时前端自动回退 mock 数据**,可离线开发
-- LLM 密钥配在 `backend/agent/.env`(模板 `.env.example`,真实密钥勿提交);无密钥时 agent 走 mock provider,与真实模式同代码路径,可离线联调
+- 同源产品接口位于 `app/api`，数据和权限统一写入 `data/yanshu.db`。
+- 自动研究引擎位于 `backend/auto_research`，队列消费者位于 `backend/worker`；无模型密钥或检索网络不可用时会显式标为降级模式。
+- `backend/server` 是旧版 FastAPI 兼容服务，不应再新增项目、成员或自动研究接口。
 
 > **Turbopack 恢复说明**:本副本运行于 WSL2,dev/build 均使用 `--turbopack`(见 package.json)。Windows 侧曾因智能应用控制拦截 Turbopack 原生二进制而临时改用 `--webpack`,该问题仅存在于 Windows 环境,当前副本不受影响。
 
@@ -68,7 +66,7 @@ ECS:Watchtower 每 60s 轮询 GHCR,发现新镜像自动 pull + 重建(/opt/scin
 | `/agents` | AI 研究助手(单容器对话:快速=参考卡,深度=工作流条+参考卡;历史可回放) | [app/agents/page.tsx](app/agents/page.tsx);`/agents/deep-search` 为兼容重定向 |
 | `/projects` | 课题工作台(仅展示「进行中」课题,空则跳 `/my-projects`) | [app/projects/page.tsx](app/projects/page.tsx) |
 | `/projects/[id]` | 课题工作台详情(概览/线程/大纲/资产/日志;`?studio=1` AI 生成台) | [app/projects/[id]/page.tsx](app/projects/[id]/page.tsx) |
-| `/projects/new` | 新建课题向导(演示态) | [app/projects/new/page.tsx](app/projects/new/page.tsx) |
+| `/projects/new` | 新建持久化课题向导 | [app/projects/new/page.tsx](app/projects/new/page.tsx) |
 | `/submit` | 投稿详情页(期刊/会议 + 倒计时) | [app/submit/page.tsx](app/submit/page.tsx) |
 | `/submit/match` | AI 投稿匹配(标题/摘要 → Top5 会议/期刊,LLM 语义匹配可回退关键词) | [app/submit/match/page.tsx](app/submit/match/page.tsx) |
 | `/submit/history` | 投稿历史 | [app/submit/history/page.tsx](app/submit/history/page.tsx) |
@@ -86,11 +84,13 @@ ECS:Watchtower 每 60s 轮询 GHCR,发现新镜像自动 pull + 重建(/opt/scin
 | `/tools/plugins` | 插件 | [app/tools/plugins/page.tsx](app/tools/plugins/page.tsx) |
 | `/tools/mcp` | MCP(我的服务器 / 配置说明 双标签页) | [app/tools/mcp/page.tsx](app/tools/mcp/page.tsx) |
 | `/history` | 浏览记录 | [app/history/page.tsx](app/history/page.tsx) |
-| `/my-projects` | 归档项目(含删除,演示态) | [app/my-projects/page.tsx](app/my-projects/page.tsx) |
+| `/my-projects` | 归档项目（恢复与删除走真实权限接口） | [app/my-projects/page.tsx](app/my-projects/page.tsx) |
 
 > `/database` 已重定向至 `/knowledge/database`(数据库自 2026-08-27 起迁入知识库子导航)。
 >
 > **前端演示态**:课题的新建 / 归档 / 删除与科研数据库检索均为纯前端演示状态([stores/demo-state.ts](stores/demo-state.ts) + [lib/data/database.ts](lib/data/database.ts) mock),**不调用后端**;其余接口仍走「真实 API + mock 保底」([lib/api/services.ts](lib/api/services.ts))。
+
+课题详情的「自动研究模式」使用真实持久化队列，不回退 mock。Web 服务初始化数据库后，需同时运行 `python -m backend.worker.main`；Docker Compose 已配置共享数据卷和独立 worker 服务。详见 [backend/worker/README.md](backend/worker/README.md)。
 
 导航联动与 `prototype_v1.html` 热区一致:搜索提交 → `/agents`;论文卡片 → `/papers/[id]`;作者/学者 → `/scholars/[id]`。
 

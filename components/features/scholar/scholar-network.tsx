@@ -131,8 +131,8 @@ export function ScholarNetwork() {
   const [query, setQuery] = useState("");
   // 节点/边/方向均来自后端 /api/scholars/graph（后端按共享研究方向构图）
   const { data: graph } = useScholarGraph();
-  const scholars = graph?.nodes ?? [];
-  const edges = graph?.edges ?? [];
+  const scholars = useMemo(() => graph?.nodes ?? [], [graph]);
+  const edges = useMemo(() => graph?.edges ?? [], [graph]);
   const directionOptions = graph?.directions ?? [];
 
   // 位置:力导向布局(随学者集合变化)

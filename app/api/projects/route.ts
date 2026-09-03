@@ -13,31 +13,33 @@ import {
   okPaginated,
 } from "@/lib/server/utils";
 import { getDB, jsonParse, jsonStringify } from "@/lib/server/db";
-import { requireAuth } from "@/lib/server/auth";
 import { genId } from "@/lib/server/utils";
+import { getCurrentUser, requireAuth } from "@/lib/server/auth";
+import { projectMembers, projectRole, writeAudit } from "@/lib/server/workbench";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   ensureSeed();
   try {
-    const user = requireAuth(req);
-    if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-    const userId = user.id;
     const page = Math.max(1, getQueryInt(req, "page", 1));
     const pageSize = Math.min(100, Math.max(1, getQueryInt(req, "page_size", 20)));
     const status = getQuery(req, "status");
+    const user = getCurrentUser(req);
 
     const db = getDB();
-    let sql = "SELECT * FROM projects WHERE user_id = ?";
-    const params: any[] = [userId];
+    let sql = `SELECT DISTINCT p.* FROM projects p
+      LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ?
+      LEFT JOIN organization_members om ON om.organization_id = p.organization_id AND om.user_id = ?
+      WHERE (p.visibility = 'public_readonly' OR p.user_id = ? OR pm.user_id = ? OR (p.visibility = 'organization' AND om.user_id = ?))`;
+    const params: any[] = [user?.id ?? "", user?.id ?? "", user?.id ?? "", user?.id ?? "", user?.id ?? ""];
     if (status) {
-      sql += " AND status = ?";
+      sql += " AND p.status = ?";
       params.push(status);
     }
-    sql += " ORDER BY created_at DESC";
+    sql += " ORDER BY p.created_at DESC";
 
-    const countSql = sql.replace("SELECT *", "SELECT COUNT(*) AS n");
+    const countSql = `SELECT COUNT(*) AS n FROM (${sql}) visible_projects`;
     const total = (db.prepare(countSql).get(...params) as any).n;
 
     sql += " LIMIT ? OFFSET ?";
@@ -72,9 +74,12 @@ export async function GET(req: NextRequest) {
       owner: r.owner,
       overview: jsonParse<string[]>(r.overview_json, []),
       techStack: jsonParse<string[]>(r.tech_stack_json, []),
-      members: jsonParse(r.members_json, []),
+      members: projectMembers(r.id),
       links: jsonParse(r.links_json, []),
       milestones: msByProject.get(r.id) || [],
+      visibility: r.visibility,
+      role: projectRole(r.id, user?.id),
+      readOnly: !user || !["owner", "admin", "editor"].includes(projectRole(r.id, user.id) || ""),
     }));
 
     return okPaginated(data, page, pageSize, total);
@@ -98,16 +103,26 @@ export async function POST(req: NextRequest) {
       milestones?: { title: string; detail: string }[];
       members?: { name: string; role: string }[];
       links?: { label: string; href: string }[];
+      organizationId?: string;
     }>(req);
     if (!body.name) return fail("项目名称不能为空");
 
     const db = getDB();
+    if (body.organizationId) {
+      const organizationRole = db.prepare("SELECT role FROM organization_members WHERE organization_id = ? AND user_id = ?").get(body.organizationId, userId) as { role?: string } | undefined;
+      if (!organizationRole || !["owner", "admin"].includes(organizationRole.role || "")) return fail("只有组织管理员可以在该组织中创建项目", 403, "FORBIDDEN");
+    }
+    const requestedMembers = (body.members || []).filter((member) => member.name?.trim());
+    const resolvedMembers = requestedMembers.map((member) => ({ member, user: db.prepare("SELECT id FROM users WHERE lower(username) = lower(?) OR lower(email) = lower(?)").get(member.name.trim(), member.name.trim()) as { id: string } | undefined }));
+    const missingMember = resolvedMembers.find((item) => !item.user);
+    if (missingMember) return fail(`成员“${missingMember.member.name}”尚未注册`, 422, "MEMBER_NOT_FOUND");
     const id = genId("proj_");
     const now = new Date().toISOString().slice(0, 10);
 
+    const create = db.transaction(() => {
     db.prepare(
-      `INSERT INTO projects (id, user_id, name, tagline, status, progress, created_at, owner, overview_json, tech_stack_json, members_json, links_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (id, user_id, name, tagline, status, progress, created_at, owner, overview_json, tech_stack_json, members_json, links_json, organization_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       userId,
@@ -119,9 +134,19 @@ export async function POST(req: NextRequest) {
       userId,
       jsonStringify(body.overview || []),
       jsonStringify(body.techStack || []),
-      jsonStringify(body.members || []),
-      jsonStringify(body.links || [])
+      "[]",
+      jsonStringify(body.links || []),
+      body.organizationId || null
     );
+    db.prepare("INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)")
+      .run(id, userId, new Date().toISOString());
+    const insertMember = db.prepare("INSERT OR IGNORE INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, ?, ?)");
+    for (const { member, user: memberUser } of resolvedMembers) {
+      if (!memberUser || memberUser.id === userId) continue;
+      const requestedRole = member.role.toLowerCase();
+      const role = requestedRole.includes("admin") || member.role.includes("管理") ? "admin" : requestedRole.includes("view") || member.role.includes("只读") || member.role.includes("观察") ? "viewer" : "editor";
+      insertMember.run(id, memberUser.id, role, new Date().toISOString());
+    }
 
     if (body.milestones?.length) {
       const insertMs = db.prepare(
@@ -129,6 +154,9 @@ export async function POST(req: NextRequest) {
       );
       body.milestones.forEach((m, i) => insertMs.run(id, m.title, m.detail || "", i));
     }
+    });
+    create();
+    writeAudit({ userId, projectId: id, action: "project.create", resourceType: "project", resourceId: id });
 
     return ok({ id });
   } catch (e: any) {

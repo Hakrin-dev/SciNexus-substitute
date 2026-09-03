@@ -45,6 +45,8 @@ opencode.json
 __pycache__/
 *.py[cod]
 .venv/
+.uv-cache/
+.simple_ar_cache/
 
 # vercel
 .vercel
@@ -71,5 +73,6 @@ backend/__pycache__/
 /data/*.db
 /data/*.db-wal
 /data/*.db-shm
+/data/research-runs/
 
 demo.html

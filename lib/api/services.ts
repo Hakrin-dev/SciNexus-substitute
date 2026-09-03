@@ -12,7 +12,6 @@
  */
 "use client";
 
-import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
 import {
@@ -24,13 +23,13 @@ import {
   type BackendVenue,
 } from "./adapters";
 import { toast } from "@/stores/toast";
+import { useAuthStore } from "@/stores/auth";
 import { feedPapers } from "@/lib/data/papers";
 import { venues } from "@/lib/data/venues";
 import { libraryItems } from "@/lib/data/library";
 import { scholars as mockScholars, scholarDetail as mockScholarDetail } from "@/lib/data/scholars";
 import { institutions as mockInstitutions } from "@/lib/data/institutions";
-import { getProject as mockGetProject, projects as mockProjects } from "@/lib/data/projects";
-import { useDemoState } from "@/stores/demo-state";
+import { projects as mockProjects } from "@/lib/data/projects";
 import {
   workbenchActivity as wbActivity,
   workbenchAgentTasks as wbAgentTasks,
@@ -45,6 +44,9 @@ import type {
   AgentTask,
   OutlineNode,
   ResearchThread,
+  ResearchRun,
+  ResearchRunEvent,
+  ResearchExperiment,
   ThreadCard,
   WorkbenchAsset,
   WorkbenchOverview,
@@ -52,7 +54,7 @@ import type {
 import { privateGraph as mockPrivateGraph, publicGraph as mockPublicGraph } from "@/lib/data/knowledge-graph";
 import { paperDetail as mockPaperDetail } from "@/lib/data/paper-detail";
 import type { Project } from "@/lib/data/projects";
-import type { FeedPaper, LibraryItem, MatchedVenue, PaperGraph, Scholar, Venue } from "@/types";
+import type { FeedPaper, LibraryItem, MatchedVenue, PaperGraph, Scholar } from "@/types";
 
 /* ── mock 兜底显式化 ─────────────────────────────────────────── */
 
@@ -257,7 +259,6 @@ export function useInstitutions() {
 
 /** 项目列表 */
 export function useProjects() {
-  const demoProjects = useDemoState((s) => s.demoProjects);
   const query = useQuery({
     queryKey: ["api", "projects"],
     queryFn: async () => {
@@ -268,155 +269,163 @@ export function useProjects() {
         return mockFallback("/api/projects", err, mockProjects);
       }
     },
-    placeholderData: mockProjects,
+    placeholderData: [],
     staleTime: 60_000,
   });
 
-  /** 合并前端演示态新建的项目(去重) */
-  const data = React.useMemo(() => {
-    const base = (query.data ?? []) as Project[];
-    const extra = demoProjects.filter((d) => !base.some((b) => b.id === d.id));
-    return [...extra, ...base];
-  }, [query.data, demoProjects]);
-
-  return { ...query, data };
+  return query;
 }
 
 /** 项目详情 */
 export function useProject(id: string) {
+  const userId = useAuthStore((state) => state.user?.id ?? "anonymous");
   return useQuery({
-    queryKey: ["api", "project", id],
-    queryFn: async () => {
-      try {
-        const json = await apiGet<Project>(`/api/projects/${id}`);
-        return json.data;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}`, err, mockGetProject(id));
-      }
-    },
-    placeholderData: mockGetProject(id),
-    staleTime: 60_000,
+    queryKey: ["api", "project", id, userId],
+    queryFn: async () => (await apiGet<Project>(`/api/projects/${id}`)).data,
+    enabled: Boolean(id),
+    retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
-/* ── 课题工作台(后端端点未上线,当前恒为 mock 回退)────────────── */
+/* ── 课题工作台（真实 Route Handlers；公共示例保留显式 mock 灾备）── */
 
 /** 研究大纲树 */
 export function useProjectOutline(id: string) {
+  const showcase = id === "scinexus";
   return useQuery({
     queryKey: ["api", "project", id, "outline"],
     queryFn: async () => {
       try {
         const json = await apiGet<OutlineNode[]>(`/api/projects/${id}/outline`);
-        return json.data ?? wbOutline;
+        return json.data ?? [];
       } catch (err) {
-        return mockFallback(`/api/projects/${id}/outline`, err, wbOutline);
+        if (showcase) return mockFallback(`/api/projects/${id}/outline`, err, wbOutline);
+        throw err;
       }
     },
-    placeholderData: wbOutline,
-    staleTime: 60_000,
+    placeholderData: showcase ? wbOutline : [],
+    refetchInterval: showcase ? false : 3_000,
   });
 }
 
 /** 研究线程列表 */
 export function useProjectThreads(id: string) {
+  const showcase = id === "scinexus";
   return useQuery({
     queryKey: ["api", "project", id, "threads"],
     queryFn: async () => {
       try {
         const json = await apiGet<ResearchThread[]>(`/api/projects/${id}/threads`);
-        return json.data ?? wbThreads;
+        return json.data ?? [];
       } catch (err) {
-        return mockFallback(`/api/projects/${id}/threads`, err, wbThreads);
+        if (showcase) return mockFallback(`/api/projects/${id}/threads`, err, wbThreads);
+        throw err;
       }
     },
-    placeholderData: wbThreads,
-    staleTime: 60_000,
+    placeholderData: showcase ? wbThreads : [],
+    refetchInterval: showcase ? false : 3_000,
   });
 }
 
 /** 全部线程卡片(按线程过滤由组件完成) */
 export function useThreadCards(id: string) {
+  const showcase = id === "scinexus";
   return useQuery({
     queryKey: ["api", "project", id, "thread-cards"],
     queryFn: async () => {
       try {
         const json = await apiGet<ThreadCard[]>(`/api/projects/${id}/thread-cards`);
-        return json.data ?? wbCards;
+        return json.data ?? [];
       } catch (err) {
-        return mockFallback(`/api/projects/${id}/thread-cards`, err, wbCards);
+        if (showcase) return mockFallback(`/api/projects/${id}/thread-cards`, err, wbCards);
+        throw err;
       }
     },
-    placeholderData: wbCards,
-    staleTime: 60_000,
+    placeholderData: showcase ? wbCards : [],
+    refetchInterval: showcase ? false : 3_000,
   });
 }
 
 /** 工作台资产 */
 export function useWorkbenchAssets(id: string) {
+  const showcase = id === "scinexus";
   return useQuery({
     queryKey: ["api", "project", id, "assets"],
     queryFn: async () => {
       try {
         const json = await apiGet<WorkbenchAsset[]>(`/api/projects/${id}/assets`);
-        return json.data ?? wbAssets;
+        return json.data ?? [];
       } catch (err) {
-        return mockFallback(`/api/projects/${id}/assets`, err, wbAssets);
+        if (showcase) return mockFallback(`/api/projects/${id}/assets`, err, wbAssets);
+        throw err;
       }
     },
-    placeholderData: wbAssets,
-    staleTime: 60_000,
+    placeholderData: showcase ? wbAssets : [],
+    refetchInterval: showcase ? false : 3_000,
   });
 }
 
 /** 活动日志 */
 export function useWorkbenchActivity(id: string) {
+  const showcase = id === "scinexus";
   return useQuery({
     queryKey: ["api", "project", id, "activity"],
     queryFn: async () => {
       try {
         const json = await apiGet<ActivityEntry[]>(`/api/projects/${id}/activity`);
-        return json.data ?? wbActivity;
+        return json.data ?? [];
       } catch (err) {
-        return mockFallback(`/api/projects/${id}/activity`, err, wbActivity);
+        if (showcase) return mockFallback(`/api/projects/${id}/activity`, err, wbActivity);
+        throw err;
       }
     },
-    placeholderData: wbActivity,
-    staleTime: 60_000,
+    placeholderData: showcase ? wbActivity : [],
+    refetchInterval: showcase ? false : 3_000,
   });
 }
 
 /** 概览聚合 */
 export function useWorkbenchOverview(id: string) {
+  const showcase = id === "scinexus";
+  const emptyOverview: WorkbenchOverview = {
+    focus: { questionId: "", question: "", recentDocs: [], runningExperiments: [] },
+    blockers: [],
+    suggestions: [],
+  };
   return useQuery({
     queryKey: ["api", "project", id, "overview"],
     queryFn: async () => {
       try {
         const json = await apiGet<WorkbenchOverview>(`/api/projects/${id}/overview`);
-        return json.data ?? wbOverview;
+        return json.data ?? emptyOverview;
       } catch (err) {
-        return mockFallback(`/api/projects/${id}/overview`, err, wbOverview);
+        if (showcase) return mockFallback(`/api/projects/${id}/overview`, err, wbOverview);
+        throw err;
       }
     },
-    placeholderData: wbOverview,
-    staleTime: 60_000,
+    placeholderData: showcase ? wbOverview : emptyOverview,
+    refetchInterval: showcase ? false : 3_000,
   });
 }
 
 /** Agent 任务状态(底部状态栏) */
 export function useAgentTasks(id: string) {
+  const showcase = id === "scinexus";
   return useQuery({
     queryKey: ["api", "project", id, "agent-tasks"],
     queryFn: async () => {
       try {
         const json = await apiGet<AgentTask[]>(`/api/projects/${id}/tasks`);
-        return json.data ?? wbAgentTasks;
+        return json.data ?? [];
       } catch (err) {
-        return mockFallback(`/api/projects/${id}/tasks`, err, wbAgentTasks);
+        if (showcase) return mockFallback(`/api/projects/${id}/tasks`, err, wbAgentTasks);
+        throw err;
       }
     },
-    placeholderData: wbAgentTasks,
-    staleTime: 30_000,
+    placeholderData: showcase ? wbAgentTasks : [],
+    refetchInterval: showcase ? false : 3_000,
   });
 }
 
@@ -707,4 +716,74 @@ export function formatPaperList(query: string, papers: QuickPaper[]): string {
     }
   });
   return lines.join("\n");
+}
+
+/* ── 自动研究运行（不使用 mock，避免把演示状态误报为真实执行）──── */
+
+export function useResearchRuns(projectId: string) {
+  return useQuery({
+    queryKey: ["api", "project", projectId, "research-runs"],
+    queryFn: async () => (await apiGet<ResearchRun[]>(`/api/projects/${projectId}/research-runs`)).data ?? [],
+    enabled: Boolean(projectId),
+    refetchInterval: (query) => {
+      const runs = query.state.data as ResearchRun[] | undefined;
+      return runs?.some((run) => ["queued", "running"].includes(run.status)) ? 2000 : false;
+    },
+  });
+}
+
+export function useResearchRunEvents(projectId: string, runId?: string) {
+  return useQuery({
+    queryKey: ["api", "project", projectId, "research-runs", runId, "events"],
+    queryFn: async () => (await apiGet<ResearchRunEvent[]>(`/api/projects/${projectId}/research-runs/${runId}/events`)).data ?? [],
+    enabled: Boolean(projectId && runId),
+    refetchInterval: 2000,
+  });
+}
+
+export function useResearchExperiments(projectId: string, runId?: string) {
+  return useQuery({
+    queryKey: ["api", "project", projectId, "research-runs", runId, "experiments"],
+    queryFn: async () => (await apiGet<ResearchExperiment[]>(`/api/projects/${projectId}/research-runs/${runId}/experiments`)).data ?? [],
+    enabled: Boolean(projectId && runId),
+    refetchInterval: 3000,
+  });
+}
+
+export function useStartResearchRun(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { objective: string; config?: Record<string, unknown> }) =>
+      (await apiPost<{ run: ResearchRun }>(`/api/projects/${projectId}/research-runs`, body)).data!,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "research-runs"] });
+      toast.success("自动研究已进入队列");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "启动自动研究失败"),
+  });
+}
+
+export function useResearchRunAction(projectId: string, runId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (action: "pause" | "resume" | "cancel") =>
+      (await apiPost<ResearchRun>(`/api/projects/${projectId}/research-runs/${runId}/actions`, { action })).data!,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "research-runs"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "更新研究任务失败"),
+  });
+}
+
+export function useAddResearchInstruction(projectId: string, runId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (content: string) =>
+      apiPost(`/api/projects/${projectId}/research-runs/${runId}/instructions`, { content }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "research-runs", runId, "events"] });
+      toast.success("指令已加入，将在下一安全检查点应用");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "追加指令失败"),
+  });
 }

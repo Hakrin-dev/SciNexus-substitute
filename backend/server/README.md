@@ -1,4 +1,6 @@
-# 后端服务目录
+# 旧版 FastAPI 兼容服务（冻结）
+
+> 该目录不再是课题、用户、成员、资产或自动研究的数据入口。当前产品以根目录 `app/api` 的 Next.js Route Handlers 为唯一权限与持久化边界，自动研究由 `backend/worker` 调用 `backend/auto_research`。此服务只为尚未迁移的 AI/SSE 能力保留；请勿在这里新增同名 CRUD 接口。
 
 FastAPI 后端服务（`main.py`），提供论文检索、AI 对话、投稿匹配、文献库等 REST API。
 

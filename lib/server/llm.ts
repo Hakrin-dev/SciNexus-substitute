@@ -85,8 +85,9 @@ export async function chatText(
 export async function translateText(
   text: string,
   targetLang = "中文",
-  _sourceLang?: string | null
+  sourceLang?: string | null
 ): Promise<string> {
+  void sourceLang;
   const llm = await chatText(
     `你是学术翻译助手，把用户文本翻译成${targetLang}，保持专业术语准确、语序自然，只输出译文。`,
     text

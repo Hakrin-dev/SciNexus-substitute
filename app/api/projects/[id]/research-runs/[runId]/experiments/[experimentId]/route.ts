@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getDB } from "@/lib/server/db";
 import { requireAuth } from "@/lib/server/auth";
-import { assertProjectOwner } from "@/lib/server/workbench";
+import { canAccessProject } from "@/lib/server/workbench";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
 import { appendRunEvent, findOwnedRun, mapExperiment, nowIso } from "@/lib/server/research-runs";
 
@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id, runId, experimentId } = await params;
   const user = requireAuth(req);
   if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-  if (!assertProjectOwner(id, user.id)) return fail("项目不存在", 404);
+  if (!canAccessProject(id, user.id, "write")) return fail("没有项目编辑权限", 403, "FORBIDDEN");
   if (!findOwnedRun(id, runId)) return fail("研究任务不存在", 404, "RUN_NOT_FOUND");
   const db = getDB();
   const existing = db.prepare("SELECT * FROM research_experiments WHERE id = ? AND run_id = ?").get(experimentId, runId) as Record<string, unknown> | undefined;

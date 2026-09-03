@@ -5,7 +5,7 @@
 
 /* ── 视图与选中态 ─────────────────────────────────────────────── */
 
-export type WorkbenchView = "overview" | "outline" | "thread" | "assets" | "log";
+export type WorkbenchView = "overview" | "outline" | "thread" | "assets" | "report" | "log";
 
 /** 概览卡片可跳转的目标视图(不含概览自身) */
 export type JumpableView = Exclude<WorkbenchView, "overview">;
@@ -88,6 +88,15 @@ export interface WorkbenchAsset {
   status: AssetStatus;
   tags: string[];
   updatedAt: string;
+  /** 自动研究产物详情；普通手工资产可以没有这些字段。 */
+  artifact?: {
+    runId: string;
+    kind: "report" | "dataset" | "code" | "note" | "metrics" | "log" | "other";
+    uri: string | null;
+    content: string | null;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+  };
 }
 
 /* ── 日志 / 概览聚合 / Agent 任务 ────────────────────────────── */
@@ -126,6 +135,57 @@ export interface AgentTask {
   agent: AgentName;
   label: string;
   state: "queued" | "running" | "done";
+}
+
+/* ── 自动研究运行 ───────────────────────────────────────────── */
+
+export type ResearchRunStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";
+export type ResearchEngineStage = ResearchStageKey;
+
+export interface ResearchRun {
+  id: string;
+  projectId: string;
+  objective: string;
+  status: ResearchRunStatus;
+  phase: "plan" | "search" | "read" | "synthesize" | "experiment" | "report";
+  engineStage: ResearchEngineStage;
+  progress: number;
+  executor: string;
+  controlRequested: "pause" | "cancel" | null;
+  stopReason: string | null;
+  errorMessage: string | null;
+  attempt: number;
+  decision: { action?: string; reason?: string; progressed?: boolean; executionMode?: "full" | "degraded" | "offline" } | null;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface ResearchRunEvent {
+  id: string;
+  runId: string;
+  kind: string;
+  level: "debug" | "info" | "warning" | "error";
+  message: string;
+  payload: Record<string, unknown>;
+  sequence: number;
+  createdAt: string;
+}
+
+export interface ResearchExperiment {
+  id: string;
+  runId: string;
+  title: string;
+  round: number;
+  status: "planned" | "running" | "passed" | "failed" | "cancelled";
+  hypothesis: string | null;
+  metrics: Record<string, unknown>;
+  stdout: string;
+  stderr: string;
+  codeRef: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** 大纲扁平节点(左轨/右栏查表用):树 + 深度 */

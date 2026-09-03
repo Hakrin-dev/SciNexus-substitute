@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image, { type StaticImageData } from "next/image";
 import {
@@ -235,8 +235,7 @@ function LanguageSection() {
 function AppearanceSection() {
   const mode = useThemeStore((s) => s.mode);
   const setMode = useThemeStore((s) => s.setMode);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
 
   return (
     <div className="mt-3 rounded-2xl bg-card p-7 shadow-card">

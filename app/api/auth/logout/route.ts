@@ -14,5 +14,7 @@ export async function POST(req: NextRequest) {
   if (user) {
     revokeAllTokens(user.id);
   }
-  return ok({ logged_out: true });
+  const response = ok({ logged_out: true });
+  response.cookies.set("yanshu_session", "", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 0 });
+  return response;
 }

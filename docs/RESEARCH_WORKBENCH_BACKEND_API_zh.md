@@ -1,6 +1,6 @@
-# 研究台后端 API（执行器接入前版本）
+# 研究台后端 API
 
-本模块负责保存研究运行、进度、指令、实验和产物。目前执行器为 `placeholder`，不会引入或运行 SimpleAutoResearch。所有接口均需携带现有登录接口签发的 Bearer Token，并校验项目归属。
+本模块负责保存研究运行、进度、指令、实验和产物。Web 端把任务写入持久化队列，`backend.worker.main` 独立进程领取任务并运行仓库内的 SimpleAutoResearch。所有用户接口均需携带现有登录接口签发的 Bearer Token，并校验项目归属。
 
 ## 数据关系
 
@@ -13,7 +13,9 @@ project
        └─ artifact
 ```
 
-研究阶段固定为：`plan → search → read → synthesize → experiment → report`。
+引擎阶段固定为：`plan → search → read → synthesize → design → code → run → report`。
+
+工作台展示仍聚合为：`plan → search → read → synthesize → experiment → report`，其中 `design/code/run` 映射为 `experiment`。
 
 运行状态固定为：`queued | running | paused | completed | failed | cancelled`。
 
@@ -68,12 +70,10 @@ project
 }
 ```
 
-## 后续接入点
+## 执行与恢复
 
-执行器抽象位于 `lib/server/research-runs.ts`。真实接入时需要：
-
-1. 实现 `ResearchExecutor`，负责启动、暂停、恢复和取消外部任务。
-2. 为执行器回调增加独立的服务身份认证，避免使用用户 Token。
-3. 将外部阶段映射为平台的六个固定阶段。
-4. 将指标、stdout、stderr 和文件登记到实验及产物接口。
-5. 使用事件表实现 SSE 或 WebSocket 实时推送。
+- 队列适配器位于 `lib/server/research-runs.ts`，worker 位于 `backend/worker`。
+- 暂停和取消采用协作式控制，在阶段安全检查点生效；排队中或已暂停任务可立即转换状态。
+- `state.json` 是引擎恢复依据，数据库同时保存八阶段原始状态和六阶段展示状态。
+- worker 将指标、stdout、stderr、报告和阶段文件幂等登记到实验、产物、资产、卡片及活动日志。
+- 事件具有单次运行内递增的 `sequence`，前端当前轮询读取，后续可无损升级为 SSE。

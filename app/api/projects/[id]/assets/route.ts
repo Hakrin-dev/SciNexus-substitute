@@ -4,8 +4,8 @@
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok } from "@/lib/server/utils";
 import { getDB } from "@/lib/server/db";
-import { requireAuth } from "@/lib/server/auth";
-import { assertProjectOwner, mapAsset } from "@/lib/server/workbench";
+import { getCurrentUser } from "@/lib/server/auth";
+import { canAccessProject, mapAsset } from "@/lib/server/workbench";
 
 export const runtime = "nodejs";
 
@@ -16,13 +16,16 @@ export async function GET(
   ensureSeed();
   const { id } = await params;
   try {
-    const user = requireAuth(req);
-    if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-    if (!assertProjectOwner(id, user.id)) return fail("项目不存在", 404);
+    if (!canAccessProject(id, getCurrentUser(req)?.id, "read")) return fail("项目不存在", 404);
 
     const rows = getDB()
       .prepare(
-        "SELECT * FROM wb_assets WHERE project_id = ? ORDER BY updated_at DESC"
+        `SELECT a.*, r.run_id AS artifact_run_id, r.kind AS artifact_kind,
+                r.uri AS artifact_uri, r.content AS artifact_content,
+                r.metadata_json AS artifact_metadata_json, r.created_at AS artifact_created_at
+           FROM wb_assets a
+           LEFT JOIN research_artifacts r ON r.id = a.id AND r.project_id = a.project_id
+          WHERE a.project_id = ? ORDER BY a.updated_at DESC`
       )
       .all(id) as unknown as Record<string, unknown>[];
     return ok(rows.map(mapAsset));

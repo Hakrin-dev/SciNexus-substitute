@@ -169,6 +169,7 @@ const VIEW_LABELS = {
   outline: "大纲",
   thread: "线程",
   assets: "资产库",
+  report: "研究报告",
   log: "日志",
 } as const;
 

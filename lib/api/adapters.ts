@@ -86,7 +86,7 @@ export interface BackendLibraryItem {
 
 export type BackendScholar = Omit<Scholar, "initials" | "avatarColor">;
 
-export interface BackendPublication extends Publication {}
+export type BackendPublication = Publication;
 
 export interface BackendScholarDetail {
   id: string;

@@ -1,0 +1,115 @@
+[run]
+# SurveyBench single-topic run generated from the native topic list.
+# Use the same topic key as the SurveyBench method name when exporting/scoring.
+topic = "Explainability for Large Language Models"
+output_root = "benchmark/survey_bench/results/topics-thorough/topic07-explainability-for-large-language-models"
+to_stage = "report"
+debug_artifacts = false
+
+[llm]
+enabled = true
+model = "gpt-4o"
+workers = 2
+
+[search]
+offline = false
+strict = true
+allow_fixture_fallback = false
+max_papers = 70
+query = "Explainability for Large Language Models survey taxonomy methods benchmarks evaluation applications limitations"
+
+[research]
+mode = "strong"
+planner = "llm"
+sources = ["openalex", "semantic_scholar", "arxiv"]
+queries = [
+  "Explainability for Large Language Models survey",
+  "Explainability for Large Language Models taxonomy methods architectures",
+  "Explainability for Large Language Models benchmarks evaluation datasets",
+  "Explainability for Large Language Models applications limitations future directions",
+]
+auto_query_expansion = true
+max_retrieval_rounds = 3
+max_queries = 8
+required_facets = [
+  "background_and_scope",
+  "method_taxonomy",
+  "datasets_benchmarks_and_evaluation",
+  "applications_and_systems",
+  "limitations_and_future_directions",
+]
+local_documents = []
+use_fulltext = true
+allow_pdf_download = true
+max_fulltext_documents = 24
+max_pdf_mb = 25
+keep_raw_pdf = true
+parser_backend = "pypdf"
+read_screening = "llm"
+read_batch_size = 5
+read_workers = 2
+read_min_shortlist = 35
+read_max_shortlist = 45
+cache = true
+index_backend = "sqlite_fts"
+index_root = ".simple_ar_cache/research_index"
+
+[research.budget]
+max_documents = 45
+max_chunks = 1400
+max_context_tokens = 52000
+max_llm_calls = 48
+max_follow_up_queries = 3
+novelty_backend = "local"
+
+[retrieval]
+enabled = true
+top_k = 18
+
+[report]
+mode = "research_only"
+template = "survey_long"
+criteria = "auto"
+style = "long_academic_survey"
+cost_profile = "thorough"
+outline_strategy = "adaptive"
+section_numbering = "academic"
+longform_contract = true
+draft_sections = true
+debug_artifacts = false
+agent = "llm"
+reviewer = "llm"
+max_review_iterations = 1
+max_section_tokens = 10000
+max_report_tokens = 52000
+max_section_sources = 0
+source_strategy = "batch_refine"
+source_batch_size = 10
+max_source_batches = 0
+review_trace = "meta"
+output_mode = "overwrite"
+output_label = ""
+allow_source_backtracking = true
+max_backtracking_calls = 5
+max_backtracking_tokens = 12000
+
+[report.audit]
+citations = true
+metrics = true
+claims = true
+
+[report.figures]
+enabled = true
+max_figures = 5
+format = "svg"
+mode = "auto"
+[report.longform]
+enabled = true
+target_papers = 40
+min_papers = 32
+target_words = 18000
+min_citations_per_section = 3
+target_tables = 10
+evidence_audit = true
+planning_artifacts = true
+

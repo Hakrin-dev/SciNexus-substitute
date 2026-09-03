@@ -7,7 +7,7 @@ import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
 import { getDB } from "@/lib/server/db";
 import { requireAuth } from "@/lib/server/auth";
-import { assertProjectOwner, mapCard } from "@/lib/server/workbench";
+import { canAccessProject, mapCard, writeAudit } from "@/lib/server/workbench";
 import { genId } from "@/lib/server/utils";
 
 export const runtime = "nodejs";
@@ -25,7 +25,7 @@ export async function PATCH(
   try {
     const user = requireAuth(req);
     if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-    if (!assertProjectOwner(id, user.id)) return fail("项目不存在", 404);
+    if (!canAccessProject(id, user.id, "write")) return fail("没有项目编辑权限", 403, "FORBIDDEN");
 
     const body = await parseBody<{ status?: string }>(req);
     if (!body.status || !VALID_STATUS.has(body.status)) {
@@ -61,6 +61,7 @@ export async function PATCH(
     const updated = db
       .prepare("SELECT * FROM wb_thread_cards WHERE id = ?")
       .get(cardId) as Row;
+    writeAudit({ userId: user.id, projectId: id, action: "thread_card.update", resourceType: "thread_card", resourceId: cardId, metadata: { status: body.status } });
     return ok({ card: mapCard(updated) });
   } catch (e) {
     return fail(e instanceof Error ? e.message : "更新卡片失败");

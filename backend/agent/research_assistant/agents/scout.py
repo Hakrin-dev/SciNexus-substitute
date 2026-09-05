@@ -1,6 +1,7 @@
 """Scout Agent（信息收集）：跨数据源精准检索与排序、多路检索校验。"""
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timezone
 
@@ -10,6 +11,8 @@ from research_assistant.schemas import RetrievedPaper, ScoutOutput, ScoutQueryPl
 from research_assistant.tools import tools
 from research_assistant.tools.quality import checklist_match_level
 from research_assistant.config import settings
+
+logger = logging.getLogger(__name__)
 
 # 常见中文填充词（mock 阶段代替分词）
 _FILLERS = (
@@ -52,6 +55,37 @@ SYSTEM_PROMPT = (
 )
 
 
+def _web_results_to_hits(results: list[dict]) -> list[dict]:
+    """web_search 结果 -> scout 内部候选 dict（复用统一的 RetrievedPaper 映射与质量分级）。
+
+    paper_id 用 URL（无 URL 时 web:{序号}:{标题}）；相关度按排名衰减（0.35→0.1），
+    使联网来源排在本地高质量论文之后但仍然可见。
+    """
+    provider = (settings.web_search_provider or "exa").capitalize()
+    hits: list[dict] = []
+    for i, r in enumerate(results):
+        title = str(r.get("title") or "").strip()
+        url = str(r.get("url") or "").strip()
+        if not title and not url:
+            continue
+        # 有 URL 无标题的结果（标题被清洗为占位值）以 URL 兜底，保证可读
+        if not title:
+            title = url
+        hits.append({
+            "paper_id": url or f"web:{i}:{title}",
+            "title": title,
+            "author": "",
+            "year": int(r.get("year") or 0),
+            "citation_count": 0,
+            "_score": max(0.1, 0.35 - 0.05 * i),
+            "abstract": str(r.get("snippet") or "").strip(),
+            "venue": "互联网检索",
+            "db_source": f"WebSearch({provider})",
+            "url": url or None,
+        })
+    return hits
+
+
 class ScoutAgent(BaseAgent):
     name = "scout"
 
@@ -61,6 +95,8 @@ class ScoutAgent(BaseAgent):
 
     def run(self, state: dict) -> dict:
         query = state["user_query"]
+        # 用户启用「联网搜索」时补充互联网来源（工具是否可用仍由 Supervisor 授权闸门决定）
+        web_search_on = bool((state.get("context") or {}).get("web_search"))
 
         # 阶段1. LLM 规划（需求解析 + 查询构建）：输出检索条件、3 个粒度子查询与 checklist
         #        mock 模式回显确定性计划；真实模式由 LLM 按 schema 生成。
@@ -85,8 +121,9 @@ class ScoutAgent(BaseAgent):
                 ],
             }
 
+        available_tools = ["vector_rag", "graph_rag"] + (["web_search"] if web_search_on else [])
         plan: ScoutQueryPlan = self.generate(
-            {"user_query": query, "available_tools": ["vector_rag", "graph_rag"]},
+            {"user_query": query, "available_tools": available_tools},
             ScoutQueryPlan,
             _mock_plan(),
         )
@@ -132,9 +169,19 @@ class ScoutAgent(BaseAgent):
             vector_hits = tools.call("vector_rag", query=query, top_k=top_k, filters=None)
             graph_hits = tools.call("graph_rag", query=query, top_k=top_k, filters=None)
 
+        # 阶段2.5 联网检索（可选）：补充互联网最新来源；失败降级为仅本地结果，不阻断检索链路
+        web_hits: list[dict] = []
+        if web_search_on:
+            try:
+                web_hits = _web_results_to_hits(
+                    tools.call("web_search", query=query, top_k=settings.web_search_top_k)
+                )
+            except Exception as exc:
+                logger.warning("web_search 调用失败，忽略联网结果：%s", exc)
+
         # 阶段3. 去重排序 + 质量验证（优先数据自带 match 等级），再生成最终输出
         seen: dict[str, dict] = {}
-        for hit in remote_hits + vector_hits + graph_hits:
+        for hit in remote_hits + vector_hits + graph_hits + web_hits:
             seen.setdefault(hit["paper_id"], hit)
 
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -169,6 +216,7 @@ class ScoutAgent(BaseAgent):
                     keywords=hit.get("keywords", []),
                     relevance_score=float(hit.get("_score", 0.0)),
                     pdf_url=hit.get("pdf_url"),
+                    url=hit.get("url"),
                 )
             )
 

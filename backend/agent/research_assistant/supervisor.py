@@ -146,6 +146,19 @@ MOCK_AGENT_TOOLS: dict[str, list[str]] = {
     "critic": ["venue_db", "evidence_check"],
 }
 
+
+def web_search_enabled(context: dict | None) -> bool:
+    """用户是否在前端启用联网搜索（context.web_search）。"""
+    return bool((context or {}).get("web_search"))
+
+
+def _authorized_tools_for(agent: str, web_search_on: bool = False) -> list[str]:
+    """agent 硬编码最小工具集；用户启用联网搜索时给 scout 附加 web_search。"""
+    toolset = list(MOCK_AGENT_TOOLS.get(agent, []))
+    if web_search_on and agent == "scout":
+        toolset.append("web_search")
+    return toolset
+
 SUPERVISOR_PROMPT = """你是科研助手的 Supervisor 控制平面，不执行任何科研子任务。
 你的职责：基于用户请求与全局工作记忆，输出一个**最小、可执行**的 agent 执行计划。
 
@@ -157,9 +170,10 @@ SUPERVISOR_PROMPT = """你是科研助手的 Supervisor 控制平面，不执行
 
 【工具授权】
 每个步骤必须声明该 agent 完成本步骤实际需要的最小工具集；可用工具只有：
-vector_rag、graph_rag、pdf_parser、graph_expand、venue_db、evidence_check、dpo_align、evidence_retrieve、pdf_ingest。
+vector_rag、graph_rag、pdf_parser、graph_expand、venue_db、evidence_check、dpo_align、evidence_retrieve、pdf_ingest、web_search。
 各 agent 硬编码依赖的最小工具集（授权时必须包含，否则该 agent 会因缺少工具而执行失败）：
 - scout: vector_rag, graph_rag
+- web_search: 仅当用户启用联网搜索（context.web_search）时授予 scout，用于补充互联网最新来源
 - synthesis: pdf_parser, evidence_retrieve；远程论文有公开 pdf_url 时还需要 pdf_ingest
 - librarian: graph_expand
 - research_design: （无需工具）
@@ -217,7 +231,7 @@ def build_task_plan(task_type: str) -> list[dict]:
     ]
 
 
-def _mock_decision(query: str) -> dict[str, Any]:
+def _mock_decision(query: str, web_search_on: bool = False) -> dict[str, Any]:
     """只供 MockProvider 使用的确定性控制决策。"""
     intent = _forced_intent(query) or recognize_intent(query)
     return {
@@ -227,14 +241,14 @@ def _mock_decision(query: str) -> dict[str, Any]:
             {
                 "agent": step["agent"],
                 "action": step["action"],
-                "authorized_tools": MOCK_AGENT_TOOLS[step["agent"]],
+                "authorized_tools": _authorized_tools_for(step["agent"], web_search_on),
             }
             for step in build_task_plan(intent["task_type"])
         ],
     }
 
 
-def forced_decision(task_type: str) -> dict[str, Any]:
+def forced_decision(task_type: str, web_search_on: bool = False) -> dict[str, Any]:
     """按前端显式模块意图生成受设计文档约束的执行计划。"""
     info = INTENT_TABLE[task_type]
     return {
@@ -244,7 +258,7 @@ def forced_decision(task_type: str) -> dict[str, Any]:
             {
                 "agent": step["agent"],
                 "action": step["action"],
-                "authorized_tools": MOCK_AGENT_TOOLS[step["agent"]],
+                "authorized_tools": _authorized_tools_for(step["agent"], web_search_on),
             }
             for step in info["steps"]
         ],
@@ -258,19 +272,20 @@ def _forced_intent(task_type: str | None) -> dict[str, Any] | None:
     return {"task_type": task_type, "required_agents": info["required_agents"], "description": info["description"]}
 
 
-def _constrained_steps(raw_steps: list[dict]) -> list[SupervisorStep]:
+def _constrained_steps(raw_steps: list[dict], web_search_on: bool = False) -> list[SupervisorStep]:
     """按 agent 最小工具集构建受约束步骤；未知 agent 兜底为空工具集。"""
     return [
         SupervisorStep(
             agent=step["agent"],
             action=step["action"],
-            authorized_tools=list(MOCK_AGENT_TOOLS.get(step["agent"], [])),
+            authorized_tools=_authorized_tools_for(step["agent"], web_search_on),
         )
         for step in raw_steps
     ]
 
 
-def constrain_decision(decision: SupervisorDecision, user_query: str) -> SupervisorDecision:
+def constrain_decision(decision: SupervisorDecision, user_query: str,
+                       web_search_on: bool = False) -> SupervisorDecision:
     """模块级 agent 白名单硬约束：即使 LLM 出错，也不允许把模块路由到白名单外的 agent。
 
     task_type 以 decision 为准（须为 INTENT_TABLE 键），否则回退到意图识别；
@@ -283,10 +298,11 @@ def constrain_decision(decision: SupervisorDecision, user_query: str) -> Supervi
     allowed = set(INTENT_TABLE[task_type]["required_agents"])
 
     filtered_steps = _constrained_steps(
-        [{"agent": step.agent, "action": step.action} for step in decision.steps if step.agent in allowed]
+        [{"agent": step.agent, "action": step.action} for step in decision.steps if step.agent in allowed],
+        web_search_on,
     )
     if not filtered_steps:
-        filtered_steps = _constrained_steps(INTENT_TABLE[task_type]["steps"])
+        filtered_steps = _constrained_steps(INTENT_TABLE[task_type]["steps"], web_search_on)
     return SupervisorDecision(
         task_type=task_type,
         description=INTENT_TABLE[task_type]["description"],
@@ -313,6 +329,7 @@ class Supervisor:
     def _start_task(self, state: dict) -> dict:
         query = state["user_query"]
         explicit_task_type = (state.get("raw_input") or {}).get("task_type")
+        web_search_on = web_search_enabled(state.get("context"))
         payload: dict[str, Any] = {
             "user_query": query,
             "working_memory": state.get("working_memory") or {},
@@ -320,10 +337,10 @@ class Supervisor:
         }
         if explicit_task_type and _forced_intent(str(explicit_task_type)) is not None \
                 and str(explicit_task_type) != "autonomous_research":
-            decision = SupervisorDecision(**forced_decision(str(explicit_task_type)))
+            decision = SupervisorDecision(**forced_decision(str(explicit_task_type), web_search_on))
         else:
             if isinstance(self.llm, MockProvider):
-                payload["_mock_data"] = _mock_decision(query)
+                payload["_mock_data"] = _mock_decision(query, web_search_on)
 
             try:
                 decision = self.llm.complete(SUPERVISOR_PROMPT, payload, SupervisorDecision)
@@ -331,7 +348,7 @@ class Supervisor:
                 return self._planning_failure(state, exc)
 
         if settings.supervisor_enforce_allowlist:
-            decision = constrain_decision(decision, query)
+            decision = constrain_decision(decision, query, web_search_on)
 
         task_id = f"task-{uuid.uuid4().hex[:8]}"
         plan = [
@@ -499,6 +516,9 @@ def _scout_result_markdown(out: dict, limit: int = 5) -> list[str]:
             abstract = abstract[:180].rstrip() + "..."
         lines.append(f"{index}. **{title}** ({author}, {year})")
         lines.append(f"   - 匹配: {match}；来源: {venue or '未知'}；引用: {cites}")
+        url = (paper.get("url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            lines.append(f"   - 链接: [{url}]({url})")
         if abstract:
             lines.append(f"   - 摘要: {abstract}")
     return lines
@@ -639,6 +659,15 @@ FINALIZE_SYSTEM_PROMPT = (
     "6. 不要用代码块围栏包裹整篇回答。"
 )
 
+# 用户启用联网搜索时追加到 FINALIZE_SYSTEM_PROMPT 的指令
+WEB_SEARCH_FINALIZE_PROMPT = (
+    "【联网检索补充】\n"
+    "本次任务启用了联网搜索，检索结果中可能包含「WebSearch」网页来源（db_source 带 WebSearch 标识，附 URL）。\n"
+    "1. 可引用这些网页来源补充论文库未覆盖的最新进展、事实与数据；\n"
+    "2. 引用网页信息时以 Markdown 链接标注来源标题与 URL；\n"
+    "3. 网页内容可信度低于同行评审论文，关键学术结论仍应以论文证据为主。"
+)
+
 # 回答风格 -> 追加到 FINALIZE_SYSTEM_PROMPT 的指令（前端 composer.tsx STYLES 对应）
 STYLE_PROMPTS: dict[str, str] = {
     "头脑风暴": (
@@ -680,9 +709,12 @@ def _resolve_style_prompt(context: dict | None) -> str:
     return STYLE_PROMPTS.get(style or "", "")
 
 
-def _compose_final_answer(query: str, evidence_md: str, llm, style_prompt: str = "") -> str:
+def _compose_final_answer(query: str, evidence_md: str, llm, style_prompt: str = "",
+                          web_search_on: bool = False) -> str:
     """调用 LLM 把结构化工作结果组合成自然语言回答；失败抛异常由调用方回退模板。"""
     system_prompt = FINALIZE_SYSTEM_PROMPT
+    if web_search_on:
+        system_prompt = f"{system_prompt}\n\n{WEB_SEARCH_FINALIZE_PROMPT}"
     if style_prompt:
         system_prompt = f"{system_prompt}\n\n{style_prompt}"
     user_text = f"用户问题：{query}\n\n各智能体的工作结果（Markdown）：\n{evidence_md[:8000]}"
@@ -699,6 +731,7 @@ def finalize_node(state: dict) -> dict:
     wm = state.get("working_memory") or {}
     outputs = wm.get("agent_outputs") or {}
     style_prompt = _resolve_style_prompt(state.get("context"))
+    web_search_on = web_search_enabled(state.get("context"))
 
     evidence: list[str] = []
     file_sections: list[str] = []
@@ -731,7 +764,8 @@ def finalize_node(state: dict) -> dict:
         try:
             llm = get_supervisor_llm()
             if not isinstance(llm, MockProvider):
-                composed = _compose_final_answer(state.get("user_query", ""), body, llm, style_prompt)
+                composed = _compose_final_answer(state.get("user_query", ""), body, llm, style_prompt,
+                                                 web_search_on)
                 if composed and len(composed.strip()) > 20:
                     reply = composed.strip()
         except Exception:

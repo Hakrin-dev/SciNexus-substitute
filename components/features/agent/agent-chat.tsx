@@ -129,6 +129,8 @@ export function AgentChat() {
   const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
   /** 回答风格：头脑风暴 / 简明扼要 / 全面细致 / 严谨质疑（透传后端提示词） */
   const [style, setStyle] = useState<StyleChoice | null>(null);
+  /** 联网搜索：开启后后端追加互联网来源（Exa MCP，深度/快速模式均生效） */
+  const [webSearch, setWebSearch] = useState(false);
   /** compact 压缩点:仅把 compactFrom 之后的消息送入上下文(界面消息流不受影响) */
   const [compactFrom, setCompactFrom] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -251,7 +253,7 @@ export function AgentChat() {
         for await (const event of sendChat(q, history, ac.signal, model, activeConv ?? undefined, {
           topic: messages[0]?.content ?? q,
           style: style ?? undefined,
-        }, effectiveMode)) {
+        }, effectiveMode, webSearch)) {
           if (event.type === "meta") {
             if (event.meta.conversation_id) {
               convTouched = event.meta.conversation_id;
@@ -286,7 +288,7 @@ export function AgentChat() {
         setResearchActive(false);
       } else {
         // 快速模式：scout 本地直检;正文只放后端「简易回答」摘要,论文以参考卡呈现
-        const { papers, summary, conversationId } = await quickSearchPapers(q, activeConv ?? undefined);
+        const { papers, summary, conversationId } = await quickSearchPapers(q, activeConv ?? undefined, webSearch);
         if (conversationId) {
           convTouched = conversationId;
           setActiveConv(conversationId);
@@ -401,6 +403,8 @@ export function AgentChat() {
       onModelChange={setModel}
       style={style}
       onStyleChange={setStyle}
+      webSearch={webSearch}
+      onWebSearchChange={setWebSearch}
       placeholder="帮我找一下关于扩散模型在机器人控制中的最新综述…"
       menuPlacement={messages.length === 0 ? "down" : "up"}
       headerRight={compactRing}

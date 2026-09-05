@@ -79,6 +79,12 @@ class Settings:
     retrieval_circuit_reset_seconds: int = int(os.getenv("RETRIEVAL_CIRCUIT_RESET_SECONDS", "30"))
     retrieval_allow_insecure_http: bool = field(default_factory=lambda: _env_bool("RETRIEVAL_ALLOW_INSECURE_HTTP", False))
 
+    # ---- 联网检索（web search，移植自 SZDR paperreport，opencode 同款 Exa MCP）----
+    # exa = Exa 托管 MCP（免 key）；parallel = Parallel MCP（可选 PARALLEL_API_KEY）；off = 关闭
+    web_search_provider: str = field(default_factory=lambda: os.getenv("WEB_SEARCH_PROVIDER", "exa").lower())
+    web_search_top_k: int = int(os.getenv("WEB_SEARCH_TOP_K", "8"))
+    web_search_timeout: float = float(os.getenv("WEB_SEARCH_TIMEOUT", "25"))
+
     # ---- 文献综述（综述写作，移植自 SZDR paperreport）----
     review_claim_max_chars: int = int(os.getenv("REVIEW_CLAIM_MAX_CHARS", "120"))
     review_dimensions_min: int = int(os.getenv("REVIEW_DIMENSIONS_MIN", "3"))

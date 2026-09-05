@@ -268,11 +268,44 @@ def _quick_summary(query: str, papers: list[dict]) -> str:
         return fallback()
 
 
+def _web_results_to_frontend(results: list[dict]) -> list[dict]:
+    """web_search 结果 -> agent 契约论文（url/source 由 search_papers 序列化后回填）。
+
+    id=URL、venue 标记互联网来源；有 URL 无标题时以 URL 兜底保证可读。
+    """
+    papers: list[dict] = []
+    for i, r in enumerate(results):
+        title = str(r.get("title") or "").strip()
+        url = str(r.get("url") or "").strip()
+        if not title and not url:
+            continue
+        if not title:
+            title = url
+        try:
+            year = int(str(r.get("year") or "").strip() or 0)
+        except ValueError:
+            year = 0
+        papers.append({
+            "paper_id": url or f"web:{i}:{title}",
+            "title": title,
+            "author": "",
+            "year": year,
+            "venue": "互联网检索",
+            "abstract": str(r.get("snippet") or "").strip(),
+            "citation_count": 0,
+            "relevance_score": max(0.1, 0.35 - 0.05 * i),
+            "url": url or None,
+            "source": "web",
+        })
+    return papers
+
+
 def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
                   conversation_id: str | None = None,
                   year_from: int | None = None, year_to: int | None = None,
                   conferences: list[str] | None = None, authors: list[str] | None = None,
-                  keywords: list[str] | None = None, subjects: list[str] | None = None) -> dict:
+                  keywords: list[str] | None = None, subjects: list[str] | None = None,
+                  web_search: bool = False) -> dict:
     """论文检索：远程知识底座优先，按配置回退本地混合索引。
 
     简单检索不经过慢速多智能体工作流。remote/hybrid 模式先调用远程增强检索；
@@ -322,6 +355,19 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
         papers = fuse_results([papers, local_papers], weights=[1.0, 0.7], top_k=top_k)
         source = "hybrid"
 
+    # 联网检索（可选）：前端「联网搜索」开关打开时追加互联网来源（Exa/Parallel MCP）。
+    # 排在本地/远程结果之后；失败静默降级为仅本地结果。
+    web_count = 0
+    if web_search:
+        try:
+            from research_assistant.tools import web_search as web_search_tool  # noqa: PLC0415
+
+            web_papers = _web_results_to_frontend(web_search_tool.search(query, top_k))
+            web_count = len(web_papers)
+            papers = papers + web_papers
+        except Exception:
+            pass
+
     workflow = {
         "task_id": "",
         "agents": ["data_source"],
@@ -356,8 +402,16 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
             "status": "done",
             "tools": [],
         })
+    data = []
+    for p in papers:
+        item = _to_frontend_paper(p)
+        # web 结果回填联网来源标识（serialize_paper 输出不含 url/source）
+        if p.get("source") == "web":
+            item["url"] = p.get("url")
+            item["source"] = "web"
+        data.append(item)
     return {
-        "data": [_to_frontend_paper(p) for p in papers],
+        "data": data,
         "summary": _quick_summary(query, papers),
         "meta": {
             "query": query,
@@ -368,6 +422,7 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
             "agents": ["data_source"],
             "source": source,
             "fallbackUsed": fallback_used,
+            "webCount": web_count,
             "queryParse": query_parse,
             "queryRewrite": query_rewrite,
             "tookMs": took_ms,
@@ -426,6 +481,7 @@ def _extract_references(result: dict) -> list[dict] | None:
             "ccf": p.get("ccf"),
             "citations": int(p.get("citation_count", 0) or 0),
             "match": (p.get("match_label") or p.get("match_level") or "").upper(),
+            "url": (p.get("url") or "").strip() or None,
         })
     return refs or None
 

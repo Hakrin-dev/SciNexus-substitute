@@ -135,6 +135,8 @@ export interface AgentReference {
   citations: string;
   tone: "violet" | "green" | "amber" | "gray";
   recommended?: boolean;
+  /** 联网检索来源链接（仅 WebSearch 结果非空，卡片标题渲染为外链） */
+  url?: string | null;
 }
 
 /** 论文详情(阅读器) */

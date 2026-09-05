@@ -18,6 +18,7 @@ import { copyText, toast } from "@/stores/toast";
 import { LoginModal } from "@/components/auth/login-modal";
 import { ReferenceGrid } from "./reference-grid";
 import {
+  DEFAULT_STEPS,
   WorkflowTrace,
   toRefsFromPapers,
   toRefsFromChat,
@@ -122,6 +123,9 @@ export function AgentChat() {
   const [streaming, setStreaming] = useState(false);
   /** 回答模式：fast=快速（scout 直检 + 简单回答，零 LLM）；deep=深度（完整多智能体工作流） */
   const [mode, setMode] = useState<ComposerMode>("fast");
+  /** 深度研究右侧面板：请求开始即展示运行态，完成后替换为后端真实流程 */
+  const [researchWorkflow, setResearchWorkflow] = useState<Workflow | null>(null);
+  const [researchActive, setResearchActive] = useState(false);
   const [model, setModel] = useState<ModelChoice>(DEFAULT_MODEL);
   /** 回答风格：头脑风暴 / 简明扼要 / 全面细致 / 严谨质疑（透传后端提示词） */
   const [style, setStyle] = useState<StyleChoice | null>(null);
@@ -144,8 +148,7 @@ export function AgentChat() {
     setActiveConv(convId);
     try {
       const msgs = await fetchConversationMessages(convId);
-      setMessages(
-        msgs.map((m) => ({
+      const restored = msgs.map((m) => ({
           id: nextIdRef.current++,
           role: m.role,
           content: m.content,
@@ -157,8 +160,13 @@ export function AgentChat() {
                   refs: (m.references as ChatReference[] | undefined) ?? undefined,
                 }
               : undefined,
-        })),
-      );
+        }));
+      setMessages(restored);
+      const latestWorkflow = [...restored]
+        .reverse()
+        .find((m) => m.role === "assistant" && m.turn?.workflow)?.turn?.workflow;
+      setResearchWorkflow(latestWorkflow ?? null);
+      setResearchActive(false);
       setCompactFrom(0);
     } catch {
       toast.error("加载对话失败，请稍后重试");
@@ -212,6 +220,13 @@ export function AgentChat() {
     if (!q || streaming) return;
     setValue("");
     const effectiveMode = forceMode ?? mode;
+    if (effectiveMode === "deep") {
+      setResearchActive(true);
+      setResearchWorkflow({
+        steps: DEFAULT_STEPS.map((step) => ({ ...step })),
+        status: "running",
+      });
+    }
     const history = messages.slice(compactFrom).map((m) => ({
       role: m.role,
       content: m.content,
@@ -244,6 +259,7 @@ export function AgentChat() {
             }
             wf = (event.meta.workflow as Workflow | null) ?? undefined;
             refs = (event.meta.references as ChatReference[] | null) ?? undefined;
+            if (wf) setResearchWorkflow(wf);
           }
           if (event.type === "delta") {
             acc += event.text;
@@ -261,6 +277,13 @@ export function AgentChat() {
           setLastContent("（本轮未生成回答，请重试或换一种问法）");
         }
         setLastTurn({ mode: "deep", workflow: wf, refs });
+        if (!wf) {
+          setResearchWorkflow({
+            steps: DEFAULT_STEPS.map((step) => ({ ...step, status: "done" })),
+            status: "done",
+          });
+        }
+        setResearchActive(false);
       } else {
         // 快速模式：scout 本地直检;正文只放后端「简易回答」摘要,论文以参考卡呈现
         const { papers, summary, conversationId } = await quickSearchPapers(q, activeConv ?? undefined);
@@ -274,6 +297,7 @@ export function AgentChat() {
         setLastTurn({ mode: "fast", papers });
       }
     } catch (e) {
+      if (effectiveMode === "deep") setResearchActive(false);
       if (ac.signal.aborted) {
         // 用户主动停止:保留已生成部分
       } else if (e instanceof ApiError && e.status === 401) {
@@ -394,6 +418,8 @@ export function AgentChat() {
           setActiveConv(null);
           setValue("");
           setCompactFrom(0);
+          setResearchWorkflow(null);
+          setResearchActive(false);
         }}
         className="flex h-10 shrink-0 cursor-pointer items-center gap-2.5 rounded-xl bg-primary px-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
       >
@@ -449,6 +475,27 @@ export function AgentChat() {
       </div>
     </aside>
   );
+
+  const researchPanel =
+    researchWorkflow || researchActive ? (
+      <aside className="hidden h-screen w-80 shrink-0 overflow-y-auto border-l border-line bg-sidebar p-4 xl:block">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-ink">研究流程</p>
+            <p className="mt-1 text-[11px] text-faint">
+              {researchActive ? "正在检索、分析并组织回答" : "本轮研究已完成"}
+            </p>
+          </div>
+          {researchActive && (
+            <span className="size-2 animate-pulse rounded-full bg-primary" />
+          )}
+        </div>
+        <WorkflowTrace
+          workflow={researchWorkflow}
+          active={researchActive}
+        />
+      </aside>
+    ) : null;
 
   if (messages.length === 0) {
     return (
@@ -532,6 +579,7 @@ export function AgentChat() {
             <div className="mx-auto max-w-5xl">{composer}</div>
           </div>
         </div>
+        {researchPanel}
       </div>
       <LoginModal open={showLogin} onClose={() => setShowLogin(false)} />
     </>

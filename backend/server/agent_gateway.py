@@ -208,16 +208,21 @@ QUICK_ANSWER_PROMPT = (
     "4. 使用中文，段落式简短回答即可，不要列论文清单（清单由系统单独展示）。"
 )
 
+QUICK_NO_RESULT_PROMPT = (
+    "你是研枢（SciNexus）科研助手。用户提出了一个科研问题，但当前论文检索没有召回结果。"
+    "请直接基于你的通用知识回答问题；不要声称引用了不存在的论文，也不要编造检索结果。"
+    "回答使用中文，先给结论，再补充必要的解释；如果问题需要最新事实，请明确说明可能存在时效限制。"
+ )
+
 
 def _quick_summary(query: str, papers: list[dict]) -> str:
     """快速模式的「简易回答」：基于检索结果用轻量 LLM 生成 2~4 句回答。
 
     LLM 不可用/异常时回退规则模板（也用于 mock 模式），保证快速链路永不阻塞。
     """
-    if not papers:
-        return f"关于「{query}」，当前论文库未检索到匹配结果，建议更换关键词或开启语义检索后重试。"
-
     def fallback() -> str:
+        if not papers:
+            return f"关于「{query}」，当前论文库未检索到匹配结果。以下回答基于通用知识，建议补充关键词后再次检索。"
         top = papers[0]
         title = top.get("title") or top.get("paper_id") or ""
         venue = (top.get("evidence_snippet") or top.get("venue") or "") or "arXiv"
@@ -241,20 +246,23 @@ def _quick_summary(query: str, papers: list[dict]) -> str:
         llm = get_llm()
         if isinstance(llm, MockProvider):
             return fallback()
-        payload = {
-            "question": query,
-            "papers": [
-                {
-                    "title": p.get("title") or p.get("paper_id", ""),
-                    "authors": p.get("author") or "未知作者",
-                    "year": p.get("year") or "",
-                    "venue": (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv",
-                    "abstract": str(p.get("abstract") or "")[:200],
-                }
-                for p in papers[:6]
-            ],
-        }
-        text = llm.chat_text(QUICK_ANSWER_PROMPT, f"问题：{query}\n\n论文信息：{payload}")
+        if not papers:
+            text = llm.chat_text(QUICK_NO_RESULT_PROMPT, query)
+        else:
+            payload = {
+                "question": query,
+                "papers": [
+                    {
+                        "title": p.get("title") or p.get("paper_id", ""),
+                        "authors": p.get("author") or "未知作者",
+                        "year": p.get("year") or "",
+                        "venue": (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv",
+                        "abstract": str(p.get("abstract") or "")[:200],
+                    }
+                    for p in papers[:6]
+                ],
+            }
+            text = llm.chat_text(QUICK_ANSWER_PROMPT, f"问题：{query}\n\n论文信息：{payload}")
         return text if text and len(text.strip()) > 5 else fallback()
     except Exception:
         return fallback()

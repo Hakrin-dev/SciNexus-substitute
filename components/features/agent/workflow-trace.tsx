@@ -28,6 +28,8 @@ export interface ChatReference {
   ccf?: string | null;
   citations?: number;
   match?: string;
+  /** 联网检索来源链接（仅 WebSearch 结果非空） */
+  url?: string | null;
 }
 
 export const DEFAULT_STEPS: WorkflowStep[] = [
@@ -44,6 +46,7 @@ export function toRefsFromPapers(
     ccf: string;
     year: number | null;
     citations: number;
+    url?: string | null;
   }[],
 ): AgentReference[] {
   return papers.slice(0, 8).map((p, index) => ({
@@ -54,6 +57,7 @@ export function toRefsFromPapers(
     citations: `引用 ${p.citations}`,
     tone:
       p.ccf === "A" ? "violet" : p.ccf === "B" ? "amber" : p.ccf === "C" ? "gray" : "green",
+    url: p.url,
   }));
 }
 
@@ -64,6 +68,7 @@ export function toRefsFromChat(refs: ChatReference[]): AgentReference[] {
     title: r.title,
     author: r.authors || "未知作者",
     citations: `引用 ${r.citations ?? 0}`,
+    url: r.url,
     tone:
       r.ccf === "A" ? "violet" : r.ccf === "B" ? "amber" : r.ccf === "C" ? "gray" : "green",
   }));

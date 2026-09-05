@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, Bookmark, BookmarkCheck } from "lucide-react";
+import { ArrowRight, Bookmark, BookmarkCheck, ExternalLink } from "lucide-react";
 import { agentReferences } from "@/lib/data/agent";
 import { client, ApiError } from "@/lib/api/client";
 import { toast } from "@/stores/toast";
@@ -15,6 +15,9 @@ const TONE_COLORS: Record<string, string> = {
   amber: "bg-brand-blue",
   gray: "bg-muted",
 };
+
+/** 仅放行 http(s) 外链，防 javascript: 等危险 scheme */
+const SAFE_URL_PATTERN = /^https?:\/\//i;
 
 /** 参考来源卡片组 —— 引用文献的横向卡片,每篇可存入知识库 / 导出引用。
  *  `refs` 可选；传入则使用传入列表，否则回退演示数据。
@@ -92,9 +95,22 @@ export function ReferenceGrid({
               </span>
               <span className="text-[11px] text-faint">{ref.venue}</span>
             </div>
-            <p className="mt-2 line-clamp-3 text-[13px] font-medium leading-snug text-ink-2">
-              {ref.title}
-            </p>
+            {ref.url && SAFE_URL_PATTERN.test(ref.url) ? (
+              <a
+                href={ref.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="打开网页来源"
+                className="mt-2 flex items-start gap-1 text-[13px] font-medium leading-snug text-ink-2 transition-colors hover:text-primary"
+              >
+                <span className="line-clamp-3">{ref.title}</span>
+                <ExternalLink className="mt-0.5 size-3 shrink-0 text-faint" />
+              </a>
+            ) : (
+              <p className="mt-2 line-clamp-3 text-[13px] font-medium leading-snug text-ink-2">
+                {ref.title}
+              </p>
+            )}
             <div className="mt-2 flex items-center justify-between">
               <p className="text-[11px] text-faint">
                 {ref.author} · {ref.citations}

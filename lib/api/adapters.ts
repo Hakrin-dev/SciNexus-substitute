@@ -9,14 +9,8 @@
  */
 import type {
   FeedPaper,
-  GraphEdge,
-  GraphNode,
-  Institution,
-  LibraryItem,
   PaperDetail,
-  PaperGraph,
   Publication,
-  Scholar,
   Venue,
   VenueBadgeName,
   VenueMetaIcon,
@@ -75,23 +69,6 @@ export interface BackendMatchedVenue extends BackendVenue {
   matchReason?: string | null;
 }
 
-export interface BackendLibraryItem {
-  id: string;
-  recordId: string;
-  title: string;
-  venue: string;
-  authors: string;
-  ccf?: string | null;
-  arxiv?: string | null;
-  addedAt: string;
-  status?: string;
-  readingProgress?: number;
-  tags?: string[];
-  folder?: string;
-}
-
-export type BackendScholar = Omit<Scholar, "initials" | "avatarColor">;
-
 export interface BackendPublication extends Publication {}
 
 export interface BackendScholarDetail {
@@ -111,36 +88,7 @@ export interface BackendScholarDetail {
   publications: BackendPublication[];
 }
 
-export type BackendInstitution = Omit<Institution, "initials" | "logoColor">;
-
-export interface BackendGraphNode {
-  id: string;
-  labelLines?: [string, string];
-  weight: number;
-  year: number;
-  title: string;
-  authors: string;
-  venue: string;
-  citations: string;
-  abstract: string;
-  paperId?: string;
-  layer?: "mine" | "folder";
-}
-
-export interface BackendGraph {
-  origin: BackendGraphNode;
-  nodes: BackendGraphNode[];
-  edges: { source: string; target: string; strength: number; crossLayer?: boolean }[];
-  relatedIds: string[];
-}
-
 // ==================== 视觉派生工具 ====================
-
-/** 头像/logo 色板（与品牌「深识」体系协调） */
-const PALETTE = [
-  "#002FA7", "#10B981", "#F59E0B", "#EC4899",
-  "#8B5CF6", "#06B6D4", "#0E7490", "#B91C1C",
-];
 
 /** CCF → 卡片音调（论文卡/文献库 PDF 色块共用） */
 export function ccfTone(ccf?: string | null): "violet" | "amber" | "green" {
@@ -160,12 +108,6 @@ export function initials(name: string): string {
     return /[\u4e00-\u9fff]/.test(w) ? w.slice(0, 2) : w.slice(0, 2).toUpperCase();
   }
   return words.slice(0, 3).map((w) => w[0]).join("").toUpperCase();
-}
-
-function formatAddedAt(iso?: string | null): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
-  if (m) return `${Number(m[2])}月${Number(m[3])}日`;
-  return iso ?? "";
 }
 
 /** "2024-11-15" → 距现在的毫秒偏移（倒计时演示用，过期归零） */
@@ -251,35 +193,6 @@ export function normalizeVenues<T extends BackendVenue>(items: T[]): Array<T & V
   return items.map((item) => ({ ...item, ...toVenue(item) }));
 }
 
-export function toLibraryItem(l: BackendLibraryItem): LibraryItem {
-  return {
-    id: l.id,
-    recordId: l.recordId,
-    title: l.title,
-    venue: l.venue || "arXiv",
-    arxiv: l.arxiv ?? "arXiv: —",
-    authors: l.authors || "佚名",
-    addedAt: formatAddedAt(l.addedAt),
-    pdfTone: ccfTone(l.ccf),
-  };
-}
-
-export function toScholar(s: BackendScholar, index: number): Scholar {
-  return {
-    ...s,
-    initials: initials(s.nameEn || s.nameCn),
-    avatarColor: PALETTE[index % PALETTE.length],
-  };
-}
-
-export function toInstitution(i: BackendInstitution, index: number): Institution {
-  return {
-    ...i,
-    initials: initials(i.nameEn || i.nameCn),
-    logoColor: PALETTE[index % PALETTE.length],
-  };
-}
-
 export function toPaperDetail(
   p: BackendPaper,
   id: string,
@@ -314,41 +227,5 @@ export function toPaperDetail(
     fallbackUsed: p.fallbackUsed === true,
     pdfUrl: typeof (p as any).pdf_url === "string" ? (p as any).pdf_url : null,
     hasFulltext: chunks.length > 0,
-  };
-}
-
-export function toGraphNode(n: BackendGraphNode): GraphNode {
-  const labelLines: [string, string] = n.labelLines ?? [
-    n.authors?.split(",")[0]?.trim().split(" ").pop() ?? "?",
-    String(n.year),
-  ];
-  return {
-    id: n.id,
-    labelLines,
-    weight: n.weight,
-    year: n.year,
-    title: n.title,
-    authors: n.authors,
-    venue: n.venue,
-    citations: n.citations,
-    abstract: n.abstract,
-    paperId: n.paperId,
-    layer: n.layer,
-  };
-}
-
-export function toGraph(g: BackendGraph): PaperGraph {
-  return {
-    origin: toGraphNode(g.origin),
-    nodes: g.nodes.map(toGraphNode),
-    edges: g.edges.map(
-      (e): GraphEdge => ({
-        source: e.source,
-        target: e.target,
-        strength: e.strength,
-        crossLayer: e.crossLayer,
-      }),
-    ),
-    relatedIds: g.relatedIds ?? [],
   };
 }

@@ -4,7 +4,7 @@
  *
  * 使用：
  *   import api from '@/lib/api/client';
- *   const { data } = await api.papers.list({ page: 1 });
+ *   const resp = await api.auth.login(username, password);
  */
 
 // 后端基础地址:默认同源(空字符串 → 相对路径 /api/*,命中 Next.js 自带 Route Handlers);
@@ -116,9 +116,6 @@ async function request<T = any>(
 }
 
 export const client = {
-  // ---------- 健康 ----------
-  health: () => request<any>("GET", "/api/health", { skipAuth: true }),
-
   // ---------- 认证 ----------
   auth: {
     login: (username: string, password: string) =>
@@ -139,121 +136,8 @@ export const client = {
     me: () => request<any>("GET", "/api/auth/me"),
   },
 
-  // ---------- 论文 ----------
-  papers: {
-    list: (query?: {
-      page?: number;
-      page_size?: number;
-      sort_by?: string;
-      ccf?: string;
-      year?: number;
-      keyword?: string;
-    }) => request<any>("GET", "/api/papers", { query }),
-    recommended: (limit = 9) =>
-      request<any>("GET", "/api/papers/recommended", { query: { limit } }),
-    detail: (id: string) => request<any>("GET", `/api/papers/${id}`),
-  },
-
-  // ---------- 学者 ----------
-  scholars: {
-    list: (query?: {
-      page?: number;
-      page_size?: number;
-      keyword?: string;
-      sort_by?: string;
-      direction?: string;
-    }) => request<any>("GET", "/api/scholars", { query }),
-    detail: (id: string) => request<any>("GET", `/api/scholars/${id}`),
-    follow: (id: string) => request<any>("POST", `/api/scholars/${id}/follow`),
-    unfollow: (id: string) => request<any>("DELETE", `/api/scholars/${id}/follow`),
-  },
-
-  // ---------- 机构 ----------
-  institutions: {
-    list: (query?: {
-      page?: number;
-      page_size?: number;
-      keyword?: string;
-      type?: string;
-      sort_by?: string;
-    }) => request<any>("GET", "/api/institutions", { query }),
-    bookmark: (id: string) =>
-      request<any>("POST", `/api/institutions/${id}/bookmark`),
-    unbookmark: (id: string) =>
-      request<any>("DELETE", `/api/institutions/${id}/bookmark`),
-  },
-
-  // ---------- 知识图谱 ----------
-  graph: {
-    publicGraph: () => request<any>("GET", "/api/graph/public"),
-    privateGraph: () => request<any>("GET", "/api/graph/private"),
-  },
-
-  // ---------- 项目 ----------
-  projects: {
-    list: (query?: { page?: number; page_size?: number; status?: string }) =>
-      request<any>("GET", "/api/projects", { query }),
-    create: (body: any) => request<any>("POST", "/api/projects", { body }),
-    detail: (id: string) => request<any>("GET", `/api/projects/${id}`),
-    update: (id: string, body: any) =>
-      request<any>("PUT", `/api/projects/${id}`, { body }),
-    remove: (id: string) => request<any>("DELETE", `/api/projects/${id}`),
-  },
-
-  // ---------- 搜索 + 对话 ----------
-  search: (body: {
-    query: string;
-    mode?: string;
-    ccf?: string;
-    year_from?: number;
-    year_to?: number;
-    sort_by?: string;
-    task_type?: string;
-    top_k?: number;
-  }) => request<any>("POST", "/api/search", { body }),
-
-  chat: {
-    send: (body: {
-      conversation_id?: string;
-      message?: string;
-      messages?: any[];
-      task_type?: string;
-    }) => request<any>("POST", "/api/chat", { body }),
-
-    conversations: () => request<any>("GET", "/api/conversations"),
-  },
-
-  // ---------- 投稿 ----------
-  venues: {
-    list: (query?: {
-      page?: number;
-      page_size?: number;
-      keyword?: string;
-      kind?: string;
-      sort_by?: string;
-    }) => request<any>("GET", "/api/venues", { query }),
-    match: (body: {
-      title: string;
-      abstract: string;
-      keywords?: string[];
-    }) => request<any>("POST", "/api/submission/match", { body }),
-  },
-
   // ---------- 文献库 ----------
   library: {
-    folders: {
-      list: () => request<any>("GET", "/api/library/folders"),
-      create: (name: string) =>
-        request<any>("POST", "/api/library/folders", { body: { name } }),
-    },
-    list: (query?: {
-      folder?: string;
-      tag?: string;
-      status?: string;
-      sort_by?: string;
-      page?: number;
-      page_size?: number;
-    }) => request<any>("GET", "/api/library", { query }),
     add: (body: {
       paper_id?: string;
       title: string;
@@ -263,28 +147,6 @@ export const client = {
       folder?: string;
       tags?: string[];
     }) => request<any>("POST", "/api/library", { body }),
-    remove: (ids: string[]) =>
-      request<any>("POST", "/api/library/batch-delete", { body: { ids } }),
-    updateProgress: (id: string, progress: number) =>
-      request<any>("PUT", `/api/library/${id}/progress`, {
-        body: { progress },
-      }),
-  },
-
-  // ---------- 通知 ----------
-  notifications: {
-    list: () => request<any>("GET", "/api/notifications"),
-    markRead: (id: string) =>
-      request<any>("PUT", `/api/notifications/${id}/read`),
-  },
-
-  // ---------- 开题报告/综述 ----------
-  proposal: {
-    generate: (body: {
-      type: "proposal" | "review";
-      topic?: string;
-      papers_count?: number;
-    }) => request<any>("POST", "/api/proposal/generate", { body }),
   },
 };
 

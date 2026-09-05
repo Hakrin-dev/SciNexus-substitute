@@ -180,6 +180,7 @@ class SearchRequest(BaseModel):
     author: Optional[list[str]] = None         # 作者筛选
     keyword: Optional[list[str]] = None        # 关键词筛选
     subject: Optional[list[str]] = None        # 学科筛选
+    web_search: Optional[bool] = None          # 联网搜索：追加互联网来源（Exa/Parallel MCP）
 
 class ChatRequest(BaseModel):
     """AI 对话请求"""
@@ -193,6 +194,7 @@ class ChatRequest(BaseModel):
     context: Optional[dict[str, Any]] = None  # 前序任务产出的结构化上下文
     mode: Optional[str] = None                # fast / deep
     style: Optional[str] = None               # 回答风格：头脑风暴 / 简明扼要 / 全面细致 / 严谨质疑（注入 finalize 提示词）
+    web_search: Optional[bool] = None         # 联网搜索：补充互联网来源（Exa/Parallel MCP）
 
 class TranslateRequest(BaseModel):
     """学术文本翻译请求"""
@@ -780,6 +782,7 @@ async def search_endpoint(req: SearchRequest, request: Request):
                 authors=req.author,
                 keywords=req.keyword,
                 subjects=req.subject,
+                web_search=bool(req.web_search),
             )
             result.setdefault("conversation_id", req.conversation_id or f"conv_{uuid.uuid4().hex}")
             return result
@@ -908,7 +911,8 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 model=req.model,
                 conversation_id=req.conversation_id,
                 run_id=req.run_id,
-                context={**(req.context or {}), **({"style": req.style} if req.style else {})},
+                context={**(req.context or {}), **({"style": req.style} if req.style else {}),
+                         **({"web_search": True} if req.web_search else {})},
             )
             reply = result["reply"]
             return {
@@ -961,7 +965,8 @@ async def chat_stream(req: ChatRequest):
                 model=req.model,
                 conversation_id=req.conversation_id,
                 run_id=req.run_id,
-                context={**(req.context or {}), **({"style": req.style} if req.style else {})},
+                context={**(req.context or {}), **({"style": req.style} if req.style else {}),
+                         **({"web_search": True} if req.web_search else {})},
             )
             reply = result["reply"]
             run_id = result.get("run_id")

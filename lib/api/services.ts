@@ -538,10 +538,19 @@ export async function* sendChat(
   conversationId?: string,
   context?: Record<string, unknown>,
   mode?: "fast" | "deep",
+  webSearch?: boolean,
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
   yield* streamChat(
     "/api/chat/stream",
-    { message, messages: history, model, mode, conversation_id: conversationId, context },
+    {
+      message,
+      messages: history,
+      model,
+      mode,
+      conversation_id: conversationId,
+      context,
+      web_search: webSearch || undefined,
+    },
     signal,
   );
 }
@@ -839,6 +848,7 @@ export interface QuickPaper {
   knowledgeScore?: number | null;
   keywords?: string[];
   subjects?: string[];
+  url?: string | null;
 }
 
 /**
@@ -848,11 +858,12 @@ export interface QuickPaper {
 export async function quickSearchPapers(
   query: string,
   conversationId?: string,
+  webSearch?: boolean,
 ): Promise<{ papers: QuickPaper[]; summary: string; conversationId?: string }> {
   try {
     const json = await apiPost<Array<Record<string, unknown>>>(
       "/api/search",
-      { query, conversation_id: conversationId },
+      { query, conversation_id: conversationId, web_search: webSearch || undefined },
     );
     const response = json as typeof json & { conversation_id?: unknown };
     const papers = (json.data ?? []).map((p) => ({
@@ -871,6 +882,7 @@ export async function quickSearchPapers(
       knowledgeScore: p.knowledgeScore != null ? Number(p.knowledgeScore) : null,
       keywords: Array.isArray(p.keywords) ? p.keywords.map(String) : [],
       subjects: Array.isArray(p.subjects) ? p.subjects.map(String) : [],
+      url: typeof p.url === "string" && p.url ? p.url : null,
     }));
     return {
       papers,

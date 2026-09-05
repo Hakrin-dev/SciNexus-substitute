@@ -200,13 +200,34 @@ def _direct_search(query: str, top_k: int) -> list[dict]:
 
 QUICK_ANSWER_PROMPT = (
     "你是研枢（SciNexus）科研助手的快速检索总结器。用户提出一个科研问题，"
-    "下方是本地检索引擎召回的候选论文（标题/作者/年份/来源/摘要）。\n"
+    "下方是检索引擎召回的候选条目（标题/作者/年份/来源/摘要，部分附 url）。\n"
+    "其中 venue 为「互联网检索」的是联网网页来源（非论文库收录），其余来自论文知识库。\n"
     "请用 2~4 句话**直接简要回答用户的问题**：\n"
-    "1. 结论优先，必要时提及 1~2 篇最有代表性的论文（格式「标题（作者, 年份）」）作为支撑；\n"
-    "2. 若论文不足以回答该问题，如实说明「当前检索到的论文不足以直接回答」，并给出最接近的检索结论；\n"
-    "3. 只依据下方论文信息作答，严禁编造论文中不存在的结论；\n"
-    "4. 使用中文，段落式简短回答即可，不要列论文清单（清单由系统单独展示）。"
+    "1. 结论优先，必要时提及 1~2 篇最有代表性的条目（格式「标题（作者, 年份）」）作为支撑；\n"
+    "2. 联网网页来源可用于补充论文库未覆盖的最新进展与事实，提及它们时给出「标题（url）」链接，"
+    "但其可信度低于同行评审论文，与论文证据冲突时以论文为准；\n"
+    "3. 若现有条目不足以回答该问题，如实说明「当前检索到的资料不足以直接回答」，并给出最接近的检索结论；\n"
+    "4. 只依据下方条目作答，严禁编造不存在的结论；\n"
+    "5. 使用中文，段落式简短回答即可，不要列条目清单（清单由系统单独展示）。"
 )
+
+QUICK_NO_RESULT_PROMPT = (
+    "你是研枢（SciNexus）科研助手。用户提出了一个科研问题，但当前论文检索没有召回结果。"
+    "请直接基于你的通用知识回答问题；不要声称引用了不存在的论文，也不要编造检索结果。"
+    "回答使用中文，先给结论，再补充必要的解释；如果问题需要最新事实，请明确说明可能存在时效限制。"
+ )
+
+
+def _select_summary_papers(papers: list[dict], local_limit: int = 6, web_limit: int = 3) -> list[dict]:
+    """快速模式摘要的输入选择：本地论文优先，另带入前几条联网来源供摘要吸收最新进展。
+
+    无本地结果时回退为纯联网来源（取前 local_limit 条），保证摘要有料可写。
+    """
+    local = [p for p in papers if p.get("source") != "web"]
+    web = [p for p in papers if p.get("source") == "web"]
+    if not local:
+        return web[:local_limit]
+    return local[:local_limit] + web[:web_limit]
 
 
 def _quick_summary(query: str, papers: list[dict]) -> str:
@@ -214,10 +235,9 @@ def _quick_summary(query: str, papers: list[dict]) -> str:
 
     LLM 不可用/异常时回退规则模板（也用于 mock 模式），保证快速链路永不阻塞。
     """
-    if not papers:
-        return f"关于「{query}」，当前论文库未检索到匹配结果，建议更换关键词或开启语义检索后重试。"
-
     def fallback() -> str:
+        if not papers:
+            return f"关于「{query}」，当前论文库未检索到匹配结果。以下回答基于通用知识，建议补充关键词后再次检索。"
         top = papers[0]
         title = top.get("title") or top.get("paper_id") or ""
         venue = (top.get("evidence_snippet") or top.get("venue") or "") or "arXiv"
@@ -241,30 +261,67 @@ def _quick_summary(query: str, papers: list[dict]) -> str:
         llm = get_llm()
         if isinstance(llm, MockProvider):
             return fallback()
-        payload = {
-            "question": query,
-            "papers": [
-                {
-                    "title": p.get("title") or p.get("paper_id", ""),
-                    "authors": p.get("author") or "未知作者",
-                    "year": p.get("year") or "",
-                    "venue": (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv",
-                    "abstract": str(p.get("abstract") or "")[:200],
-                }
-                for p in papers[:6]
-            ],
-        }
-        text = llm.chat_text(QUICK_ANSWER_PROMPT, f"问题：{query}\n\n论文信息：{payload}")
+        if not papers:
+            text = llm.chat_text(QUICK_NO_RESULT_PROMPT, query)
+        else:
+            payload = {
+                "question": query,
+                "papers": [
+                    {
+                        "title": p.get("title") or p.get("paper_id", ""),
+                        "authors": p.get("author") or "未知作者",
+                        "year": p.get("year") or "",
+                        "venue": (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv",
+                        "abstract": str(p.get("abstract") or "")[:200],
+                        "url": p.get("url"),
+                    }
+                    for p in _select_summary_papers(papers)
+                ],
+            }
+            text = llm.chat_text(QUICK_ANSWER_PROMPT, f"问题：{query}\n\n检索结果：{payload}")
         return text if text and len(text.strip()) > 5 else fallback()
     except Exception:
         return fallback()
+
+
+def _web_results_to_frontend(results: list[dict]) -> list[dict]:
+    """web_search 结果 -> agent 契约论文（url/source 由 search_papers 序列化后回填）。
+
+    id=URL、venue 标记互联网来源；有 URL 无标题时以 URL 兜底保证可读。
+    """
+    papers: list[dict] = []
+    for i, r in enumerate(results):
+        title = str(r.get("title") or "").strip()
+        url = str(r.get("url") or "").strip()
+        if not title and not url:
+            continue
+        if not title:
+            title = url
+        try:
+            year = int(str(r.get("year") or "").strip() or 0)
+        except ValueError:
+            year = 0
+        papers.append({
+            "paper_id": url or f"web:{i}:{title}",
+            "title": title,
+            "author": "",
+            "year": year,
+            "venue": "互联网检索",
+            "abstract": str(r.get("snippet") or "").strip(),
+            "citation_count": 0,
+            "relevance_score": max(0.1, 0.35 - 0.05 * i),
+            "url": url or None,
+            "source": "web",
+        })
+    return papers
 
 
 def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
                   conversation_id: str | None = None,
                   year_from: int | None = None, year_to: int | None = None,
                   conferences: list[str] | None = None, authors: list[str] | None = None,
-                  keywords: list[str] | None = None, subjects: list[str] | None = None) -> dict:
+                  keywords: list[str] | None = None, subjects: list[str] | None = None,
+                  web_search: bool = False) -> dict:
     """论文检索：远程知识底座优先，按配置回退本地混合索引。
 
     简单检索不经过慢速多智能体工作流。remote/hybrid 模式先调用远程增强检索；
@@ -314,6 +371,19 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
         papers = fuse_results([papers, local_papers], weights=[1.0, 0.7], top_k=top_k)
         source = "hybrid"
 
+    # 联网检索（可选）：前端「联网搜索」开关打开时追加互联网来源（Exa/Parallel MCP）。
+    # 排在本地/远程结果之后；失败静默降级为仅本地结果。
+    web_count = 0
+    if web_search:
+        try:
+            from research_assistant.tools import web_search as web_search_tool  # noqa: PLC0415
+
+            web_papers = _web_results_to_frontend(web_search_tool.search(query, top_k))
+            web_count = len(web_papers)
+            papers = papers + web_papers
+        except Exception:
+            pass
+
     workflow = {
         "task_id": "",
         "agents": ["data_source"],
@@ -348,8 +418,16 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
             "status": "done",
             "tools": [],
         })
+    data = []
+    for p in papers:
+        item = _to_frontend_paper(p)
+        # web 结果回填联网来源标识（serialize_paper 输出不含 url/source）
+        if p.get("source") == "web":
+            item["url"] = p.get("url")
+            item["source"] = "web"
+        data.append(item)
     return {
-        "data": [_to_frontend_paper(p) for p in papers],
+        "data": data,
         "summary": _quick_summary(query, papers),
         "meta": {
             "query": query,
@@ -360,6 +438,7 @@ def search_papers(query: str, top_k: int = 10, task_type: str | None = None,
             "agents": ["data_source"],
             "source": source,
             "fallbackUsed": fallback_used,
+            "webCount": web_count,
             "queryParse": query_parse,
             "queryRewrite": query_rewrite,
             "tookMs": took_ms,
@@ -418,6 +497,7 @@ def _extract_references(result: dict) -> list[dict] | None:
             "ccf": p.get("ccf"),
             "citations": int(p.get("citation_count", 0) or 0),
             "match": (p.get("match_label") or p.get("match_level") or "").upper(),
+            "url": (p.get("url") or "").strip() or None,
         })
     return refs or None
 

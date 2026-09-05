@@ -164,10 +164,24 @@ function useCloseOnOutside(open: boolean, close: () => void) {
 }
 
 /** 「+」菜单:插件 / 技能(演示)与联网搜索(可开关,启用时高亮) */
-function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
+function PlusMenu({
+  placement = "down",
+  webSearchOn,
+  onWebSearchChange,
+}: {
+  placement?: "up" | "down";
+  webSearchOn?: boolean;
+  onWebSearchChange?: (v: boolean) => void;
+}) {
   const [open, setOpen] = useState(false);
-  const [webSearchOn, setWebSearchOn] = useState(false);
+  const [internalWebSearch, setInternalWebSearch] = useState(false);
   const ref = useCloseOnOutside(open, () => setOpen(false));
+
+  const webSearchValue = webSearchOn ?? internalWebSearch;
+  const toggleWebSearch = () => {
+    if (onWebSearchChange) onWebSearchChange(!webSearchValue);
+    else setInternalWebSearch((v) => !v);
+  };
 
   const ITEMS = [
     { label: "插件", icon: Plug, href: "/tools/plugins" },
@@ -184,7 +198,7 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "flex size-9 cursor-pointer items-center justify-center rounded-xl transition-colors",
-          open || webSearchOn ? "bg-chip text-ink" : "text-muted hover:bg-chip",
+          open || webSearchValue ? "bg-chip text-ink" : "text-muted hover:bg-chip",
         )}
       >
         <Plus
@@ -214,11 +228,11 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
           <button
             type="button"
             role="switch"
-            aria-checked={webSearchOn}
-            onClick={() => setWebSearchOn((v) => !v)}
+            aria-checked={webSearchValue}
+            onClick={toggleWebSearch}
             className={cn(
               "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors",
-              webSearchOn
+              webSearchValue
                 ? "bg-primary-soft font-medium text-primary"
                 : "text-ink-2 hover:bg-chip",
             )}
@@ -226,7 +240,7 @@ function PlusMenu({ placement = "down" }: { placement?: "up" | "down" }) {
             <Globe
               className={cn(
                 "size-4",
-                webSearchOn ? "text-primary" : "text-muted",
+                webSearchValue ? "text-primary" : "text-muted",
               )}
               strokeWidth={1.8}
             />
@@ -490,6 +504,8 @@ export function ComposerShell({
   onModelChange,
   style,
   onStyleChange,
+  webSearch,
+  onWebSearchChange,
   onSearchPapers,
   headerRight,
   sendLeft,
@@ -505,6 +521,9 @@ export function ComposerShell({
   onModelChange?: (model: ModelChoice) => void;
   style?: StyleChoice | null;
   onStyleChange?: (s: StyleChoice) => void;
+  /** 联网搜索开关（后端 Exa MCP 检索）；不传时由组件内部自持状态 */
+  webSearch?: boolean;
+  onWebSearchChange?: (v: boolean) => void;
   /** Alt+Enter:检索论文(各页面自行决定结果呈现方式) */
   onSearchPapers?: () => void;
   /** 输入框右上方挂载的附加内容(如 compact 圆环) */
@@ -590,7 +609,11 @@ export function ComposerShell({
 
       <div className="mt-1 flex items-center gap-1.5">
         {/* 左下:+(插件/技能/联网搜索)、别针(上传/引用)与模型选择 */}
-        <PlusMenu placement={menuPlacement} />
+        <PlusMenu
+          placement={menuPlacement}
+          webSearchOn={webSearch}
+          onWebSearchChange={onWebSearchChange}
+        />
         <AttachmentMenu
           placement={menuPlacement}
           onInsert={(token) =>

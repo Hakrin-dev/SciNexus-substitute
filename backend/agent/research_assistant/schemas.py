@@ -52,6 +52,7 @@ class RetrievedPaper(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     relevance_score: float = 0.0
     pdf_url: str | None = None
+    url: str | None = None  # 联网检索来源链接（仅 WebSearch 结果非空）
 
 
 class ScoutOutput(BaseModel):
@@ -433,7 +434,7 @@ class TaskPlan(BaseModel):
 # Supervisor 控制平面：只允许路由到已注册 agent 和已登记工具。
 # --------------------------------------------------------------------------- #
 AgentName = Literal["scout", "synthesis", "librarian", "research_design", "code_assistant", "writer", "critic"]
-ToolName = Literal["vector_rag", "graph_rag", "pdf_parser", "graph_expand", "venue_db", "evidence_check", "dpo_align", "evidence_retrieve", "pdf_ingest"]
+ToolName = Literal["vector_rag", "graph_rag", "pdf_parser", "graph_expand", "venue_db", "evidence_check", "dpo_align", "evidence_retrieve", "pdf_ingest", "web_search"]
 
 
 class SupervisorStep(BaseModel):
@@ -460,6 +461,10 @@ class ScoutQueryPlan(BaseModel):
     domain: str | None = None
     author: str | None = None
     sub_queries: list[str] = Field(default_factory=list, description="3 个不同粒度的子查询")
+    web_query: str | None = Field(
+        default=None,
+        description="联网检索用查询：把用户问题译写为简洁的英文学术检索式（关键词组合），无合适译法可留空",
+    )
     checklist: list[str] = Field(default_factory=list)
 
 

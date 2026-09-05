@@ -43,6 +43,8 @@ class ToolRegistry:
         )
         # PDF 安全下载入库（SSRF 防护 + %PDF 头校验 + 30MB 限制）
         self.register("pdf_ingest", lambda url: self._pdf_ingest(url))
+        # 联网检索（Exa/Parallel MCP，opencode 同款）：Supervisor 仅在用户启用联网搜索时授权
+        self.register("web_search", lambda query, top_k=0: self._web_search(query, top_k))
 
     def register(self, name: str, fn: _ToolFn) -> None:
         self._tools[name] = fn
@@ -140,8 +142,15 @@ class ToolRegistry:
         return results[:top_k]
 
     # ------------------------------------------------------------------ #
-    # 论文内证据检索 / PDF 安全入库
+    # 论文内证据检索 / PDF 安全入库 / 联网检索
     # ------------------------------------------------------------------ #
+    @staticmethod
+    def _web_search(query: str, top_k: int = 0) -> list[dict]:
+        """web_search：Exa/Parallel MCP 联网检索（provider 关闭或失败时返回空列表）。"""
+        from research_assistant.tools import web_search  # noqa: PLC0415
+
+        return web_search.search(query, top_k)
+
     def _evidence_retrieve(self, paper_id: str, question: str, limit: int = 6) -> dict:
         """解析论文并做混合证据检索，返回 {paper_id, query, evidence, source}。"""
         from research_assistant.tools.evidence import DocumentStore, hybrid_retrieve  # noqa: PLC0415

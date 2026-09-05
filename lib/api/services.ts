@@ -14,7 +14,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiDelete, apiGet, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut, streamChat, type ChatStreamEvent } from "./client";
 import {
   normalizeVenues,
   toFeedPaper,
@@ -307,7 +307,7 @@ export function useProject(id: string) {
   });
 }
 
-/* ── 课题工作台(后端端点未上线,当前恒为 mock 回退)────────────── */
+/* ── 课题工作台(读端点已上线;写端点见各 mutation hook)────────────── */
 
 /** 研究大纲树 */
 export function useProjectOutline(id: string) {
@@ -443,7 +443,7 @@ export function useUpdateThreadCardStatus(projectId: string) {
       cardId: string;
       status: ThreadCard["status"];
     }) => {
-      await apiPut(`/api/projects/${projectId}/thread-cards/${cardId}`, { status });
+      await apiPatch(`/api/projects/${projectId}/thread-cards/${cardId}`, { status });
       return { cardId, status };
     },
     onMutate: async ({ cardId, status }) => {

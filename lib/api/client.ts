@@ -57,7 +57,7 @@ class ApiError extends Error {
 }
 
 async function request<T = any>(
-  method: "GET" | "POST" | "PUT" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   url: string,
   options?: {
     query?: Record<string, any>;
@@ -335,6 +335,14 @@ export async function apiPut<T = any>(
   body?: any
 ): Promise<ApiResp<T>> {
   return request<T>("PUT", path, { body });
+}
+
+/** PATCH 请求 */
+export async function apiPatch<T = any>(
+  path: string,
+  body?: any
+): Promise<ApiResp<T>> {
+  return request<T>("PATCH", path, { body });
 }
 
 /** DELETE 请求 */

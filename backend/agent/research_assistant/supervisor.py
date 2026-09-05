@@ -463,11 +463,6 @@ class Supervisor:
         return {"agent": "", "category": category, "detail": reason}
 
 
-def supervisor_node(state: dict) -> dict:
-    """兼容直接调用；生产图应复用 ``Supervisor`` 实例。"""
-    return Supervisor().run(state)
-
-
 def _code_assistant_summary(out: dict) -> str:
     """code_assistant 输出摘要（对齐新 schema：generated_artifacts / execution_guide）。"""
     main = (out.get("generated_artifacts") or {}).get("main_code") or {}

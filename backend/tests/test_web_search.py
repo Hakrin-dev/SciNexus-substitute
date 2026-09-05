@@ -177,6 +177,60 @@ def test_web_search_tool_denied_without_authorization():
             tools.call("web_search", query="x")
 
 
+# --------------------------------------------------------------------------- #
+# 质量过滤：标题去重 + 域名黑名单
+# --------------------------------------------------------------------------- #
+def test_dedupe_results_by_url_and_title():
+    results = [
+        {"title": "A Survey on LfD", "url": "https://a.com/1"},
+        {"title": "A Survey on LfD", "url": "https://b.com/mirror"},  # 同文异站转载
+        {"title": "Other Paper", "url": "https://a.com/1"},           # 同 URL 不同标题
+        {"title": "", "url": "https://c.com/x"},                      # 无标题：不去重
+    ]
+    out = web_search._dedupe_results(results)
+    assert [r["url"] for r in out] == ["https://a.com/1", "https://c.com/x"]
+
+
+def test_search_filters_blocked_domains():
+    from research_assistant.config import settings
+
+    text = json.dumps({
+        "results": [
+            {"title": "Spam Post", "url": "https://spam-blog.example/post/1"},
+            {"title": "Subdomain Also Blocked", "url": "https://news.spam-blog.example/p/2"},
+            {"title": "Good Paper", "url": "https://arxiv.org/abs/1234"},
+        ]
+    })
+    fake = _FakeHTTPResponse(_sse({"result": {"content": [{"type": "text", "text": text}]}}))
+    with mock.patch.object(settings, "web_search_provider", "exa"), \
+            mock.patch.object(settings, "web_search_block_domains", "spam-blog.example"), \
+            mock.patch.object(web_search.httpx, "post", return_value=fake):
+        results = web_search.search("query")
+    assert [r["title"] for r in results] == ["Good Paper"]
+
+
+# --------------------------------------------------------------------------- #
+# 快速模式摘要输入选择：本地论文优先 + 联网来源带入
+# --------------------------------------------------------------------------- #
+def test_select_summary_papers_includes_web_tail():
+    from server.agent_gateway import _select_summary_papers
+
+    local = [{"title": f"L{i}", "source": None} for i in range(8)]
+    web = [{"title": f"W{i}", "source": "web", "url": f"https://w.com/{i}"} for i in range(5)]
+    selected = _select_summary_papers(local + web)
+    # 本地取前 6，web 取前 3，web 排在尾部
+    assert [p["title"] for p in selected] == ["L0", "L1", "L2", "L3", "L4", "L5",
+                                              "W0", "W1", "W2"]
+    assert all(p.get("url") for p in selected if p["source"] == "web")
+
+
+def test_select_summary_papers_web_only():
+    from server.agent_gateway import _select_summary_papers
+
+    web = [{"title": f"W{i}", "source": "web"} for i in range(5)]
+    assert len(_select_summary_papers(web)) == 5  # 无本地结果时 web 全部保留
+
+
 def test_supervisor_grants_web_search_only_to_scout_when_enabled():
     from research_assistant.supervisor import _authorized_tools_for, forced_decision
 

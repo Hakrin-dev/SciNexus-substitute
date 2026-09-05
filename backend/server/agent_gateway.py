@@ -200,12 +200,15 @@ def _direct_search(query: str, top_k: int) -> list[dict]:
 
 QUICK_ANSWER_PROMPT = (
     "你是研枢（SciNexus）科研助手的快速检索总结器。用户提出一个科研问题，"
-    "下方是本地检索引擎召回的候选论文（标题/作者/年份/来源/摘要）。\n"
+    "下方是检索引擎召回的候选条目（标题/作者/年份/来源/摘要，部分附 url）。\n"
+    "其中 venue 为「互联网检索」的是联网网页来源（非论文库收录），其余来自论文知识库。\n"
     "请用 2~4 句话**直接简要回答用户的问题**：\n"
-    "1. 结论优先，必要时提及 1~2 篇最有代表性的论文（格式「标题（作者, 年份）」）作为支撑；\n"
-    "2. 若论文不足以回答该问题，如实说明「当前检索到的论文不足以直接回答」，并给出最接近的检索结论；\n"
-    "3. 只依据下方论文信息作答，严禁编造论文中不存在的结论；\n"
-    "4. 使用中文，段落式简短回答即可，不要列论文清单（清单由系统单独展示）。"
+    "1. 结论优先，必要时提及 1~2 篇最有代表性的条目（格式「标题（作者, 年份）」）作为支撑；\n"
+    "2. 联网网页来源可用于补充论文库未覆盖的最新进展与事实，提及它们时给出「标题（url）」链接，"
+    "但其可信度低于同行评审论文，与论文证据冲突时以论文为准；\n"
+    "3. 若现有条目不足以回答该问题，如实说明「当前检索到的资料不足以直接回答」，并给出最接近的检索结论；\n"
+    "4. 只依据下方条目作答，严禁编造不存在的结论；\n"
+    "5. 使用中文，段落式简短回答即可，不要列条目清单（清单由系统单独展示）。"
 )
 
 QUICK_NO_RESULT_PROMPT = (
@@ -213,6 +216,18 @@ QUICK_NO_RESULT_PROMPT = (
     "请直接基于你的通用知识回答问题；不要声称引用了不存在的论文，也不要编造检索结果。"
     "回答使用中文，先给结论，再补充必要的解释；如果问题需要最新事实，请明确说明可能存在时效限制。"
  )
+
+
+def _select_summary_papers(papers: list[dict], local_limit: int = 6, web_limit: int = 3) -> list[dict]:
+    """快速模式摘要的输入选择：本地论文优先，另带入前几条联网来源供摘要吸收最新进展。
+
+    无本地结果时回退为纯联网来源（取前 local_limit 条），保证摘要有料可写。
+    """
+    local = [p for p in papers if p.get("source") != "web"]
+    web = [p for p in papers if p.get("source") == "web"]
+    if not local:
+        return web[:local_limit]
+    return local[:local_limit] + web[:web_limit]
 
 
 def _quick_summary(query: str, papers: list[dict]) -> str:
@@ -258,11 +273,12 @@ def _quick_summary(query: str, papers: list[dict]) -> str:
                         "year": p.get("year") or "",
                         "venue": (p.get("evidence_snippet") or p.get("venue") or "") or "arXiv",
                         "abstract": str(p.get("abstract") or "")[:200],
+                        "url": p.get("url"),
                     }
-                    for p in papers[:6]
+                    for p in _select_summary_papers(papers)
                 ],
             }
-            text = llm.chat_text(QUICK_ANSWER_PROMPT, f"问题：{query}\n\n论文信息：{payload}")
+            text = llm.chat_text(QUICK_ANSWER_PROMPT, f"问题：{query}\n\n检索结果：{payload}")
         return text if text and len(text.strip()) > 5 else fallback()
     except Exception:
         return fallback()

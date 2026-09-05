@@ -461,6 +461,10 @@ class ScoutQueryPlan(BaseModel):
     domain: str | None = None
     author: str | None = None
     sub_queries: list[str] = Field(default_factory=list, description="3 个不同粒度的子查询")
+    web_query: str | None = Field(
+        default=None,
+        description="联网检索用查询：把用户问题译写为简洁的英文学术检索式（关键词组合），无合适译法可留空",
+    )
     checklist: list[str] = Field(default_factory=list)
 
 

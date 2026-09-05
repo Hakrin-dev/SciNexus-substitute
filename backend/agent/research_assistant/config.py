@@ -84,6 +84,8 @@ class Settings:
     web_search_provider: str = field(default_factory=lambda: os.getenv("WEB_SEARCH_PROVIDER", "exa").lower())
     web_search_top_k: int = int(os.getenv("WEB_SEARCH_TOP_K", "8"))
     web_search_timeout: float = float(os.getenv("WEB_SEARCH_TIMEOUT", "25"))
+    # 联网结果域名黑名单（逗号分隔，命中域名及其子域名的结果被过滤；用于剔除内容农场）
+    web_search_block_domains: str = field(default_factory=lambda: os.getenv("WEB_SEARCH_BLOCK_DOMAINS", ""))
 
     # ---- 文献综述（综述写作，移植自 SZDR paperreport）----
     review_claim_max_chars: int = int(os.getenv("REVIEW_CLAIM_MAX_CHARS", "120"))

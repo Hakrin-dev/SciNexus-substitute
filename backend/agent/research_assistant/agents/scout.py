@@ -113,6 +113,7 @@ class ScoutAgent(BaseAgent):
                 "domain": None,
                 "author": None,
                 "sub_queries": sub,
+                "web_query": query,
                 "checklist": [
                     "是否与查询主题高度相关？",
                     "是否发表于 CCF 推荐的顶级会议/期刊？",
@@ -169,12 +170,14 @@ class ScoutAgent(BaseAgent):
             vector_hits = tools.call("vector_rag", query=query, top_k=top_k, filters=None)
             graph_hits = tools.call("graph_rag", query=query, top_k=top_k, filters=None)
 
-        # 阶段2.5 联网检索（可选）：补充互联网最新来源；失败降级为仅本地结果，不阻断检索链路
+        # 阶段2.5 联网检索（可选）：补充互联网最新来源；失败降级为仅本地结果，不阻断检索链路。
+        # 优先用 LLM 规划产出的英文检索式（Exa 对英文学术查询的召回质量明显更好）。
         web_hits: list[dict] = []
         if web_search_on:
+            web_query = (plan.web_query or "").strip() or query
             try:
                 web_hits = _web_results_to_hits(
-                    tools.call("web_search", query=query, top_k=settings.web_search_top_k)
+                    tools.call("web_search", query=web_query, top_k=settings.web_search_top_k)
                 )
             except Exception as exc:
                 logger.warning("web_search 调用失败，忽略联网结果：%s", exc)

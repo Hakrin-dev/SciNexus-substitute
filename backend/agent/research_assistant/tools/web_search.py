@@ -13,6 +13,7 @@ import logging
 import os
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -228,6 +229,37 @@ def _call_parallel(query: str, top_k: int, timeout: float) -> list[dict[str, Any
     return _normalize_parallel(data) if data else []
 
 
+def _norm_title(title: str) -> str:
+    """标题归一化：小写、仅保留字母数字与汉字，用于跨 URL 的同文去重。"""
+    return re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", (title or "").lower())
+
+
+def _dedupe_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按 URL + 归一化标题去重：同一篇文章常被多个站点转载，保留首个来源。"""
+    seen_urls: set[str] = set()
+    seen_titles: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for r in results:
+        url = (r.get("url") or "").strip()
+        nt = _norm_title(r.get("title") or "")
+        if url and url in seen_urls:
+            continue
+        if nt and nt in seen_titles:
+            continue
+        if url:
+            seen_urls.add(url)
+        if nt:
+            seen_titles.add(nt)
+        out.append(r)
+    return out
+
+
+def _blocked_domain(url: str, blocked: tuple[str, ...]) -> bool:
+    """URL 是否命中黑名单域名（含子域名）。"""
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == d or host.endswith("." + d) for d in blocked)
+
+
 def search(query: str, top_k: int = 0) -> list[dict[str, Any]]:
     """入口：执行联网检索，返回结构化结果列表。
 
@@ -251,6 +283,14 @@ def search(query: str, top_k: int = 0) -> list[dict[str, Any]]:
         results = _call_exa(query, top_k, settings.web_search_timeout)
     else:
         results = _call_parallel(query, top_k, settings.web_search_timeout)
+
+    # 质量过滤：域名黑名单（过滤内容农场）+ 按标题去重（同文多站转载）
+    blocked = tuple(
+        d.strip().lower() for d in (settings.web_search_block_domains or "").split(",") if d.strip()
+    )
+    if blocked:
+        results = [r for r in results if not _blocked_domain(r.get("url") or "", blocked)]
+    results = _dedupe_results(results)
 
     log.info("web_search 完成：provider=%s, 返回 %d 条结果", provider, len(results))
     return results[:top_k]

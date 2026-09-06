@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -19,7 +19,8 @@ import {
   Users,
 } from "lucide-react";
 import { libraryFolders, libraryTags } from "@/lib/data/library";
-import { useLibraryItems, useScholars, useInstitutions, useMemory } from "@/lib/api/services";
+import { searchPapers, useLibraryItems, useScholars, useInstitutions, useMemory } from "@/lib/api/services";
+import type { FeedPaper } from "@/types";
 import { useDemoState } from "@/stores/demo-state";
 import { cn } from "@/lib/utils";
 
@@ -127,6 +128,9 @@ export function KnowledgeDashboard() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState<SearchType>("全部");
+  const [remoteResults, setRemoteResults] = useState<FeedPaper[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
   const { data: libraryItems = [] } = useLibraryItems();
   // 笔记计数(演示态,本地持久化);记忆计数走真实接口,失败回退演示态
   const notes = useDemoState((s) => s.notes);
@@ -134,6 +138,40 @@ export function KnowledgeDashboard() {
   const memoryCount = memoryData?.items.length ?? 0;
   const { data: scholars = [] } = useScholars();
   const { data: institutions = [] } = useInstitutions();
+
+  // 知识库搜索必须走服务端知识底座代理，不能只在本地演示数据中筛选。
+  // 轻量防抖避免输入每个字符都请求一次远程检索服务。
+  useEffect(() => {
+    const keyword = query.trim();
+    if (!keyword || (activeType !== "全部" && activeType !== "论文")) {
+      setRemoteResults([]);
+      setRemoteLoading(false);
+      setRemoteError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setRemoteLoading(true);
+      setRemoteError(null);
+      try {
+        const papers = await searchPapers(keyword, { topK: 8 });
+        if (!cancelled) setRemoteResults(papers);
+      } catch (error) {
+        if (!cancelled) {
+          setRemoteResults([]);
+          setRemoteError(error instanceof Error ? error.message : "知识底座检索暂不可用");
+        }
+      } finally {
+        if (!cancelled) setRemoteLoading(false);
+      }
+    }, 320);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [activeType, query]);
 
   const entries = useMemo<SearchEntry[]>(() => [
     ...libraryItems.map((item) => ({
@@ -164,6 +202,11 @@ export function KnowledgeDashboard() {
       .filter((entry) => `${entry.title} ${entry.meta}`.toLowerCase().includes(keyword))
       .slice(0, 6);
   }, [activeType, entries, query]);
+
+  const displayedRemoteResults = useMemo(
+    () => remoteResults.filter((item) => activeType === "全部" || activeType === "论文").slice(0, 6),
+    [activeType, remoteResults],
+  );
 
   const openCard = (href: string) => router.push(href);
   const cardKeyDown = (event: React.KeyboardEvent<HTMLElement>, href: string) => {
@@ -220,9 +263,21 @@ export function KnowledgeDashboard() {
 
         {query.trim() && (
           <div className="absolute inset-x-4 top-[82px] z-20 overflow-hidden rounded-xl border border-line bg-card shadow-pop">
-            {results.length ? (
+            {remoteLoading ? (
+              <div className="px-4 py-5 text-center text-sm text-muted">正在检索知识底座…</div>
+            ) : displayedRemoteResults.length || results.length ? (
               <div className="divide-y divide-line">
-                {results.map((result, index) => (
+                {displayedRemoteResults.map((paper, index) => (
+                  <Link key={`remote-${paper.id}-${index}`} href={`/papers/${paper.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-panel">
+                    <span className="rounded-md bg-primary-soft px-2 py-1 text-[10px] font-medium text-primary">论文</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-ink">{paper.title}</p>
+                      <p className="mt-0.5 truncate text-xs text-faint">{paper.venue} · {paper.authors} · 知识底座</p>
+                    </div>
+                    <ArrowRight className="size-4 shrink-0 text-faint" />
+                  </Link>
+                ))}
+                {activeType !== "论文" && results.map((result, index) => (
                   <Link key={`${result.type}-${result.title}-${index}`} href={result.href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-panel">
                     <span className={cn("rounded-md px-2 py-1 text-[10px] font-medium", typeStyle[result.type])}>{result.type}</span>
                     <div className="min-w-0 flex-1">
@@ -233,6 +288,8 @@ export function KnowledgeDashboard() {
                   </Link>
                 ))}
               </div>
+            ) : remoteError ? (
+              <div className="px-4 py-5 text-center text-sm text-muted">知识底座暂不可用：{remoteError}</div>
             ) : (
               <div className="px-4 py-6 text-center text-sm text-muted">没有找到相关科研资产，试试更短的关键词</div>
             )}

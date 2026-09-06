@@ -206,7 +206,7 @@ export function KnowledgeDashboard() {
   }, [activeType, entries, query]);
 
   const displayedRemoteResults = useMemo(
-    () => remoteResults.filter((item) => activeType === "全部" || activeType === "论文").slice(0, 6),
+    () => activeType === "全部" || activeType === "论文" ? remoteResults.slice(0, 6) : [],
     [activeType, remoteResults],
   );
 

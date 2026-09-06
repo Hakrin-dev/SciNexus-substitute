@@ -82,14 +82,6 @@ const RESEARCH_NAV: NavItem[] = [
   { href: "/agents", label: "AI 助手", icon: PromptCircle, matchPrefix: "/agents" },
 ];
 
-/** 「知识库」的副标题 —— 保留常量以免别处引用（实际展示改用 customSubContent） */
-const KNOWLEDGE_SUB_NAV: SubNavItem[] = [
-  { href: "/knowledge/papers", label: "论文" },
-  { href: "/knowledge/notes", label: "笔记" },
-  { href: "/knowledge/memory", label: "记忆" },
-  { href: "/knowledge/database", label: "数据库" },
-];
-
 /** 「工具库」的副标题 */
 const TOOLS_SUB_NAV: SubNavItem[] = [
   { href: "/tools/skills", label: "技能" },

@@ -51,7 +51,6 @@ import type {
   WorkbenchOverview,
 } from "@/lib/data/workbench";
 import { privateGraph as mockPrivateGraph, publicGraph as mockPublicGraph } from "@/lib/data/knowledge-graph";
-import { paperDetail as mockPaperDetail } from "@/lib/data/paper-detail";
 import type { Project } from "@/lib/data/projects";
 import type { FeedPaper, LibraryItem, MatchedVenue, PaperGraph, Scholar, Venue } from "@/types";
 

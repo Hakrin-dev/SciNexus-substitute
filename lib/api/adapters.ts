@@ -197,12 +197,14 @@ export function normalizeVenues<T extends BackendVenue>(items: T[]): Array<T & V
 export function toPaperDetail(
   p: BackendPaper,
   id: string,
-  fulltext?: { chunks?: { page: number; text: string }[] } | null,
+  fulltext?: { chunks?: { page: number; text: string }[]; has_fulltext?: boolean } | null,
 ): PaperDetail {
   const chunks = fulltext?.chunks ?? [];
   const intro =
     chunks.find((c) => c.page === 1)?.text?.slice(0, 600) || p.abstract || "";
-  const totalPage = chunks.length
+  const hasFulltext = fulltext?.has_fulltext === true && chunks.length > 0;
+  const pdfUrl = typeof (p as any).pdf_url === "string" ? (p as any).pdf_url : null;
+  const totalPage = hasFulltext
     ? Math.max(...chunks.map((c) => c.page))
     : 1;
   const rawAuthors: unknown = (p as any).author_list ?? p.authors;
@@ -216,7 +218,7 @@ export function toPaperDetail(
     affiliation: p.affiliation ?? "知识底座未提供机构信息",
     likes: 0,
     page: { current: 1, total: totalPage },
-    toc: chunks.length
+    toc: hasFulltext
       ? [
           { id: "abstract", label: "摘要 Abstract", active: true },
           { id: "intro", label: "1. 引言" },
@@ -226,8 +228,9 @@ export function toPaperDetail(
     introduction: intro,
     source: p.source,
     fallbackUsed: p.fallbackUsed === true,
-    pdfUrl: typeof (p as any).pdf_url === "string" ? (p as any).pdf_url : null,
-    hasFulltext: chunks.length > 0,
-    fulltextChunks: chunks,
+    pdfUrl,
+    hasFulltext,
+    fulltextChunks: hasFulltext ? chunks : [],
+    readingState: pdfUrl ? "pdf" : hasFulltext ? "fulltext" : "abstract",
   };
 }

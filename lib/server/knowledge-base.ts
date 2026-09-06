@@ -149,6 +149,12 @@ export function knowledgeBaseRuntimeStatus() {
   const p95 = sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] : null;
   return {
     circuit: circuitOpen() ? "open" : "closed",
+    retryAt: circuit.openedAt
+      ? new Date(circuit.openedAt + integerEnv("RETRIEVAL_CIRCUIT_RESET_SECONDS", 30) * 1000).toISOString()
+      : null,
+    retryAfterMs: circuit.openedAt
+      ? Math.max(0, circuit.openedAt + integerEnv("RETRIEVAL_CIRCUIT_RESET_SECONDS", 30) * 1000 - Date.now())
+      : 0,
     requests: circuit.requests,
     successes: circuit.successes,
     failures: circuit.failuresTotal,
@@ -238,7 +244,7 @@ export function toFrontendKnowledgePaper(paper: KnowledgePaper) {
   };
 }
 
-class KnowledgeBaseError extends Error {
+export class KnowledgeBaseError extends Error {
   readonly status?: number;
   readonly code: KnowledgeErrorCode;
 
@@ -250,8 +256,30 @@ class KnowledgeBaseError extends Error {
   }
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  if (circuitOpen()) throw new KnowledgeBaseError("知识底座熔断中，等待恢复探测");
+export function knowledgeErrorPayload(error: unknown, fallback = "知识底座暂不可用") {
+  if (error instanceof KnowledgeBaseError) {
+    return { code: error.code, message: error.message, status: error.status ?? 503 };
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return { code: "TIMEOUT" as const, message: "知识底座请求超时", status: 504 };
+  }
+  return { code: "UPSTREAM_UNAVAILABLE" as const, message: fallback, status: 503 };
+}
+
+export function resetKnowledgeCircuit() {
+  circuit.failures = 0;
+  circuit.openedAt = null;
+}
+
+async function requestJson<T>(
+  path: string,
+  init?: RequestInit,
+  options: { bypassCircuit?: boolean; trackCircuit?: boolean } = {},
+): Promise<T> {
+  if (!options.bypassCircuit && circuitOpen()) {
+    const { retryAfterMs } = knowledgeBaseRuntimeStatus();
+    throw new KnowledgeBaseError(`知识底座熔断中，约 ${Math.ceil(retryAfterMs / 1000)} 秒后自动恢复，也可手动重试`, 503, "UPSTREAM_UNAVAILABLE");
+  }
   const base = remoteBaseUrl();
   const timeoutMs = integerEnv("RETRIEVAL_TIMEOUT_SECONDS", 30) * 1000;
   // 与深知知识底座契约一致：最多自动重试一次，避免放大上游压力。
@@ -276,15 +304,15 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
       if (!response.ok) {
         // 不把上游响应正文直接透传给浏览器，避免泄露 URL、堆栈或内部配置。
         const error = new KnowledgeBaseError(
-          response.status === 404 ? "论文或知识底座资源不存在" : "知识底座请求失败",
+          response.status === 400 ? "知识底座请求参数无效" : response.status === 404 ? "论文或知识底座资源不存在" : response.status === 429 ? "知识底座请求过于频繁" : "知识底座请求失败",
           response.status,
-          response.status === 404 ? "NOT_FOUND" : response.status === 429 ? "RATE_LIMITED" : response.status >= 500 ? "UPSTREAM_UNAVAILABLE" : "INVALID_ARGUMENT",
+          response.status === 400 ? "INVALID_ARGUMENT" : response.status === 404 ? "NOT_FOUND" : response.status === 429 ? "RATE_LIMITED" : response.status >= 500 ? "UPSTREAM_UNAVAILABLE" : "UNKNOWN",
         );
         if (![500, 503].includes(response.status) || attempt === retries) throw error;
         lastError = error;
       } else {
         const data = (await response.json()) as T;
-        recordRequest(true, startedAt);
+        if (options.trackCircuit !== false) recordRequest(true, startedAt);
         return data;
       }
     } catch (error) {
@@ -297,8 +325,12 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
       clearTimeout(timer);
     }
   }
-  recordRequest(false, startedAt);
-  throw new KnowledgeBaseError("知识底座暂不可用", undefined, "UPSTREAM_UNAVAILABLE");
+  if (options.trackCircuit !== false) recordRequest(false, startedAt);
+  if (lastError instanceof KnowledgeBaseError) throw lastError;
+  if (lastError instanceof Error && lastError.name === "AbortError") {
+    throw new KnowledgeBaseError("知识底座请求超时", 504, "TIMEOUT");
+  }
+  throw new KnowledgeBaseError("知识底座暂不可用", 503, "UPSTREAM_UNAVAILABLE");
 }
 
 export function recordKnowledgeFallback() {
@@ -322,7 +354,10 @@ export async function searchKnowledgeBase(input: KnowledgeSearchInput): Promise<
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const results = Array.isArray(raw.results) ? raw.results.map(normalizeKnowledgePaper) : [];
+  if (!Array.isArray(raw.results)) {
+    throw new KnowledgeBaseError("知识底座返回格式不符合约定", 502, "CONTRACT_VIOLATION");
+  }
+  const results = raw.results.map(normalizeKnowledgePaper);
   return {
     results: results.filter((paper) => paper.paperId),
     state: (raw.state as Record<string, unknown>) ?? {},
@@ -335,7 +370,12 @@ export async function searchKnowledgeBase(input: KnowledgeSearchInput): Promise<
 export async function getKnowledgePaper(paperId: string): Promise<KnowledgePaper> {
   const raw = await requestJson<unknown>(`/api/kg/paper?paperId=${encodeURIComponent(paperId)}`);
   const paper = normalizeKnowledgePaper(raw);
-  if (!paper.paperId) paper.paperId = paperId;
+  if (!paper.paperId || !paper.title) {
+    throw new KnowledgeBaseError("知识底座论文详情格式不完整", 502, "CONTRACT_VIOLATION");
+  }
+  if (paper.paperId !== paperId) {
+    throw new KnowledgeBaseError("知识底座返回的论文 ID 不匹配", 502, "CONTRACT_VIOLATION");
+  }
   return paper;
 }
 
@@ -380,17 +420,31 @@ export async function getKnowledgeGraph(paperId: string, depth = 1): Promise<Kno
     `/api/kg/graph?paperId=${encodeURIComponent(paperId)}&depth=${safeDepth}`,
   );
   const graph = normalizeKnowledgeGraph(raw);
-  if (!graph.rootId) graph.rootId = paperId;
+  if (!graph.rootId || graph.rootId !== paperId) {
+    throw new KnowledgeBaseError("知识底座图谱根节点不匹配", 502, "CONTRACT_VIOLATION");
+  }
   return graph;
 }
 
 export async function getKnowledgeHealth() {
-  const [service, retrieval, ready] = await Promise.all([
-    requestJson<Record<string, unknown>>("/api/health"),
-    requestJson<Record<string, unknown>>("/api/retrieval/health"),
-    requestJson<Record<string, unknown>>("/api/retrieval/ready"),
-  ]);
-  return { service, retrieval, ready };
+  const endpoints = {
+    service: "/api/health",
+    retrieval: "/api/retrieval/health",
+    ready: "/api/retrieval/ready",
+  } as const;
+  const checks = Object.fromEntries(await Promise.all(Object.entries(endpoints).map(async ([name, path]) => {
+    try {
+      const data = await requestJson<Record<string, unknown>>(path, undefined, { bypassCircuit: true, trackCircuit: false });
+      return [name, { ok: true, data }] as const;
+    } catch (error) {
+      return [name, { ok: false, error: knowledgeErrorPayload(error) }] as const;
+    }
+  }))) as Record<keyof typeof endpoints, { ok: boolean; data?: Record<string, unknown>; error?: ReturnType<typeof knowledgeErrorPayload> }>;
+  const okCount = Object.values(checks).filter((check) => check.ok).length;
+  return {
+    status: okCount === 3 ? "ready" : okCount ? "degraded" : "unavailable",
+    checks,
+  };
 }
 
 /** 供筛选 UI 使用的知识底座元数据；路径白名单避免代理任意远程地址。 */

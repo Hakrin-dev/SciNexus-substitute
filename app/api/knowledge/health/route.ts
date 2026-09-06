@@ -7,40 +7,18 @@ export const runtime = "nodejs";
 export async function GET() {
   const checkedAt = new Date().toISOString();
   const started = Date.now();
-  try {
-    const data = await getKnowledgeHealth();
-    return NextResponse.json({
-      success: true,
-      data: {
-        status: "ready",
-        provider: retrievalProvider(),
-        source: "remote_knowledge_base",
-        checkedAt,
-        tookMs: Date.now() - started,
-        runtime: knowledgeBaseRuntimeStatus(),
-        checks: {
-          service: { ok: true, data: data.service },
-          retrieval: { ok: true, data: data.retrieval },
-          ready: { ok: true, data: data.ready },
-        },
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "知识底座暂不可用";
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-        data: {
-          status: "unavailable",
-          provider: retrievalProvider(),
-          checkedAt,
-          tookMs: Date.now() - started,
-          runtime: knowledgeBaseRuntimeStatus(),
-          checks: { knowledgeBase: { ok: false, error: message } },
-        },
-      },
-      { status: 503 },
-    );
-  }
+  const data = await getKnowledgeHealth();
+  return NextResponse.json({
+    success: data.status !== "unavailable",
+    data: {
+      status: data.status,
+      provider: retrievalProvider(),
+      source: "remote_knowledge_base",
+      checkedAt,
+      tookMs: Date.now() - started,
+      runtime: knowledgeBaseRuntimeStatus(),
+      checks: data.checks,
+    },
+  // 健康状态本身是可正常读取的诊断数据；保持 200 让前端能展示具体失败原因。
+  }, { status: 200 });
 }

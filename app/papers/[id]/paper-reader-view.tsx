@@ -54,10 +54,10 @@ export function PaperReaderView({ id }: { id: string }) {
 
         {/* 正文:整页等比缩放,宽度随侧栏展开/收起填满可用空间 */}
         <main className="min-w-0 flex-1 overflow-y-auto px-8 py-8">
-          {paper.pdfUrl ? (
+          {paper.readingState === "pdf" ? (
             <div className="h-full min-h-[calc(100vh-6rem)] overflow-hidden rounded-2xl bg-card shadow-card">
               <iframe
-                src={paper.pdfUrl}
+                src={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1`}
                 title={`${paper.title} PDF`}
                 className="h-full min-h-[calc(100vh-6rem)] w-full border-0"
               />
@@ -81,7 +81,7 @@ export function PaperReaderView({ id }: { id: string }) {
               <Link href={`/papers/${encodeURIComponent(paper.id)}/graph`} className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">
                 查看引用图谱
               </Link>
-              {paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">查看原始 PDF</a>}
+              {paper.pdfUrl && <a href={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1`} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">在新窗口打开 PDF</a>}
             </div>
 
             <hr className="mx-auto mt-6 w-16 border-line" />
@@ -110,7 +110,7 @@ export function PaperReaderView({ id }: { id: string }) {
               </>
             ) : (
               <div className="mt-8 rounded-xl border border-line bg-panel p-4 text-sm text-muted">
-                当前知识底座提供的是论文元数据和摘要，尚未取得可验证的全文/PDF 分块；因此不会把摘要伪装成完整章节。{paper.pdfUrl ? " 可打开上方原始 PDF 链接阅读。" : ""}
+                当前仅获得论文元数据和摘要，尚未取得可验证的全文或 PDF；因此不会把摘要伪装成完整章节。
               </div>
             )}
             </article>

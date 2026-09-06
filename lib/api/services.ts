@@ -475,7 +475,7 @@ export function usePaperDetail(id: string) {
       // 详情与全文并行拉取；远程失败时保留真实错误，不伪装成本地论文。
       const [json, fulltext] = await Promise.all([
         apiGet<any>(`/api/papers/${id}`),
-        apiGet<{ chunks?: { page: number; text: string }[] }>(
+        apiGet<{ chunks?: { page: number; text: string }[]; has_fulltext?: boolean }>(
           `/api/papers/${id}/fulltext`,
         ).catch(() => null),
       ]);
@@ -785,10 +785,20 @@ export function useKnowledgeHealth() {
       provider: string;
       checkedAt: string;
       tookMs: number;
-      checks: Record<string, { ok: boolean; data?: unknown; error?: string }>;
+      runtime: { circuit: "open" | "closed"; retryAt: string | null; retryAfterMs: number };
+      checks: Record<string, { ok: boolean; data?: unknown; error?: { code: string; message: string; status: number } }>;
     }>("/api/knowledge/health").then((response) => response.data),
     staleTime: 30_000,
     retry: 0,
+  });
+}
+
+/** 清除客户端可见的熔断状态后重新探测知识底座。 */
+export function useRetryKnowledgeHealth() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost<{ reset: boolean }>("/api/knowledge/retry"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api", "knowledge", "health"] }),
   });
 }
 

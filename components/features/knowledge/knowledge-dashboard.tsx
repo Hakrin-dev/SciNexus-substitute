@@ -19,7 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { libraryFolders, libraryTags } from "@/lib/data/library";
-import { searchPapers, useLibraryItems, useScholars, useInstitutions, useMemory } from "@/lib/api/services";
+import { searchPapers, useLibraryItems, useRetryKnowledgeHealth, useScholars, useInstitutions, useMemory } from "@/lib/api/services";
 import type { FeedPaper } from "@/types";
 import { useDemoState } from "@/stores/demo-state";
 import { cn } from "@/lib/utils";
@@ -131,6 +131,8 @@ export function KnowledgeDashboard() {
   const [remoteResults, setRemoteResults] = useState<FeedPaper[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const retryKnowledge = useRetryKnowledgeHealth();
   const { data: libraryItems = [] } = useLibraryItems();
   // 笔记计数(演示态,本地持久化);记忆计数走真实接口,失败回退演示态
   const notes = useDemoState((s) => s.notes);
@@ -171,7 +173,7 @@ export function KnowledgeDashboard() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [activeType, query]);
+  }, [activeType, query, retryVersion]);
 
   const entries = useMemo<SearchEntry[]>(() => [
     ...libraryItems.map((item) => ({
@@ -289,7 +291,19 @@ export function KnowledgeDashboard() {
                 ))}
               </div>
             ) : remoteError ? (
-              <div className="px-4 py-5 text-center text-sm text-muted">知识底座暂不可用：{remoteError}</div>
+              <div className="px-4 py-5 text-center text-sm text-muted">
+                <p>知识底座暂不可用：{remoteError}</p>
+                <button
+                  type="button"
+                  disabled={retryKnowledge.isPending}
+                  onClick={() => {
+                    retryKnowledge.mutate(undefined, { onSuccess: () => setRetryVersion((value) => value + 1) });
+                  }}
+                  className="mt-2 text-xs text-primary hover:underline disabled:opacity-50"
+                >
+                  {retryKnowledge.isPending ? "重新探测中…" : "立即重试"}
+                </button>
+              </div>
             ) : (
               <div className="px-4 py-6 text-center text-sm text-muted">没有找到相关科研资产，试试更短的关键词</div>
             )}

@@ -1,6 +1,6 @@
 /**
  * GET /api/papers/[id]/fulltext
- * 论文全文分块（无真实 PDF 时回退摘要分块）
+ * 论文全文分块。当前知识底座未提供正文接口，绝不把摘要伪装成全文。
  */
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSeed, fail } from "@/lib/server/utils";
@@ -21,11 +21,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const db = getDB();
   const localRow = db.prepare("SELECT * FROM papers WHERE id = ?").get(id) as any;
   if (localRow) {
-    const abstract = (localRow.abstract || "").trim();
-    const chunks = abstract ? [{ chunk_id: `${id}-p1-c1`, page: 1, text: abstract }] : [];
     return NextResponse.json({
       success: true,
-      data: { paper_id: id, has_pdf: Boolean(localRow.pdf_url), source: "local_abstract", pdf_url: localRow.pdf_url || null, chunks },
+      data: { paper_id: id, has_pdf: Boolean(localRow.pdf_url), has_fulltext: false, source: "local_metadata_only", pdf_url: localRow.pdf_url || null, chunks: [] },
     });
   }
   if (shouldUseRemoteKnowledgeBase()) {
@@ -36,7 +34,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         success: true,
         data: {
           paper_id: paper.paperId,
-          has_pdf: false,
+          has_pdf: Boolean(paper.pdfUrl),
+          has_fulltext: false,
           source: "remote_metadata_only",
           pdf_url: paper.pdfUrl ?? null,
           chunks: [],
@@ -63,6 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     data: {
       paper_id: id,
       has_pdf: false,
+      has_fulltext: false,
       source: "abstract_fallback",
       chunks,
     },

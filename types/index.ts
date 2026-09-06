@@ -158,6 +158,8 @@ export interface PaperDetail {
   hasFulltext?: boolean;
   /** 远程全文服务返回的页码分块，供阅读器逐页展示。 */
   fulltextChunks?: { page: number; text: string }[];
+  /** 阅读内容的实际可用状态，禁止把摘要作为全文呈现。 */
+  readingState?: "pdf" | "fulltext" | "abstract";
 }
 
 export interface RelatedPaper {

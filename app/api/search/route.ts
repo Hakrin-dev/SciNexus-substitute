@@ -19,6 +19,7 @@ import { getDB, jsonParse, mapPaper } from "@/lib/server/db";
 import { chatText } from "@/lib/server/llm";
 import {
   searchKnowledgeBase,
+  knowledgeErrorPayload,
   recordKnowledgeFallback,
   shouldFallbackToLocal,
   shouldUseRemoteKnowledgeBase,
@@ -95,7 +96,8 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         console.warn("[scinexus] 远程知识底座检索失败", error);
         if (!shouldFallbackToLocal()) {
-          return fail(error instanceof Error ? error.message : "知识底座暂不可用", 502);
+          const detail = knowledgeErrorPayload(error);
+          return fail(detail.message, detail.status, detail.code);
         }
         recordKnowledgeFallback();
       }

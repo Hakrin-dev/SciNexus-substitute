@@ -1,23 +1,29 @@
 import { NextResponse } from "next/server";
 import { getKnowledgePaper } from "@/lib/server/knowledge-base";
+import { ensureSeed } from "@/lib/server/utils";
+import { getDB } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
 /** 服务端代理 PDF 下载，避免浏览器直接暴露知识底座地址并处理跨域。 */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   try {
-    const paper = await getKnowledgePaper(id);
-    if (!paper.pdfUrl) {
+    ensureSeed();
+    const local = getDB().prepare("SELECT title, pdf_url FROM papers WHERE id = ?").get(id) as { title?: string; pdf_url?: string | null } | undefined;
+    const remote = local ? null : await getKnowledgePaper(id);
+    const title = local?.title || remote?.title || id;
+    const sourceUrl = local?.pdf_url || remote?.pdfUrl;
+    if (!sourceUrl) {
       return NextResponse.json({ success: false, error: "该论文暂无可下载 PDF" }, { status: 404 });
     }
 
     let pdfUrl: URL;
     try {
-      pdfUrl = new URL(paper.pdfUrl);
+      pdfUrl = new URL(sourceUrl);
     } catch {
       return NextResponse.json({ success: false, error: "论文 PDF 地址无效" }, { status: 502 });
     }
@@ -37,11 +43,12 @@ export async function GET(
       return NextResponse.json({ success: false, error: "论文 PDF 暂不可用" }, { status: 502 });
     }
 
-    const safeName = (paper.title || id).replace(/[\\/:*?"<>|\r\n]+/g, "_").slice(0, 120);
+    const safeName = title.replace(/[\\/:*?"<>|\r\n]+/g, "_").slice(0, 120);
+    const inline = new URL(req.url).searchParams.get("inline") === "1";
     return new NextResponse(response.body, {
       headers: {
         "Content-Type": response.headers.get("content-type")?.includes("pdf") ? "application/pdf" : "application/octet-stream",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(`${safeName}.pdf`)}`,
+        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(`${safeName}.pdf`)}`,
         "Cache-Control": "private, no-store",
       },
     });

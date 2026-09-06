@@ -126,6 +126,7 @@ function SortMenu({
 export function HomeFeed() {
   const [results, setResults] = useState<FeedPaper[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [ascending, setAscending] = useState(true);
   const [filters, setFilters] = useState<KnowledgeSearchFilters>({ topK: 10 });
@@ -136,8 +137,12 @@ export function HomeFeed() {
 
   const search = async (q: string) => {
     setBusy(true);
+    setSearchError(null);
     try {
       setResults(await searchPapers(q, filters));
+    } catch (error) {
+      setResults([]);
+      setSearchError(error instanceof Error ? error.message : "论文检索暂不可用");
     } finally {
       setBusy(false);
     }
@@ -197,7 +202,12 @@ export function HomeFeed() {
               }}
             />
           </div>
-          {sorted.length === 0 && !busy ? (
+          {searchError ? (
+            <div className="mx-1 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p>知识底座检索失败：{searchError}</p>
+              <p className="mt-1 text-xs text-amber-700">没有用本地演示论文替代本次搜索结果。请稍后重试或检查知识底座状态。</p>
+            </div>
+          ) : sorted.length === 0 && !busy ? (
             <p className="px-1 py-8 text-center text-sm text-faint">
               未检索到相关论文,换个关键词试试
             </p>

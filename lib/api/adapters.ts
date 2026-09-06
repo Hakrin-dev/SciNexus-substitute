@@ -143,6 +143,7 @@ export function toFeedPaper(p: BackendPaper): FeedPaper {
     rank: typeof p.rank === "number" && Number.isFinite(p.rank) ? p.rank : null,
     knowledgeScore: typeof p.knowledgeScore === "number" && Number.isFinite(p.knowledgeScore) ? p.knowledgeScore : null,
     fallbackUsed: p.fallbackUsed === true,
+    pdfUrl: typeof (p as any).pdf_url === "string" ? (p as any).pdf_url : null,
     thumb: p.venue || p.tags?.[0] || "论文",
   };
 }

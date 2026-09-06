@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bookmark, Plus, ThumbsUp, TrendingUp, Users } from "lucide-react";
+import { ArrowRight, Bookmark, Download, ExternalLink, Plus, ThumbsUp, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUserPreferences } from "@/stores/user-preferences";
@@ -71,7 +71,19 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
                 </span>
               ))}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {paper.pdfUrl && (
+                <>
+                  <a href={paper.pdfUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-muted transition-colors hover:border-primary hover:text-primary">
+                    <ExternalLink className="size-3.5" />
+                    Web 阅读
+                  </a>
+                  <a href={`/api/papers/${encodeURIComponent(paper.id)}/pdf`} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-muted transition-colors hover:border-primary hover:text-primary">
+                    <Download className="size-3.5" />
+                    下载 PDF
+                  </a>
+                </>
+              )}
               <button
                 type="button"
                 aria-label={liked ? "取消点赞" : "点赞"}

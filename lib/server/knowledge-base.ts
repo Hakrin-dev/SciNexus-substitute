@@ -63,6 +63,7 @@ export interface KnowledgeGraph {
   rootId: string;
   nodes: KnowledgeGraphNode[];
   lines: KnowledgeGraphLine[];
+  provenance?: Record<string, unknown>;
 }
 
 const DEFAULT_API_URL = "http://47.110.47.12";
@@ -76,6 +77,15 @@ type CircuitState = {
   fallbacks: number;
   latencies: number[];
 };
+
+export type KnowledgeErrorCode =
+  | "NOT_FOUND"
+  | "INVALID_ARGUMENT"
+  | "RATE_LIMITED"
+  | "UPSTREAM_UNAVAILABLE"
+  | "TIMEOUT"
+  | "CONTRACT_VIOLATION"
+  | "UNKNOWN";
 
 const circuit: CircuitState = {
   failures: 0, openedAt: null, requests: 0, successes: 0, failuresTotal: 0, fallbacks: 0, latencies: [],
@@ -186,7 +196,7 @@ export function normalizeKnowledgePaper(raw: unknown): KnowledgePaper {
   const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   return {
     paperId: asString(item.paper_id ?? item.paperId ?? item.id),
-    title: asString(item.title) || "Untitled",
+    title: asString(item.title),
     abstract: asString(item.abstract),
     venue: asString(item.venue ?? item.conference),
     year: numberOrNull(item.year),
@@ -230,11 +240,13 @@ export function toFrontendKnowledgePaper(paper: KnowledgePaper) {
 
 class KnowledgeBaseError extends Error {
   readonly status?: number;
+  readonly code: KnowledgeErrorCode;
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, code: KnowledgeErrorCode = "UNKNOWN") {
     super(message);
     this.name = "KnowledgeBaseError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -242,7 +254,8 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (circuitOpen()) throw new KnowledgeBaseError("知识底座熔断中，等待恢复探测");
   const base = remoteBaseUrl();
   const timeoutMs = integerEnv("RETRIEVAL_TIMEOUT_SECONDS", 30) * 1000;
-  const retries = integerEnv("RETRIEVAL_RETRY_COUNT", 2);
+  // 与深知知识底座契约一致：最多自动重试一次，避免放大上游压力。
+  const retries = Math.min(1, integerEnv("RETRIEVAL_RETRY_COUNT", 1));
   const startedAt = Date.now();
   let lastError: unknown;
 
@@ -261,10 +274,11 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
         cache: "no-store",
       });
       if (!response.ok) {
-        const message = await response.text().catch(() => "");
+        // 不把上游响应正文直接透传给浏览器，避免泄露 URL、堆栈或内部配置。
         const error = new KnowledgeBaseError(
-          `知识底座请求失败 (${response.status})${message ? `: ${message.slice(0, 200)}` : ""}`,
+          response.status === 404 ? "论文或知识底座资源不存在" : "知识底座请求失败",
           response.status,
+          response.status === 404 ? "NOT_FOUND" : response.status === 429 ? "RATE_LIMITED" : response.status >= 500 ? "UPSTREAM_UNAVAILABLE" : "INVALID_ARGUMENT",
         );
         if (![500, 503].includes(response.status) || attempt === retries) throw error;
         lastError = error;
@@ -283,9 +297,8 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
       clearTimeout(timer);
     }
   }
-  const message = lastError instanceof Error ? lastError.message : String(lastError || "未知错误");
   recordRequest(false, startedAt);
-  throw new KnowledgeBaseError(`知识底座暂不可用: ${message}`);
+  throw new KnowledgeBaseError("知识底座暂不可用", undefined, "UPSTREAM_UNAVAILABLE");
 }
 
 export function recordKnowledgeFallback() {
@@ -355,6 +368,9 @@ export function normalizeKnowledgeGraph(raw: unknown): KnowledgeGraph {
         data: (item.data && typeof item.data === "object" ? item.data : {}) as Record<string, unknown>,
       };
     }).filter((line) => line.from && line.to),
+    provenance: (value.provenance && typeof value.provenance === "object")
+      ? value.provenance as Record<string, unknown>
+      : undefined,
   };
 }
 

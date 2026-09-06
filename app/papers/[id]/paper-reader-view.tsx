@@ -43,7 +43,7 @@ export function PaperReaderView({ id }: { id: string }) {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      <PaperTopbar paperId={paper.id} title={paper.title} likes={paper.likes} />
+      <PaperTopbar paperId={paper.id} title={paper.title} likes={paper.likes} pdfUrl={paper.pdfUrl} />
 
       <div className="flex min-h-0 flex-1">
         <PaperLeftSidebar
@@ -54,7 +54,15 @@ export function PaperReaderView({ id }: { id: string }) {
 
         {/* 正文:整页等比缩放,宽度随侧栏展开/收起填满可用空间 */}
         <main className="min-w-0 flex-1 overflow-y-auto px-8 py-8">
-          <PaperZoom>
+          {paper.pdfUrl ? (
+            <div className="h-full min-h-[calc(100vh-6rem)] overflow-hidden rounded-2xl bg-card shadow-card">
+              <iframe
+                src={paper.pdfUrl}
+                title={`${paper.title} PDF`}
+                className="h-full min-h-[calc(100vh-6rem)] w-full border-0"
+              />
+            </div>
+          ) : <PaperZoom>
             <article className="rounded-2xl bg-card p-10 shadow-card">
             <h1 className="text-center text-[22px] font-bold leading-snug text-ink">
               {paper.title}
@@ -106,7 +114,7 @@ export function PaperReaderView({ id }: { id: string }) {
               </div>
             )}
             </article>
-          </PaperZoom>
+          </PaperZoom>}
         </main>
 
         <PaperRightPanel paperId={paper.id} />

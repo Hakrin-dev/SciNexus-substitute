@@ -28,6 +28,7 @@ interface ChatReq {
   paper_id?: string;
   model?: string;
   project_id?: string;
+  memory_enabled?: boolean;
 }
 
 /** 从 messages 中提取多轮历史（排除最后一条用户消息），最多保留最近 24 条 */
@@ -81,7 +82,9 @@ export async function POST(req: NextRequest) {
     ).run(conversationId, msg);
 
     // 多智能体编排生成回复
-    const memories = retrieveMemories(userId, msg, body.project_id);
+    const memories = body.memory_enabled === false
+      ? []
+      : retrieveMemories(userId, msg, body.project_id);
     const result = await runAgent(msg, body.task_type, body.paper_id, chatHistory(body), body.model, null, memories);
     const { reply, workflow, references, generatedFiles } = result;
 
@@ -90,7 +93,9 @@ export async function POST(req: NextRequest) {
       "INSERT INTO conversation_messages (conversation_id, role, content, workflow_json) VALUES (?, 'assistant', ?, ?)"
     ).run(conversationId, reply, jsonStringify(workflow));
 
-    void captureConversationMemory(userId, msg, body.model);
+    if (body.memory_enabled !== false) {
+      void captureConversationMemory(userId, msg, body.model);
+    }
 
     return ok({
       reply,

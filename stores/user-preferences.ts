@@ -12,6 +12,8 @@ interface UserPreferencesState {
   bookmarkedPapers: Record<string, boolean>;
   /** 已收藏的机构 id 集合 */
   bookmarkedInstitutions: Record<string, boolean>;
+  /** AI 对话是否读取和写入长期记忆 */
+  chatMemoryEnabled: boolean;
   toggleFollow: (scholarId: string, defaultFollowing?: boolean) => void;
   toggleLike: (paperId: string) => void;
   toggleBookmark: (paperId: string) => void;
@@ -19,6 +21,7 @@ interface UserPreferencesState {
     institutionId: string,
     defaultBookmarked?: boolean,
   ) => void;
+  setChatMemoryEnabled: (enabled: boolean) => void;
 }
 
 export const useUserPreferences = create<UserPreferencesState>()(
@@ -28,6 +31,7 @@ export const useUserPreferences = create<UserPreferencesState>()(
       likedPapers: {},
       bookmarkedPapers: {},
       bookmarkedInstitutions: {},
+      chatMemoryEnabled: true,
       toggleFollow: (scholarId, defaultFollowing = false) =>
         set((s) => ({
           followedScholars: {
@@ -55,6 +59,7 @@ export const useUserPreferences = create<UserPreferencesState>()(
             ),
           },
         })),
+      setChatMemoryEnabled: (enabled) => set({ chatMemoryEnabled: enabled }),
     }),
     { name: "scinexus-user-preferences", skipHydration: true },
   ),

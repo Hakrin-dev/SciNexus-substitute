@@ -23,6 +23,7 @@ interface ChatReq {
   style?: string;
   context?: { style?: string; [key: string]: unknown };
   project_id?: string;
+  memory_enabled?: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -38,7 +39,9 @@ export async function POST(req: NextRequest) {
   ).slice(-24) ?? [];
   const style = body.style ?? body.context?.style ?? null;
   const userMessage = msg || "你好";
-  const memories = retrieveMemories(userId, userMessage, body.project_id);
+  const memories = body.memory_enabled === false
+    ? []
+    : retrieveMemories(userId, userMessage, body.project_id);
   const result = await runAgent(userMessage, body.task_type, body.paper_id, history, body.model, style, memories);
   const { reply, workflow, references, generatedFiles } = result;
 
@@ -69,7 +72,9 @@ export async function POST(req: NextRequest) {
       );
     } catch {}
   })();
-  void captureConversationMemory(userId, userMessage, body.model);
+  if (body.memory_enabled !== false) {
+    void captureConversationMemory(userId, userMessage, body.model);
+  }
 
   const stream = new ReadableStream({
     async start(controller) {

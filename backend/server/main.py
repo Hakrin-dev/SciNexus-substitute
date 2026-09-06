@@ -196,6 +196,7 @@ class ChatRequest(BaseModel):
     mode: Optional[str] = None                # fast / deep
     style: Optional[str] = None               # 回答风格：头脑风暴 / 简明扼要 / 全面细致 / 严谨质疑（注入 finalize 提示词）
     web_search: Optional[bool] = None         # 联网搜索：补充互联网来源（Exa/Parallel MCP）
+    memory_enabled: Optional[bool] = True     # 本轮是否读取/写入用户长期记忆
 
 class TranslateRequest(BaseModel):
     """学术文本翻译请求"""
@@ -971,7 +972,8 @@ async def chat_endpoint(req: ChatRequest, request: Request):
         raise HTTPException(status_code=400, detail="消息不能为空")
     user_id = auth_module.get_current_user_id(_auth_header_token(request))
     project_id = (req.context or {}).get("project_id")
-    memories = _retrieve_chat_memories(user_id, message, project_id) if user_id else []
+    memories = (_retrieve_chat_memories(user_id, message, project_id)
+                if user_id and req.memory_enabled is not False else [])
     logger.info(f"Chat: conv={req.conversation_id}, msg_len={len(message)}")
     if AGENT_ENABLED:
         try:
@@ -987,7 +989,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                          **({"web_search": True} if req.web_search else {})},
             )
             reply = result["reply"]
-            if user_id:
+            if user_id and req.memory_enabled is not False:
                 asyncio.create_task(asyncio.to_thread(_capture_chat_memory, user_id, message, req.model))
             return {
                 "reply": reply,
@@ -1003,7 +1005,7 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             if user_id:
                 asyncio.create_task(asyncio.to_thread(_capture_chat_memory, user_id, message, req.model))
             return _chat_impl(ChatRequest(conversation_id=req.conversation_id, message=message), reason=str(exc))
-    if user_id:
+    if user_id and req.memory_enabled is not False:
         asyncio.create_task(asyncio.to_thread(_capture_chat_memory, user_id, message, req.model))
     return _chat_impl(ChatRequest(conversation_id=req.conversation_id, message=message))
 
@@ -1033,7 +1035,8 @@ async def chat_stream(req: ChatRequest, request: Request):
         raise HTTPException(status_code=400, detail="消息不能为空")
     user_id = auth_module.get_current_user_id(_auth_header_token(request))
     project_id = (req.context or {}).get("project_id")
-    memories = _retrieve_chat_memories(user_id, message, project_id) if user_id else []
+    memories = (_retrieve_chat_memories(user_id, message, project_id)
+                if user_id and req.memory_enabled is not False else [])
     conversation_id = req.conversation_id or f"conv_{uuid.uuid4().hex}"
     run_id = None
     if AGENT_ENABLED:
@@ -1065,7 +1068,7 @@ async def chat_stream(req: ChatRequest, request: Request):
         workflow = None
         generated_files = None
         references = None
-    if user_id:
+    if user_id and req.memory_enabled is not False:
         asyncio.create_task(asyncio.to_thread(_capture_chat_memory, user_id, message, req.model))
 
     async def event_generator() -> AsyncGenerator[str, None]:

@@ -27,6 +27,8 @@ export interface KnowledgePaper {
   authors: string[];
   keywords: string[];
   subjects: string[];
+  citationCount: number | null;
+  referenceCount: number | null;
   score: number | null;
   rank: number | null;
   doi?: string | null;
@@ -66,8 +68,6 @@ export interface KnowledgeGraph {
   provenance?: Record<string, unknown>;
 }
 
-const DEFAULT_API_URL = "http://47.110.47.12";
-
 type CircuitState = {
   failures: number;
   openedAt: number | null;
@@ -101,7 +101,13 @@ function isProduction() {
 }
 
 function remoteBaseUrl(): string {
-  const value = (process.env.RETRIEVAL_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
+  const configured = process.env.RETRIEVAL_API_URL?.trim();
+  if (!configured) {
+    // A missing endpoint is a deployment/configuration error, not permission to
+    // contact an old default service. This keeps the external boundary explicit.
+    throw new KnowledgeBaseError("知识底座尚未配置", 503, "UPSTREAM_UNAVAILABLE");
+  }
+  const value = configured.replace(/\/$/, "");
   let url: URL;
   try {
     url = new URL(value);
@@ -209,6 +215,8 @@ export function normalizeKnowledgePaper(raw: unknown): KnowledgePaper {
     authors: stringList(item.authors ?? item.author),
     keywords: stringList(item.keywords),
     subjects: stringList(item.subjects),
+    citationCount: numberOrNull(item.citation_count ?? item.citationCount),
+    referenceCount: numberOrNull(item.reference_count ?? item.referenceCount),
     score: numberOrNull(item.score),
     rank: numberOrNull(item.rank),
     doi: asString(item.doi) || null,
@@ -232,7 +240,9 @@ export function toFrontendKnowledgePaper(paper: KnowledgePaper) {
     tags: [...new Set([...paper.keywords, ...paper.subjects])],
     keywords: paper.keywords,
     subjects: paper.subjects,
-    citations: 0,
+    // The legacy feed expects a number. The v1 Knowledge API retains
+    // citationCount: null when the upstream does not provide this fact.
+    citations: paper.citationCount ?? 0,
     doi: paper.doi ?? null,
     pdf_url: paper.pdfUrl ?? null,
     relevance: paper.score,

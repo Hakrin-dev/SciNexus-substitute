@@ -32,6 +32,7 @@ export interface BackendPaper {
   tags?: string[];
   citations: number;
   doi?: string | null;
+  pdf_url?: string | null;
   relevance?: number | null;
   keywords?: string[];
   subjects?: string[];

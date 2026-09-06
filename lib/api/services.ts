@@ -20,7 +20,6 @@ import {
   toFeedPaper,
   toPaperDetail,
   toVenue,
-  type BackendPaper,
   type BackendMatchedVenue,
   type BackendScholarDetail,
   type BackendVenue,
@@ -802,23 +801,55 @@ export function useRetryKnowledgeHealth() {
   });
 }
 
-/** 论文检索（/api/search，保留远程来源、排序和回退状态）。 */
+type KnowledgeApiPaper = {
+  paperId: string;
+  title: string;
+  abstract: string;
+  venue: string;
+  year: number | null;
+  authors: string[];
+  keywords: string[];
+  subjects: string[];
+  citationCount: number | null;
+  score: number | null;
+  rank: number | null;
+  doi: string | null;
+  pdfUrl: string | null;
+};
+
+/** 论文检索（正式 Knowledge API；旧 /api/search 仍由快速对话兼容使用）。 */
 export async function searchPapers(query: string, filters: KnowledgeSearchFilters = {}) {
-  const json = await apiPost<BackendPaper[]>("/api/search", {
-      query,
-      year_from: filters.yearFrom,
-      year_to: filters.yearTo,
-      conference: filters.conferences,
-      author: filters.authors,
-      keyword: filters.keywords,
-      subject: filters.subjects,
-      top_k: filters.topK,
-    });
-    const fallbackUsed = json.meta?.fallbackUsed === true;
-    const source = typeof json.meta?.source === "string" ? json.meta.source : undefined;
-  return (json.data ?? []).map((paper) =>
-      toFeedPaper({ ...paper, source: paper.source ?? source, fallbackUsed }),
-    );
+  const json = await apiPost<{ results: KnowledgeApiPaper[] }>("/api/v1/knowledge/search", {
+    query,
+    yearFrom: filters.yearFrom,
+    yearTo: filters.yearTo,
+    venue: filters.conferences,
+    author: filters.authors,
+    keyword: filters.keywords,
+    subject: filters.subjects,
+    topK: filters.topK,
+  });
+  return (json.data?.results ?? []).map((paper) => toFeedPaper({
+    id: paper.paperId,
+    title: paper.title,
+    authors: paper.authors.join(", "),
+    author_list: paper.authors,
+    venue: paper.venue,
+    year: paper.year,
+    // FeedPaper predates nullable citation counts. The detailed v1 response
+    // still preserves null; this display-only value is never sent back.
+    citations: paper.citationCount ?? 0,
+    abstract: paper.abstract,
+    tags: [...paper.keywords, ...paper.subjects],
+    keywords: paper.keywords,
+    subjects: paper.subjects,
+    doi: paper.doi,
+    relevance: paper.score,
+    knowledgeScore: paper.score,
+    rank: paper.rank,
+    source: "remote_knowledge_base",
+    pdf_url: paper.pdfUrl,
+  }));
 }
 
 /** 学者基础信息快捷查找（详情页头部用）；未命中返回 undefined,由页面渲染 404 */

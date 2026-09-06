@@ -9,9 +9,9 @@ RETRIEVAL_PROVIDER=remote
 RETRIEVAL_API_URL=https://knowledge.example.com
 # RETRIEVAL_API_TOKEN=仅服务端保存的访问令牌
 RETRIEVAL_TIMEOUT_SECONDS=30
-RETRIEVAL_RETRY_COUNT=2
+RETRIEVAL_RETRY_COUNT=1
 RETRIEVAL_DEFAULT_TOP_K=10
-RETRIEVAL_FALLBACK_LOCAL=true
+RETRIEVAL_FALLBACK_LOCAL=false
 RETRIEVAL_CIRCUIT_FAILURE_THRESHOLD=3
 RETRIEVAL_CIRCUIT_RESET_SECONDS=30
 ```
@@ -19,17 +19,21 @@ RETRIEVAL_CIRCUIT_RESET_SECONDS=30
 - `remote`：检索、论文详情和图谱优先使用远程知识底座。
 - `local`：保持原有 SQLite/mock 行为。
 - `hybrid`：远程与本地结果使用加权 RRF 融合并按论文 ID 去重。
-- `RETRIEVAL_FALLBACK_LOCAL=true`：远程超时、网络失败或服务异常时回退本地数据；健康接口会报告回退率。
+- `RETRIEVAL_API_URL` 在 remote/hybrid 模式下必须显式配置；未配置时返回安全的“知识底座尚未配置”错误，绝不使用源码中的默认 IP。
+- `RETRIEVAL_FALLBACK_LOCAL=true`：仅在明确接受“本地检索/相关图不等价于远程知识库”时启用。健康接口会报告回退率。
 - 生产环境必须使用 HTTPS。只有受控内网场景可显式设置 `RETRIEVAL_ALLOW_INSECURE_HTTP=true`。
 
 ## 项目接口
 
-- `POST /api/search`：支持 `query`、`top_k`、`year_from`、`year_to`、`conference`、`author`、`keyword`、`subject`。
-- `GET /api/papers/{paper_id}`：远程论文详情，失败时回退本地。
-- `GET /api/graph/public?paper_id={paper_id}`：远程知识图谱，保留 `from -> to` 引用方向。
+- `POST /api/v1/knowledge/search`：正式知识检索接口，使用 `query`、`topK`、`yearFrom`、`yearTo`、`venue`、`author`、`keyword`、`subject`。
+- `GET /api/v1/knowledge/paper?paperId={paperId}`：正式论文详情接口。
+- `GET /api/v1/knowledge/graph?paperId={paperId}&depth=1|2`：正式引用图谱接口，保留 `from -> to` 引用方向。
+- `POST /api/search`、`GET /api/papers/{paper_id}`、`GET /api/graph/public`：保留给现有页面/客户端的兼容入口；它们可以按旧策略使用本地降级，不能作为远程事实的唯一来源。
 - `GET /api/knowledge/health`：主服务、检索服务和 ready 状态汇总。
 
-检索响应的 `meta.source` 为 `remote_knowledge_base` 或 `local`；`fallbackUsed` 表示是否发生降级。远程 `score` 是排序分值，不应解释为百分比。
+正式 Knowledge API 的成功响应为 `{ success: true, data }`；失败响应为 `{ success: false, error: { code, message, retryable, requestId } }`。`code` 只会是 `NOT_FOUND`、`INVALID_ARGUMENT`、`RATE_LIMITED`、`UPSTREAM_UNAVAILABLE`、`TIMEOUT`、`CONTRACT_VIOLATION` 或 `UNKNOWN`。同一条链路必须满足 `SearchResult.paperId === Paper.paperId === Graph.rootId`。
+
+远程 `score` 是排序分值，不应解释为百分比；`citationCount` 和 `referenceCount` 缺失时为 `null`，不能解释成 0。兼容接口中的 `meta.source` 为 `remote_knowledge_base` 或 `local`；`fallbackUsed` 表示是否发生降级。
 
 ## 智能体
 
@@ -37,7 +41,7 @@ Scout 在 `remote` 模式下使用远程增强检索，在 `hybrid` 模式下合
 
 ## 重试规则
 
-默认超时 30 秒。HTTP 500/503、网络错误和超时最多重试 2 次；400/404 不重试。不得把认证密钥或私有服务凭据提交到仓库。
+默认超时 30 秒。HTTP 500/503、网络错误和超时最多重试 1 次；400/404 不重试。不得把认证密钥或私有服务凭据提交到仓库。
 
 ## 生产运行与评测
 

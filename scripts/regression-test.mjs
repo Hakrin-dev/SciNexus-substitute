@@ -102,6 +102,18 @@ test("remote knowledge paper fields map to the existing frontend paper contract"
   assert.equal(paper.source, "remote_knowledge_base");
 });
 
+test("knowledge contract preserves unknown citation and reference counts as null", () => {
+  const paper = normalizeKnowledgePaper({
+    paper_id: "paper:remote:nullable-counts",
+    title: "Remote Paper",
+    citation_count: "",
+    referenceCount: undefined,
+  });
+
+  assert.equal(paper.citationCount, null);
+  assert.equal(paper.referenceCount, null);
+});
+
 test("remote search cards retain source data and never render NaN likes", () => {
   const card = toFeedPaper({
     id: "paper:remote:1",

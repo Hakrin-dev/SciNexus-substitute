@@ -18,6 +18,36 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
+    // 首页 Feed 当前由本地论文库提供；本地已有记录时优先展示，
+    // 避免远程知识底座不可用把本地可读论文错误地变成 502。
+    ensureSeed();
+    const db = getDB();
+    const localRow = db.prepare("SELECT * FROM papers WHERE id = ?").get(id) as any;
+    if (localRow) {
+      return ok({
+        id: localRow.id,
+        title: localRow.title,
+        authors: localRow.authors.split(/[,，·]+/).map((s: string) => s.trim()).filter(Boolean),
+        affiliation: localRow.institute || "未提供机构信息",
+        likes: localRow.likes,
+        page: { current: 1, total: 1 },
+        toc: [{ id: "abstract", label: "摘要 Abstract", active: true }],
+        abstract: localRow.abstract || "暂无摘要",
+        introduction: "",
+        venue: localRow.venue,
+        date: localRow.date,
+        tags: jsonParse<string[]>(localRow.tags_json, []),
+        citations: localRow.citations,
+        ccf: localRow.ccf,
+        year: localRow.year,
+        doi: localRow.doi,
+        source: "local",
+        fallbackUsed: false,
+        hasFulltext: false,
+        pdfUrl: localRow.pdf_url || null,
+      });
+    }
+
     if (shouldUseRemoteKnowledgeBase()) {
       try {
         const remote = toFrontendKnowledgePaper(await getKnowledgePaper(id));
@@ -39,8 +69,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
-    ensureSeed();
-    const db = getDB();
     const row = db.prepare("SELECT * FROM papers WHERE id = ?").get(id) as any;
     if (!row) {
       return fail("论文未找到", 404);

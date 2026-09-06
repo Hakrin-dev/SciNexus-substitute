@@ -156,6 +156,8 @@ export interface PaperDetail {
   pdfUrl?: string | null;
   /** 仅在实际获得全文分块时为 true；摘要不能伪装成全文。 */
   hasFulltext?: boolean;
+  /** 远程全文服务返回的页码分块，供阅读器逐页展示。 */
+  fulltextChunks?: { page: number; text: string }[];
 }
 
 export interface RelatedPaper {

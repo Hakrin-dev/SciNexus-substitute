@@ -227,5 +227,6 @@ export function toPaperDetail(
     fallbackUsed: p.fallbackUsed === true,
     pdfUrl: typeof (p as any).pdf_url === "string" ? (p as any).pdf_url : null,
     hasFulltext: chunks.length > 0,
+    fulltextChunks: chunks,
   };
 }

@@ -90,8 +90,15 @@ export function PaperReaderView({ id }: { id: string }) {
 
             {paper.hasFulltext ? (
               <>
-                <h2 id="intro" className="mt-8 text-[17px] font-bold text-ink">1. Introduction</h2>
-                <p className="mt-3 text-justify text-[15px] leading-7 text-ink-2">{paper.introduction}</p>
+                <h2 id="intro" className="mt-8 text-[17px] font-bold text-ink">论文全文</h2>
+                <div className="mt-3 space-y-5">
+                  {(paper.fulltextChunks ?? []).map((chunk: { page: number; text: string }, index: number) => (
+                    <section key={`${chunk.page}-${index}`}>
+                      <p className="mb-1 text-[11px] text-faint">第 {chunk.page} 页</p>
+                      <p className="text-justify text-[15px] leading-7 text-ink-2">{chunk.text}</p>
+                    </section>
+                  ))}
+                </div>
               </>
             ) : (
               <div className="mt-8 rounded-xl border border-line bg-panel p-4 text-sm text-muted">

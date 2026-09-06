@@ -472,20 +472,15 @@ export function usePaperDetail(id: string) {
   return useQuery({
     queryKey: ["api", "paper", id],
     queryFn: async () => {
-      try {
-        // 详情与全文并行拉取(此前串行,TTFB 翻倍)
-        const [json, fulltext] = await Promise.all([
-          apiGet<any>(`/api/papers/${id}`),
-          apiGet<{ chunks?: { page: number; text: string }[] }>(
-            `/api/papers/${id}/fulltext`,
-          ).catch(() => null),
-        ]);
-        return toPaperDetail(json.data, id, fulltext?.data ?? null);
-      } catch (err) {
-        return mockFallback(`/api/papers/${id}`, err, { ...mockPaperDetail, id });
-      }
+      // 详情与全文并行拉取；远程失败时保留真实错误，不伪装成本地论文。
+      const [json, fulltext] = await Promise.all([
+        apiGet<any>(`/api/papers/${id}`),
+        apiGet<{ chunks?: { page: number; text: string }[] }>(
+          `/api/papers/${id}/fulltext`,
+        ).catch(() => null),
+      ]);
+      return toPaperDetail(json.data, id, fulltext?.data ?? null);
     },
-    placeholderData: { ...mockPaperDetail, id },
     staleTime: 60_000,
   });
 }
@@ -799,8 +794,7 @@ export function useKnowledgeHealth() {
 
 /** 论文检索（/api/search，保留远程来源、排序和回退状态）。 */
 export async function searchPapers(query: string, filters: KnowledgeSearchFilters = {}) {
-  try {
-    const json = await apiPost<BackendPaper[]>("/api/search", {
+  const json = await apiPost<BackendPaper[]>("/api/search", {
       query,
       year_from: filters.yearFrom,
       year_to: filters.yearTo,
@@ -812,18 +806,9 @@ export async function searchPapers(query: string, filters: KnowledgeSearchFilter
     });
     const fallbackUsed = json.meta?.fallbackUsed === true;
     const source = typeof json.meta?.source === "string" ? json.meta.source : undefined;
-    return (json.data ?? []).map((paper) =>
+  return (json.data ?? []).map((paper) =>
       toFeedPaper({ ...paper, source: paper.source ?? source, fallbackUsed }),
     );
-  } catch (err) {
-    return mockFallback(
-      "/api/search",
-      err,
-      feedPapers.filter((p) =>
-        `${p.title} ${p.abstract}`.toLowerCase().includes(query.toLowerCase()),
-      ),
-    );
-  }
 }
 
 /** 学者基础信息快捷查找（详情页头部用）；未命中返回 undefined,由页面渲染 404 */

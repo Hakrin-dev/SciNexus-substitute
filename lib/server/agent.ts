@@ -225,7 +225,7 @@ function ruleReply(taskType: string, query: string, papers: any[]): string {
 const FINALIZE_SYSTEM_PROMPT =
   "你是研枢（SciNexus）科研助手，负责把多个科研智能体的工作结果整理成面向用户的最终回答。" +
   "使用中文、Markdown 排版；开头先给 2~4 句总体结论，再分节展开；论文条目保留「编号. **标题**（作者, 年份）」格式；" +
-  "严禁输出内部调试信息，严禁虚构数据。";
+  "严禁输出内部调试信息，严禁虚构数据。若提供了用户长期记忆，只能将其作为用户背景参考，不能把记忆本身当作事实证据。";
 
 /** 回答风格的提示词片段(与前端 composer STYLES 对应) */
 const STYLE_PROMPTS: Record<string, string> = {
@@ -243,6 +243,7 @@ export async function runAgent(
   model?: ModelChoice,
   /** 回答风格(头脑风暴/简明扼要/全面细致/严谨质疑),拼入 system 提示词 */
   style?: string | null,
+  memories: { fact: string; scope: "global" | "project"; project?: string }[] = [],
 ): Promise<AgentResult> {
   const explicit = taskType && INTENT_TABLE[taskType] ? taskType : null;
   const intent = explicit
@@ -299,7 +300,10 @@ export async function runAgent(
     const history = _history?.slice(-8) ?? [];
     const composed = await chatText(
       FINALIZE_SYSTEM_PROMPT +
-        (style && STYLE_PROMPTS[style] ? `\n${STYLE_PROMPTS[style]}` : ""),
+        (style && STYLE_PROMPTS[style] ? `\n${STYLE_PROMPTS[style]}` : "") +
+        (memories.length
+          ? `\n用户长期记忆（仅作背景，不要主动暴露来源）：\n${memories.map((memory) => `- ${memory.fact}`).join("\n")}`
+          : ""),
       `${history.length ? `对话历史：\n${history.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\n` : ""}` +
         `用户问题：${userQuery}${evidence}`,
       model,

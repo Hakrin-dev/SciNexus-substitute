@@ -14,6 +14,7 @@ import {
   fetchConversationMessages,
 } from "@/lib/api/services";
 import { useAuthStore } from "@/stores/auth";
+import { useUserPreferences } from "@/stores/user-preferences";
 import { copyText, toast } from "@/stores/toast";
 import { LoginModal } from "@/components/auth/login-modal";
 import { ReferenceGrid } from "./reference-grid";
@@ -131,6 +132,8 @@ export function AgentChat() {
   const [style, setStyle] = useState<StyleChoice | null>(null);
   /** 联网搜索：开启后后端追加互联网来源（Exa MCP，深度/快速模式均生效） */
   const [webSearch, setWebSearch] = useState(false);
+  const chatMemoryEnabled = useUserPreferences((s) => s.chatMemoryEnabled);
+  const setChatMemoryEnabled = useUserPreferences((s) => s.setChatMemoryEnabled);
   /** compact 压缩点:仅把 compactFrom 之后的消息送入上下文(界面消息流不受影响) */
   const [compactFrom, setCompactFrom] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -253,7 +256,7 @@ export function AgentChat() {
         for await (const event of sendChat(q, history, ac.signal, model, activeConv ?? undefined, {
           topic: messages[0]?.content ?? q,
           style: style ?? undefined,
-        }, effectiveMode, webSearch)) {
+        }, effectiveMode, webSearch, chatMemoryEnabled)) {
           if (event.type === "meta") {
             if (event.meta.conversation_id) {
               convTouched = event.meta.conversation_id;
@@ -405,6 +408,8 @@ export function AgentChat() {
       onStyleChange={setStyle}
       webSearch={webSearch}
       onWebSearchChange={setWebSearch}
+      memoryOn={chatMemoryEnabled}
+      onMemoryChange={setChatMemoryEnabled}
       placeholder="帮我找一下关于扩散模型在机器人控制中的最新综述…"
       menuPlacement={messages.length === 0 ? "down" : "up"}
       headerRight={compactRing}

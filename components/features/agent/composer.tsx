@@ -5,6 +5,7 @@ import Image, { type StaticImageData } from "next/image";
 import {
   ArrowUp,
   Atom,
+  Brain,
   Check,
   ChevronDown,
   ChevronRight,
@@ -168,10 +169,14 @@ function PlusMenu({
   placement = "down",
   webSearchOn,
   onWebSearchChange,
+  memoryOn,
+  onMemoryChange,
 }: {
   placement?: "up" | "down";
   webSearchOn?: boolean;
   onWebSearchChange?: (v: boolean) => void;
+  memoryOn?: boolean;
+  onMemoryChange?: (v: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [internalWebSearch, setInternalWebSearch] = useState(false);
@@ -182,6 +187,7 @@ function PlusMenu({
     if (onWebSearchChange) onWebSearchChange(!webSearchValue);
     else setInternalWebSearch((v) => !v);
   };
+  const toggleMemory = () => onMemoryChange?.(!(memoryOn ?? true));
 
   const ITEMS = [
     { label: "插件", icon: Plug, href: "/tools/plugins" },
@@ -245,6 +251,24 @@ function PlusMenu({
               strokeWidth={1.8}
             />
             联网搜索
+          </button>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={memoryOn ?? true}
+            onClick={toggleMemory}
+            className={cn(
+              "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors",
+              memoryOn ?? true
+                ? "bg-primary-soft font-medium text-primary"
+                : "text-ink-2 hover:bg-chip",
+            )}
+          >
+            <Brain
+              className={cn("size-4", (memoryOn ?? true) ? "text-primary" : "text-muted")}
+              strokeWidth={1.8}
+            />
+            长期记忆
           </button>
         </div>
       )}
@@ -506,6 +530,8 @@ export function ComposerShell({
   onStyleChange,
   webSearch,
   onWebSearchChange,
+  memoryOn,
+  onMemoryChange,
   onSearchPapers,
   headerRight,
   sendLeft,
@@ -524,6 +550,9 @@ export function ComposerShell({
   /** 联网搜索开关（后端 Exa MCP 检索）；不传时由组件内部自持状态 */
   webSearch?: boolean;
   onWebSearchChange?: (v: boolean) => void;
+  /** AI 对话是否读取和写入长期记忆 */
+  memoryOn?: boolean;
+  onMemoryChange?: (v: boolean) => void;
   /** Alt+Enter:检索论文(各页面自行决定结果呈现方式) */
   onSearchPapers?: () => void;
   /** 输入框右上方挂载的附加内容(如 compact 圆环) */
@@ -613,6 +642,8 @@ export function ComposerShell({
           placement={menuPlacement}
           webSearchOn={webSearch}
           onWebSearchChange={onWebSearchChange}
+          memoryOn={memoryOn}
+          onMemoryChange={onMemoryChange}
         />
         <AttachmentMenu
           placement={menuPlacement}

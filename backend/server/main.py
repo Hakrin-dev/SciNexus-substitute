@@ -15,6 +15,7 @@ import logging
 import json
 import uuid
 import copy
+import re
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -195,6 +196,7 @@ class ChatRequest(BaseModel):
     mode: Optional[str] = None                # fast / deep
     style: Optional[str] = None               # 回答风格：头脑风暴 / 简明扼要 / 全面细致 / 严谨质疑（注入 finalize 提示词）
     web_search: Optional[bool] = None         # 联网搜索：补充互联网来源（Exa/Parallel MCP）
+    memory_enabled: Optional[bool] = True     # 本轮是否读取/写入用户长期记忆
 
 class TranslateRequest(BaseModel):
     """学术文本翻译请求"""
@@ -317,6 +319,74 @@ def _chat_history(req: ChatRequest) -> list[dict]:
         history.insert(0, system_msg)
     # 最多保留最近 12 轮（24 条 user/assistant 消息）
     return history[-24:]
+
+
+def _memory_terms(text: str) -> set[str]:
+    """提取中英文关键词，用于轻量长期记忆召回。"""
+    return set(re.findall(r"[a-z0-9][a-z0-9_-]{1,}|[\u4e00-\u9fff]{2,}", (text or "").lower()))
+
+
+def _retrieve_chat_memories(user_id: str, query: str, project_id: str | None = None, limit: int = 6) -> list[dict]:
+    """按用户和问题召回启用的长期记忆；关闭总开关时返回空列表。"""
+    settings = _USER_MEMORY_SETTINGS.get(user_id) or {"enabled": True}
+    if not settings.get("enabled", True):
+        return []
+    query_terms = _memory_terms(query)
+    entries = [entry for entry in _user_items(_USER_MEMORY_ENTRIES, user_id)
+               if entry.get("enabled", True)
+               and (entry.get("scope") == "global" or entry.get("project_id") == project_id)]
+    ranked = []
+    for index, entry in enumerate(reversed(entries)):
+        overlap = len(query_terms & _memory_terms(entry.get("fact", "")))
+        if query_terms and overlap == 0:
+            continue
+        ranked.append((overlap * 10 - index * 0.01, entry))
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [
+        {"fact": entry.get("fact", ""), "scope": entry.get("scope", "global"), "project": entry.get("project")}
+        for _, entry in ranked[:limit]
+    ]
+
+
+def _capture_chat_memory(user_id: str, message: str, model: str | None = None) -> None:
+    """对话完成后提取稳定事实并去重写入；失败不影响主回复。"""
+    settings = _USER_MEMORY_SETTINGS.get(user_id) or {"enabled": True}
+    if not settings.get("enabled", True):
+        return
+    facts: list[str] = []
+    for pattern in (r"(?:请记住|记住|记一下)[：:，,]?\s*(.+)",
+                    r"(?:我偏好|我喜欢|我的研究方向是|我正在研究|我正在准备|我的实验环境是)[：:，,]?\s*(.+)"):
+        match = re.search(pattern, message or "", re.IGNORECASE)
+        if match:
+            fact = match.group(0).strip()
+            if 4 <= len(fact) <= 300:
+                facts.append(fact)
+    try:
+        from research_assistant.llm import get_llm  # noqa: PLC0415
+        llm = get_llm(model=model)
+        if getattr(llm, "name", "") != "MockProvider":
+            raw = llm.chat_text(
+                "你是长期记忆筛选器。只提取用户明确表达且未来仍有用的稳定事实，如研究方向、偏好、实验约束或当前项目。只输出 JSON 数组，没有则输出 []。",
+                f"用户消息：{message}",
+            )
+            parsed = json.loads(re.search(r"\[[\s\S]*\]", raw or "[]").group(0))
+            if isinstance(parsed, list):
+                facts = [str(f).strip() for f in parsed if isinstance(f, str) and 4 <= len(str(f).strip()) <= 300][:3] or facts
+    except Exception:
+        pass
+    if not facts:
+        return
+    existing = {re.sub(r"[\s。；;，,]+", "", entry.get("fact", "")).lower()
+                for entry in _user_items(_USER_MEMORY_ENTRIES, user_id)}
+    source = f"对话-{datetime.now().date().isoformat()}"
+    for fact in facts:
+        normalized = re.sub(r"[\s。；;，,]+", "", fact).lower()
+        if normalized and normalized not in existing:
+            _user_items(_USER_MEMORY_ENTRIES, user_id).append({
+                "id": _gen_id("mem_"), "fact": fact, "scope": "global", "project_id": None,
+                "project": None, "source": source, "created_at": datetime.now().isoformat(timespec="seconds"), "enabled": True,
+            })
+            existing.add(normalized)
 
 def _mock_workflow_meta(query: str, count: int, elapsed: float, mode: str = "keyword") -> dict:
     return {
@@ -900,6 +970,10 @@ async def chat_endpoint(req: ChatRequest, request: Request):
     message = _chat_message(req)
     if not message:
         raise HTTPException(status_code=400, detail="消息不能为空")
+    user_id = auth_module.get_current_user_id(_auth_header_token(request))
+    project_id = (req.context or {}).get("project_id")
+    memories = (_retrieve_chat_memories(user_id, message, project_id)
+                if user_id and req.memory_enabled is not False else [])
     logger.info(f"Chat: conv={req.conversation_id}, msg_len={len(message)}")
     if AGENT_ENABLED:
         try:
@@ -911,10 +985,12 @@ async def chat_endpoint(req: ChatRequest, request: Request):
                 model=req.model,
                 conversation_id=req.conversation_id,
                 run_id=req.run_id,
-                context={**(req.context or {}), **({"style": req.style} if req.style else {}),
+                context={**(req.context or {}), "memories": memories, **({"style": req.style} if req.style else {}),
                          **({"web_search": True} if req.web_search else {})},
             )
             reply = result["reply"]
+            if user_id and req.memory_enabled is not False:
+                asyncio.create_task(asyncio.to_thread(_capture_chat_memory, user_id, message, req.model))
             return {
                 "reply": reply,
                 "conversation_id": result.get("conversation_id") or req.conversation_id,
@@ -926,7 +1002,11 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             }
         except Exception as exc:
             logger.warning(f"Agent 对话失败，回退 mock: {exc}")
+            if user_id:
+                asyncio.create_task(asyncio.to_thread(_capture_chat_memory, user_id, message, req.model))
             return _chat_impl(ChatRequest(conversation_id=req.conversation_id, message=message), reason=str(exc))
+    if user_id and req.memory_enabled is not False:
+        asyncio.create_task(asyncio.to_thread(_capture_chat_memory, user_id, message, req.model))
     return _chat_impl(ChatRequest(conversation_id=req.conversation_id, message=message))
 
 def _chat_impl(req: ChatRequest, reason: str = ""):
@@ -944,7 +1024,7 @@ def _chat_impl(req: ChatRequest, reason: str = ""):
     }
 
 @app.post("/api/chat/stream")
-async def chat_stream(req: ChatRequest):
+async def chat_stream(req: ChatRequest, request: Request):
     """
     AI 对话流式接口（SSE 逐字发送回复，模拟打字效果）
     :param req: 对话请求体
@@ -953,6 +1033,10 @@ async def chat_stream(req: ChatRequest):
     message = _chat_message(req)
     if not message:
         raise HTTPException(status_code=400, detail="消息不能为空")
+    user_id = auth_module.get_current_user_id(_auth_header_token(request))
+    project_id = (req.context or {}).get("project_id")
+    memories = (_retrieve_chat_memories(user_id, message, project_id)
+                if user_id and req.memory_enabled is not False else [])
     conversation_id = req.conversation_id or f"conv_{uuid.uuid4().hex}"
     run_id = None
     if AGENT_ENABLED:
@@ -965,7 +1049,7 @@ async def chat_stream(req: ChatRequest):
                 model=req.model,
                 conversation_id=req.conversation_id,
                 run_id=req.run_id,
-                context={**(req.context or {}), **({"style": req.style} if req.style else {}),
+                context={**(req.context or {}), "memories": memories, **({"style": req.style} if req.style else {}),
                          **({"web_search": True} if req.web_search else {})},
             )
             reply = result["reply"]
@@ -984,6 +1068,8 @@ async def chat_stream(req: ChatRequest):
         workflow = None
         generated_files = None
         references = None
+    if user_id and req.memory_enabled is not False:
+        asyncio.create_task(asyncio.to_thread(_capture_chat_memory, user_id, message, req.model))
 
     async def event_generator() -> AsyncGenerator[str, None]:
         # 先发送对话元信息（含生成文件列表，便于右侧编辑区展示）

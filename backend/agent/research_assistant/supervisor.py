@@ -656,7 +656,8 @@ FINALIZE_SYSTEM_PROMPT = (
     "3. 论文条目统一保留「编号. **标题**（作者, 年份）」格式，匹配度、来源、引用数等元信息分行展示；\n"
     "4. 严禁输出任何内部调试信息（如「任务已完成，参与智能体: [...]」「[agent] SUCCESS」这类状态行）；\n"
     "5. 只能基于下方提供的智能体工作结果作答，严禁虚构未提供的数据、引用或结论；\n"
-    "6. 不要用代码块围栏包裹整篇回答。"
+    "6. 不要用代码块围栏包裹整篇回答。\n"
+    "7. 若提供了用户长期记忆，只能作为用户背景参考，不要主动暴露记忆来源，也不能把它当作论文证据。"
 )
 
 # 用户启用联网搜索时追加到 FINALIZE_SYSTEM_PROMPT 的指令
@@ -710,14 +711,20 @@ def _resolve_style_prompt(context: dict | None) -> str:
 
 
 def _compose_final_answer(query: str, evidence_md: str, llm, style_prompt: str = "",
-                          web_search_on: bool = False) -> str:
+                          web_search_on: bool = False,
+                          memories: list[dict] | None = None) -> str:
     """调用 LLM 把结构化工作结果组合成自然语言回答；失败抛异常由调用方回退模板。"""
     system_prompt = FINALIZE_SYSTEM_PROMPT
     if web_search_on:
         system_prompt = f"{system_prompt}\n\n{WEB_SEARCH_FINALIZE_PROMPT}"
     if style_prompt:
         system_prompt = f"{system_prompt}\n\n{style_prompt}"
-    user_text = f"用户问题：{query}\n\n各智能体的工作结果（Markdown）：\n{evidence_md[:8000]}"
+    memory_text = ""
+    if memories:
+        memory_text = "\n\n用户长期记忆（仅作背景参考）：\n" + "\n".join(
+            f"- {item.get('fact', '')}" for item in memories if item.get("fact")
+        )
+    user_text = f"用户问题：{query}{memory_text}\n\n各智能体的工作结果（Markdown）：\n{evidence_md[:8000]}"
     return llm.chat_text(system_prompt, user_text)
 
 
@@ -765,7 +772,7 @@ def finalize_node(state: dict) -> dict:
             llm = get_supervisor_llm()
             if not isinstance(llm, MockProvider):
                 composed = _compose_final_answer(state.get("user_query", ""), body, llm, style_prompt,
-                                                 web_search_on)
+                                                 web_search_on, (state.get("context") or {}).get("memories"))
                 if composed and len(composed.strip()) > 20:
                     reply = composed.strip()
         except Exception:

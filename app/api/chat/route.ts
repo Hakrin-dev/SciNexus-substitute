@@ -16,6 +16,7 @@ import { getDB, jsonStringify } from "@/lib/server/db";
 import { requireAuth } from "@/lib/server/auth";
 import { genId } from "@/lib/server/utils";
 import { runAgent } from "@/lib/server/agent";
+import { captureConversationMemory, retrieveMemories } from "@/lib/server/memory";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,8 @@ interface ChatReq {
   task_type?: string;
   paper_id?: string;
   model?: string;
+  project_id?: string;
+  memory_enabled?: boolean;
 }
 
 /** 从 messages 中提取多轮历史（排除最后一条用户消息），最多保留最近 24 条 */
@@ -79,13 +82,20 @@ export async function POST(req: NextRequest) {
     ).run(conversationId, msg);
 
     // 多智能体编排生成回复
-    const result = await runAgent(msg, body.task_type, body.paper_id, chatHistory(body), body.model);
+    const memories = body.memory_enabled === false
+      ? []
+      : retrieveMemories(userId, msg, body.project_id);
+    const result = await runAgent(msg, body.task_type, body.paper_id, chatHistory(body), body.model, null, memories);
     const { reply, workflow, references, generatedFiles } = result;
 
     // 写入 AI 消息
     db.prepare(
       "INSERT INTO conversation_messages (conversation_id, role, content, workflow_json) VALUES (?, 'assistant', ?, ?)"
     ).run(conversationId, reply, jsonStringify(workflow));
+
+    if (body.memory_enabled !== false) {
+      void captureConversationMemory(userId, msg, body.model);
+    }
 
     return ok({
       reply,

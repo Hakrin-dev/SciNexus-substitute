@@ -7,6 +7,7 @@ import { ensureSeed, fail, parseBody, extractMessage, genId } from "@/lib/server
 import { getDB, jsonStringify } from "@/lib/server/db";
 import { requireAuth } from "@/lib/server/auth";
 import { runAgent } from "@/lib/server/agent";
+import { captureConversationMemory, retrieveMemories } from "@/lib/server/memory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ interface ChatReq {
   /** 回答风格(头脑风暴/简明扼要/全面细致/严谨质疑) */
   style?: string;
   context?: { style?: string; [key: string]: unknown };
+  project_id?: string;
+  memory_enabled?: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -35,7 +38,11 @@ export async function POST(req: NextRequest) {
     (item) => (item.role === "user" || item.role === "assistant") && item.content,
   ).slice(-24) ?? [];
   const style = body.style ?? body.context?.style ?? null;
-  const result = await runAgent(msg || "你好", body.task_type, body.paper_id, history, body.model, style);
+  const userMessage = msg || "你好";
+  const memories = body.memory_enabled === false
+    ? []
+    : retrieveMemories(userId, userMessage, body.project_id);
+  const result = await runAgent(userMessage, body.task_type, body.paper_id, history, body.model, style, memories);
   const { reply, workflow, references, generatedFiles } = result;
 
   const conversationId = body.conversation_id || genId("conv_");
@@ -65,6 +72,9 @@ export async function POST(req: NextRequest) {
       );
     } catch {}
   })();
+  if (body.memory_enabled !== false) {
+    void captureConversationMemory(userId, userMessage, body.model);
+  }
 
   const stream = new ReadableStream({
     async start(controller) {

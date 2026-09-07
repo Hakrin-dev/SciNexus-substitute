@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getKnowledgePaper, KnowledgeBaseError, shouldUseRemoteKnowledgeBase } from "@/lib/server/knowledge-base";
+import { findKnowledgePaperByTitle, getKnowledgePaper, KnowledgeBaseError, shouldUseRemoteKnowledgeBase } from "@/lib/server/knowledge-base";
 import { ensureSeed } from "@/lib/server/utils";
 import { getDB } from "@/lib/server/db";
 import { fetchSafePdf } from "@/lib/server/pdf-proxy";
@@ -14,9 +14,21 @@ export async function GET(
   const { id } = await params;
   try {
     ensureSeed();
-    const local = getDB().prepare("SELECT title, pdf_url FROM papers WHERE id = ?").get(id) as { title?: string; pdf_url?: string | null } | undefined;
-    const preferRemote = new URL(req.url).searchParams.get("source") === "remote_knowledge_base";
-    const remote = (preferRemote || (!local && shouldUseRemoteKnowledgeBase())) ? await getKnowledgePaper(id) : null;
+    // The local schema does not require a pdf_url column. Read defensively so
+    // remote papers can still be resolved by source/title.
+    const local = getDB().prepare("SELECT * FROM papers WHERE id = ?").get(id) as { title?: string; pdf_url?: string | null } | undefined;
+    const requestUrl = new URL(req.url);
+    const preferRemote = requestUrl.searchParams.get("source") === "remote_knowledge_base";
+    const requestedTitle = requestUrl.searchParams.get("title")?.trim();
+    let remote: Awaited<ReturnType<typeof getKnowledgePaper>> | null = null;
+    if (preferRemote || (!local && shouldUseRemoteKnowledgeBase())) {
+      try {
+        remote = await getKnowledgePaper(id);
+      } catch (error) {
+        if (!requestedTitle) throw error;
+        remote = await findKnowledgePaperByTitle(requestedTitle);
+      }
+    }
     const title = preferRemote ? remote?.title || id : local?.title || remote?.title || id;
     const sourceUrl = preferRemote ? remote?.pdfUrl : local?.pdf_url || remote?.pdfUrl;
     if (!sourceUrl) {
@@ -35,6 +47,7 @@ export async function GET(
       },
     });
   } catch (error) {
+    console.warn("[scinexus] PDF proxy failed", error instanceof KnowledgeBaseError ? error.code : error instanceof Error ? error.name : typeof error);
     const status = error instanceof KnowledgeBaseError ? error.status ?? 502 : 502;
     const message = error instanceof KnowledgeBaseError ? error.message : "论文 PDF 暂不可用";
     return NextResponse.json({ success: false, error: message }, { status });

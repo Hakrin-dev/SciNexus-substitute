@@ -7,6 +7,7 @@ import { ensureSeed, fail, ok } from "@/lib/server/utils";
 import { getDB, jsonParse } from "@/lib/server/db";
 import {
   getKnowledgePaper,
+  findKnowledgePaperByTitle,
   recordKnowledgeFallback,
   shouldFallbackToLocal,
   shouldUseRemoteKnowledgeBase,
@@ -18,6 +19,7 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const requestedSource = new URL(req.url).searchParams.get("source");
+  const requestedTitle = new URL(req.url).searchParams.get("title")?.trim();
   const preferRemote = requestedSource === "remote_knowledge_base";
   try {
     ensureSeed();
@@ -27,7 +29,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // colliding local ID can silently show a different paper to the user.
     if (preferRemote && shouldUseRemoteKnowledgeBase()) {
       try {
-        const remote = toFrontendKnowledgePaper(await getKnowledgePaper(id));
+        let knowledgePaper: Awaited<ReturnType<typeof getKnowledgePaper>>;
+        try {
+          knowledgePaper = await getKnowledgePaper(id);
+        } catch (error) {
+          if (!requestedTitle) throw error;
+          knowledgePaper = await findKnowledgePaperByTitle(requestedTitle);
+        }
+        const remote = toFrontendKnowledgePaper(knowledgePaper);
         return ok({
           ...remote,
           authors: remote.author_list,

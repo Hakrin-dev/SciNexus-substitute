@@ -144,7 +144,9 @@ export function toFeedPaper(p: BackendPaper): FeedPaper {
     rank: typeof p.rank === "number" && Number.isFinite(p.rank) ? p.rank : null,
     knowledgeScore: typeof p.knowledgeScore === "number" && Number.isFinite(p.knowledgeScore) ? p.knowledgeScore : null,
     fallbackUsed: p.fallbackUsed === true,
-    pdfUrl: typeof (p as any).pdf_url === "string" ? (p as any).pdf_url : null,
+    pdfUrl: typeof (p as any).pdf_url === "string"
+      ? (p as any).pdf_url
+      : typeof (p as any).pdfUrl === "string" ? (p as any).pdfUrl : null,
     thumb: p.venue || p.tags?.[0] || "论文",
   };
 }
@@ -204,7 +206,9 @@ export function toPaperDetail(
   const intro =
     chunks.find((c) => c.page === 1)?.text?.slice(0, 600) || p.abstract || "";
   const hasFulltext = fulltext?.has_fulltext === true && chunks.length > 0;
-  const pdfUrl = typeof (p as any).pdf_url === "string" ? (p as any).pdf_url : null;
+  const pdfUrl = typeof (p as any).pdf_url === "string"
+    ? (p as any).pdf_url
+    : typeof (p as any).pdfUrl === "string" ? (p as any).pdfUrl : null;
   const totalPage = hasFulltext
     ? Math.max(...chunks.map((c) => c.page))
     : 1;

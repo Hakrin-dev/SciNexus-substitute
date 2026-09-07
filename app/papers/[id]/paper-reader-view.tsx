@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PaperTopbar } from "@/components/features/paper/paper-topbar";
 import { PaperLeftSidebar } from "@/components/features/paper/paper-left-sidebar";
@@ -9,6 +9,64 @@ import { PaperRightPanel } from "@/components/features/paper/right-panel";
 import { PaperZoom } from "@/components/features/paper/paper-zoom";
 import { usePaperDetail } from "@/lib/api/services";
 import { useRecentViews } from "@/stores/recent-views";
+
+function PdfReader({
+  paperId,
+  title,
+  source,
+  pdfUrl,
+}: {
+  paperId: string;
+  title: string;
+  source?: string;
+  pdfUrl: string;
+}) {
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const proxyUrl = `/api/papers/${encodeURIComponent(paperId)}/pdf?inline=1${source === "remote_knowledge_base" ? `&source=remote_knowledge_base&title=${encodeURIComponent(title)}` : ""}`;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let createdUrl: string | null = null;
+    setState("loading");
+    setObjectUrl(null);
+    fetch(proxyUrl, { headers: { Accept: "application/pdf" }, signal: controller.signal })
+      .then((response) => {
+        const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+        if (!response.ok || !contentType.includes("application/pdf")) throw new Error("PDF proxy response is not a PDF");
+        return response.blob();
+      })
+      .then((blob) => {
+        createdUrl = URL.createObjectURL(blob);
+        setObjectUrl(createdUrl);
+        setState("ready");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setState("error");
+      });
+    return () => {
+      controller.abort();
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [proxyUrl]);
+
+  if (state === "loading") {
+    return <div className="grid h-full min-h-[calc(100vh-6rem)] place-items-center text-sm text-muted">正在加载论文 PDF…</div>;
+  }
+  if (state === "error" || !objectUrl) {
+    return (
+      <div className="flex h-full min-h-[calc(100vh-6rem)] flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-sm text-muted">服务端 PDF 代理暂时无法读取该文件，未将错误响应当作论文正文展示。</p>
+        <a href={pdfUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
+          尝试在浏览器中打开原始 PDF
+        </a>
+      </div>
+    );
+  }
+
+  return <iframe src={objectUrl} title={`${title} PDF`} className="h-full min-h-[calc(100vh-6rem)] w-full border-0" />;
+}
 
 /**
  * 论文阅读器 `/papers/[id]` 的客户端交互体 —— 对应「深知-论文详情页.svg」
@@ -18,7 +76,8 @@ import { useRecentViews } from "@/stores/recent-views";
 export function PaperReaderView({ id }: { id: string }) {
   const searchParams = useSearchParams();
   const source = searchParams.get("source") === "remote_knowledge_base" ? "remote_knowledge_base" : undefined;
-  const { data: paper, isLoading, isError, error } = usePaperDetail(id, source);
+  const titleHint = searchParams.get("title") ?? undefined;
+  const { data: paper, isLoading, isError, error } = usePaperDetail(id, source, titleHint);
   const record = useRecentViews((s) => s.record);
 
   // 浏览记录埋点(本地持久化)
@@ -59,11 +118,7 @@ export function PaperReaderView({ id }: { id: string }) {
         <main className="min-w-0 flex-1 overflow-y-auto px-8 py-8">
           {paper.readingState === "pdf" ? (
             <div className="h-full min-h-[calc(100vh-6rem)] overflow-hidden rounded-2xl bg-card shadow-card">
-              <iframe
-                src={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1${paper.source === "remote_knowledge_base" ? "&source=remote_knowledge_base" : ""}`}
-                title={`${paper.title} PDF`}
-                className="h-full min-h-[calc(100vh-6rem)] w-full border-0"
-              />
+              <PdfReader paperId={paper.id} title={paper.title} source={paper.source} pdfUrl={paper.pdfUrl!} />
             </div>
           ) : <PaperZoom>
             <article className="rounded-2xl bg-card p-10 shadow-card">
@@ -84,7 +139,7 @@ export function PaperReaderView({ id }: { id: string }) {
               <Link href={`/papers/${encodeURIComponent(paper.id)}/graph`} className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">
                 查看引用图谱
               </Link>
-              {paper.pdfUrl && <a href={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1${paper.source === "remote_knowledge_base" ? "&source=remote_knowledge_base" : ""}`} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">在新窗口打开 PDF</a>}
+              {paper.pdfUrl && <a href={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1${paper.source === "remote_knowledge_base" ? `&source=remote_knowledge_base&title=${encodeURIComponent(paper.title)}` : ""}`} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">在新窗口打开 PDF</a>}
             </div>
 
             <hr className="mx-auto mt-6 w-16 border-line" />

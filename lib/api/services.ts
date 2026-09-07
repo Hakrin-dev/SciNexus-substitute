@@ -102,6 +102,39 @@ export function useFeedPapers() {
   });
 }
 
+/** 首页随机发现流：只接受知识底座结果，不回退到本地演示论文。 */
+export function useRandomKnowledgePapers() {
+  return useQuery({
+    queryKey: ["api", "knowledge", "discover"],
+    queryFn: async () => {
+      const json = await apiGet<{ results: KnowledgeApiPaper[] }>("/api/v1/knowledge/discover");
+      return (json.data?.results ?? []).map((paper) => toFeedPaper({
+        id: paper.paperId,
+        title: paper.title,
+        authors: paper.authors.join(", "),
+        author_list: paper.authors,
+        venue: paper.venue,
+        year: paper.year,
+        citations: paper.citationCount ?? 0,
+        abstract: paper.abstract,
+        tags: [...paper.keywords, ...paper.subjects],
+        keywords: paper.keywords,
+        subjects: paper.subjects,
+        doi: paper.doi,
+        relevance: paper.score,
+        knowledgeScore: paper.score,
+        rank: paper.rank,
+        source: "remote_knowledge_base",
+        pdf_url: paper.pdfUrl,
+      }));
+    },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    retry: 0,
+  });
+}
+
 /** 投稿页会议/期刊列表 */
 export function useVenues() {
   return useQuery({
@@ -466,15 +499,19 @@ export function useUpdateThreadCardStatus(projectId: string) {
 }
 
 /** 论文详情（+ 全文回退 intro / 页码） */
-export function usePaperDetail(id: string, source?: "remote_knowledge_base") {
+export function usePaperDetail(id: string, source?: "remote_knowledge_base", title?: string) {
   return useQuery({
     queryKey: ["api", "paper", id, source ?? "default"],
     queryFn: async () => {
       // 详情与全文并行拉取；远程失败时保留真实错误，不伪装成本地论文。
+      const remoteQuery = source
+        ? `?source=remote_knowledge_base${title ? `&title=${encodeURIComponent(title)}` : ""}`
+        : "";
+      const encodedId = encodeURIComponent(id);
       const [json, fulltext] = await Promise.all([
-        apiGet<any>(`/api/papers/${id}${source ? "?source=remote_knowledge_base" : ""}`),
+        apiGet<any>(`/api/papers/${encodedId}${remoteQuery}`),
         apiGet<{ chunks?: { page: number; text: string }[]; has_fulltext?: boolean }>(
-          `/api/papers/${id}/fulltext${source ? "?source=remote_knowledge_base" : ""}`,
+          `/api/papers/${encodedId}/fulltext${remoteQuery}`,
         ).catch(() => null),
       ]);
       return toPaperDetail(json.data, id, fulltext?.data ?? null);

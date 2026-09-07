@@ -7,6 +7,7 @@ import { ensureSeed, fail } from "@/lib/server/utils";
 import { getDB } from "@/lib/server/db";
 import {
   getKnowledgePaper,
+  findKnowledgePaperByTitle,
   recordKnowledgeFallback,
   shouldFallbackToLocal,
   shouldUseRemoteKnowledgeBase,
@@ -17,6 +18,7 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const preferRemote = new URL(req.url).searchParams.get("source") === "remote_knowledge_base";
+  const requestedTitle = new URL(req.url).searchParams.get("title")?.trim();
   ensureSeed();
   const db = getDB();
   const localRow = db.prepare("SELECT * FROM papers WHERE id = ?").get(id) as any;
@@ -28,7 +30,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   if (shouldUseRemoteKnowledgeBase()) {
     try {
-      const paper = await getKnowledgePaper(id);
+      let paper: Awaited<ReturnType<typeof getKnowledgePaper>>;
+      try {
+        paper = await getKnowledgePaper(id);
+      } catch (error) {
+        if (!requestedTitle) throw error;
+        paper = await findKnowledgePaperByTitle(requestedTitle);
+      }
       // 知识底座当前只提供元数据/PDF URL，不把摘要伪造成全文分块。
       return NextResponse.json({
         success: true,

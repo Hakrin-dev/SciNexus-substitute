@@ -73,14 +73,20 @@ export async function fetchSafePdf(sourceUrl: string): Promise<Response> {
     if (!response.ok || !response.body) {
       throw new KnowledgeBaseError("论文 PDF 暂不可用", 502, "UPSTREAM_UNAVAILABLE");
     }
-    const length = Number(response.headers.get("content-length"));
-    if (Number.isFinite(length) && length > configuredMaxBytes()) {
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > configuredMaxBytes()) {
       throw new KnowledgeBaseError("论文 PDF 文件过大", 413, "CONTRACT_VIOLATION");
     }
-    if (!response.headers.get("content-type")?.toLowerCase().includes("application/pdf")) {
+    // 部分论文站点用 octet-stream 传送 PDF，因此以文件签名为准，避免把 HTML/JSON 错误响应透传给阅读器。
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > configuredMaxBytes()) {
+      throw new KnowledgeBaseError("论文 PDF 文件过大", 413, "CONTRACT_VIOLATION");
+    }
+    const signature = new TextDecoder().decode(bytes.slice(0, 5));
+    if (signature !== "%PDF-") {
       throw new KnowledgeBaseError("论文 PDF 返回格式无效", 502, "CONTRACT_VIOLATION");
     }
-    return response;
+    return new Response(bytes, { headers: { "Content-Type": "application/pdf" } });
   }
   throw new KnowledgeBaseError("论文 PDF 重定向无效", 502, "CONTRACT_VIOLATION");
 }

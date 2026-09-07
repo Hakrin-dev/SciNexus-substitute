@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { normalizeVenues, toFeedPaper } from "../lib/api/adapters.ts";
+import { normalizeVenues, toFeedPaper, toPaperDetail } from "../lib/api/adapters.ts";
 import { getAuthSecret } from "../lib/server/auth-secret.ts";
 import {
   normalizeKnowledgeGraph,
@@ -143,6 +143,20 @@ test("remote search cards retain source data and never render NaN likes", () => 
   assert.equal(card.authors, "未提供作者");
   assert.equal(card.source, "remote_knowledge_base");
   assert.equal(card.rank, 1);
+});
+
+test("remote paper details preserve camelCase PDF URLs for the reader", () => {
+  const paper = toPaperDetail({
+    id: "paper:remote:pdf",
+    title: "Remote PDF Paper",
+    authors: "Alice",
+    venue: "AAAI",
+    abstract: "Abstract",
+    pdfUrl: "https://papers.example.test/remote.pdf",
+  }, "paper:remote:pdf");
+
+  assert.equal(paper.pdfUrl, "https://papers.example.test/remote.pdf");
+  assert.equal(paper.readingState, "pdf");
 });
 
 test("remote graph normalization preserves directed citation lines", () => {

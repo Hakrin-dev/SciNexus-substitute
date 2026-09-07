@@ -7,7 +7,6 @@ import { KnowledgeHealthStatus } from "@/components/features/knowledge/knowledge
 import { cn } from "@/lib/utils";
 import type { FeedPaper } from "@/types";
 import { SearchHero } from "./search-hero";
-import { FeedTabs } from "./feed-tabs";
 import { FeedList } from "./feed-list";
 import { PaperCard } from "./paper-card";
 
@@ -176,7 +175,6 @@ export function HomeFeed() {
       </div>
       {sorted === null ? (
         <>
-          <FeedTabs />
           <FeedList />
         </>
       ) : (

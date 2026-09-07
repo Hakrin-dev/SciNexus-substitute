@@ -17,6 +17,8 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
   const bookmarked = useUserPreferences((s) => !!s.bookmarkedPapers[paper.id]);
   const toggleLike = useUserPreferences((s) => s.toggleLike);
   const toggleBookmark = useUserPreferences((s) => s.toggleBookmark);
+  const readerHref = `/papers/${encodeURIComponent(paper.id)}${paper.source === "remote_knowledge_base" ? `?source=remote_knowledge_base&title=${encodeURIComponent(paper.title)}` : ""}`;
+  const pdfHref = `/api/papers/${encodeURIComponent(paper.id)}/pdf${paper.source === "remote_knowledge_base" ? `?source=remote_knowledge_base&title=${encodeURIComponent(paper.title)}` : ""}`;
 
   return (
     <article
@@ -41,7 +43,7 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
           </div>
 
           {/* 标题 */}
-          <Link href={`/papers/${paper.id}${paper.source === "remote_knowledge_base" ? "?source=remote_knowledge_base" : ""}`} className="group mt-2 block">
+          <Link href={readerHref} className="group mt-2 block">
             <h3 className="text-[17px] font-bold leading-snug text-ink transition-colors group-hover:text-primary">
               {paper.title}
             </h3>
@@ -78,7 +80,7 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
                     <ExternalLink className="size-3.5" />
                     Web 阅读
                   </a>
-                  <a href={`/api/papers/${encodeURIComponent(paper.id)}/pdf`} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-muted transition-colors hover:border-primary hover:text-primary">
+                  <a href={pdfHref} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-muted transition-colors hover:border-primary hover:text-primary">
                     <Download className="size-3.5" />
                     下载 PDF
                   </a>
@@ -111,7 +113,7 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
                 <Bookmark className="size-4" fill={bookmarked ? "currentColor" : "none"} />
                 收藏
               </Button>
-              <Link href={`/papers/${paper.id}${paper.source === "remote_knowledge_base" ? "?source=remote_knowledge_base" : ""}`}>
+              <Link href={readerHref}>
                 <Button size="sm" className="h-9 rounded-lg px-4 text-[13px]">
                   立即阅读
                   <ArrowRight className="size-3.5" />

@@ -15,8 +15,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { apiPost } from "@/lib/api/client";
 import { toast } from "@/stores/toast";
-import { createProject } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
 const FIELDS = ["检索", "写作", "分析", "代码", "实验设计", "综述"] as const;
@@ -27,10 +27,8 @@ interface Member {
   name: string;
   role: string;
 }
-
 export function NewProjectFlow() {
   const router = useRouter();
-
   const [step, setStep] = React.useState(0);
   const [name, setName] = React.useState("");
   const [tagline, setTagline] = React.useState("");
@@ -61,24 +59,25 @@ export function NewProjectFlow() {
 
   const handleCreate = async () => {
     if (creating) return;
-    const fallbackTagline = `${field ?? "科研"}方向的新课题`;
-    const projectTagline = tagline.trim() || fallbackTagline;
     setCreating(true);
     try {
-      const id = await createProject({
+      const description = tagline.trim() || `${field ?? "科研"}方向的新课题`;
+      const response = await apiPost<{ id: string }>("/api/projects", {
         name: name.trim(),
-        tagline: projectTagline,
+        tagline: description,
         status: "进行中",
-        overview: [projectTagline],
+        overview: [description],
         techStack: tech,
         milestones: [],
         members,
         links: [],
       });
+      const id = response.data?.id;
+      if (!id) throw new Error("服务端未返回课题 ID");
       toast.success(`已创建课题「${name.trim()}」`);
       router.push(`/projects/${id}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "创建课题失败，请稍后重试");
+      toast.error(error instanceof Error ? error.message : "课题创建失败");
     } finally {
       setCreating(false);
     }
@@ -94,7 +93,7 @@ export function NewProjectFlow() {
           </span>
           <div>
             <h1 className="text-xl font-bold text-ink">新建课题</h1>
-            <p className="mt-0.5 text-xs text-faint">创建后自动保存到当前账户</p>
+            <p className="mt-0.5 text-xs text-faint">课题将保存到当前账号，可直接进入自动研究</p>
           </div>
         </div>
 
@@ -168,9 +167,9 @@ export function NewProjectFlow() {
 
           {step === 1 && (
             <div className="space-y-5">
-              {/* 成员 */}
+              {/* 成员必须对应已注册账号，后端据此建立真实项目权限。 */}
               <div>
-                <p className="mb-2 text-xs font-medium text-ink-2">团队成员</p>
+                <p className="mb-2 text-xs font-medium text-ink-2">团队成员（用户名或邮箱）</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
                     placeholder="姓名"
@@ -258,7 +257,7 @@ export function NewProjectFlow() {
                 <Row label="技术栈" value={tech.length ? tech.join("、") : "暂无"} />
               </dl>
               <p className="text-xs text-faint">
-                创建后将进入该课题的工作台。
+                创建后将进入该课题的工作台，并可立即启动自动研究。
               </p>
             </div>
           )}

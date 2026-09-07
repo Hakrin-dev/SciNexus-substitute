@@ -10,17 +10,17 @@ import {
 } from "../lib/server/knowledge-base.ts";
 import { isPrivatePdfAddress } from "../lib/pdf-safety.ts";
 
-test("Next authentication uses the fixed fallback when production AUTH_SECRET is missing", () => {
-  assert.equal(
-    getAuthSecret({ NODE_ENV: "production" }),
-    "yanshu-dev-secret-change-me",
+test("Next authentication rejects a missing production AUTH_SECRET", () => {
+  assert.throws(
+    () => getAuthSecret({ NODE_ENV: "production" }),
+    /生产环境必须配置 AUTH_SECRET/,
   );
 });
 
 const pythonProbe = spawnSync("python", ["--version"], { encoding: "utf8" });
 const pythonUnavailable = pythonProbe.error?.code === "ENOENT" || pythonProbe.status !== 0;
 
-test("FastAPI authentication starts with the fixed fallback when AUTH_SECRET is missing", {
+test("FastAPI authentication rejects a missing production AUTH_SECRET", {
   skip: pythonUnavailable ? "Python runtime is not installed on this machine" : false,
 }, () => {
   const result = spawnSync(
@@ -36,7 +36,8 @@ test("FastAPI authentication starts with the fixed fallback when AUTH_SECRET is 
     },
   );
 
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.match(`${result.stdout}\n${result.stderr}`, /AUTH_SECRET/);
 });
 
 test("external venue payload gains arrays required by VenueCard", () => {

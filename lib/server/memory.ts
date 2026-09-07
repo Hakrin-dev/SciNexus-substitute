@@ -18,13 +18,17 @@ function normalizeFact(fact: string): string {
   return fact.replace(/[\s。；;，,]+/g, "").toLowerCase();
 }
 
+function containsSensitiveData(text: string): boolean {
+  return /(?:password|密码|口令|api[_ -]?key|token|secret|身份证|护照|银行卡|信用卡|\b1[3-9]\d{9}\b|\b\d{15,19}\b)/i.test(text);
+}
+
 /** 读取已启用且与当前问题相关的用户长期记忆。 */
 export function retrieveMemories(userId: string, query: string, projectId?: string, limit = 6): RetrievedMemory[] {
   const db = getDB();
   const setting = db
     .prepare("SELECT enabled FROM memory_settings WHERE user_id = ?")
     .get(userId) as { enabled?: number } | undefined;
-  if (setting && !setting.enabled) return [];
+  if (!setting?.enabled) return [];
 
   const rows = db
     .prepare(
@@ -103,7 +107,7 @@ export async function captureConversationMemory(
   const setting = db
     .prepare("SELECT enabled FROM memory_settings WHERE user_id = ?")
     .get(userId) as { enabled?: number } | undefined;
-  if (setting && !setting.enabled) return;
+  if (!setting?.enabled || containsSensitiveData(message)) return;
 
   const facts = await extractFacts(message, model);
   if (!facts.length) return;
@@ -116,7 +120,7 @@ export async function captureConversationMemory(
     `INSERT INTO memory_entries (id, user_id, fact, scope, source)
      VALUES (?, ?, ?, 'global', ?)`
   );
-  for (const fact of facts) {
+  for (const fact of facts.filter((item) => !containsSensitiveData(item))) {
     const normalized = normalizeFact(fact);
     if (!known.has(normalized)) {
       insert.run(genId("mem_"), userId, fact, source);

@@ -22,6 +22,18 @@ import {
 } from "@/lib/api/services";
 import { useAuthStore } from "@/stores/auth";
 
+export interface ParsedAttachment {
+  name: string;
+  size: number;
+  content: string;
+}
+
+const MAX_FILE_CHARS = 24_000;
+const TEXT_EXTENSIONS = new Set([
+  "txt", "md", "markdown", "csv", "json", "js", "jsx", "ts", "tsx",
+  "py", "java", "go", "rs", "css", "html", "xml", "yaml", "yml",
+]);
+
 /** 引用面板的通用分组:副标题 + 可点击条目(display 展示,token 注入输入框) */
 interface RefItem {
   key: string;
@@ -115,20 +127,24 @@ function RefPanel({
 
 /**
  * 「别针」附件/引用菜单:
- * 上传入口(即将上线,disabled)/ 引用知识库 / 引用历史对话 / 引用科研项目;
+ * 上传入口 / 引用知识库 / 引用历史对话 / 引用科研项目;
  * 后三者悬停向右展开二级面板,点击条目以「@名称」注入输入框并随消息上送 context。
  */
 export function AttachmentMenu({
   placement = "down",
   /** 条目被选中时回调(由 ComposerShell 注入输入框) */
   onInsert,
+  onAttach,
 }: {
   /** down:菜单出现在别针下方(居中输入框);up:上方(吸底输入框) */
   placement?: "up" | "down";
   onInsert?: (token: string) => void;
+  onAttach?: (attachments: ParsedAttachment[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const user = useAuthStore((s) => s.user);
   const { data: papers = [] } = useFeedPapers();
@@ -139,6 +155,23 @@ export function AttachmentMenu({
 
   const pick = (item: RefItem) => {
     onInsert?.(`@${item.token}`);
+    setOpen(false);
+  };
+
+  const parseFiles = async (files: FileList | null) => {
+    if (!files || !onAttach) return;
+    const parsed: ParsedAttachment[] = [];
+    for (const file of Array.from(files)) {
+      const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+      if (!TEXT_EXTENSIONS.has(extension)) continue;
+      try {
+        const content = (await file.text()).slice(0, MAX_FILE_CHARS);
+        parsed.push({ name: file.webkitRelativePath || file.name, size: file.size, content });
+      } catch {
+        // Skip files the browser cannot read; the remaining selection still works.
+      }
+    }
+    if (parsed.length) onAttach(parsed);
     setOpen(false);
   };
 
@@ -219,14 +252,31 @@ export function AttachmentMenu({
             placement === "down" ? "top-full mt-2" : "bottom-full mb-2",
           )}
         >
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".txt,.md,.markdown,.csv,.json,.js,.jsx,.ts,.tsx,.py,.java,.go,.rs,.css,.html,.xml,.yaml,.yml"
+            className="hidden"
+            onChange={(e) => void parseFiles(e.target.files)}
+          />
+          <input
+            ref={folderInputRef}
+            type="file"
+            multiple
+            // Chrome/Edge expose this non-standard attribute for folder selection.
+            {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+            className="hidden"
+            onChange={(e) => void parseFiles(e.target.files)}
+          />
           {[
-            { label: "上传本地文件", icon: FileUp },
-            { label: "上传本地文件夹", icon: FolderUp },
+            { label: "上传本地文件", icon: FileUp, input: fileInputRef },
+            { label: "上传本地文件夹", icon: FolderUp, input: folderInputRef },
           ].map((item) => (
             <button
               key={item.label}
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => item.input.current?.click()}
               className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-chip"
             >
               <item.icon className="size-4 text-muted" strokeWidth={1.8} />

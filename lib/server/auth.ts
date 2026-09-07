@@ -4,10 +4,11 @@
  *
  * token 含版本号：登出时递增用户 token_version，使旧 token 立即失效。
  */
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { getDB } from "./db";
 import { getAuthSecret } from "./auth-secret";
 import { hashPassword, verifyPassword, genId } from "./utils";
+import { passwordHashNeedsUpgrade } from "./password";
 
 export interface User {
   id: string;
@@ -20,6 +21,15 @@ export interface User {
 export interface AuthResult {
   token: string;
   user: User;
+}
+
+interface UserRow extends User {
+  password_hash: string;
+  token_version: number | null;
+}
+
+interface CountRow {
+  n: number;
 }
 
 // token 有效期 7 天
@@ -41,7 +51,9 @@ function verify(token: string): { userId: string; version: number } | null {
     const expectedSig = createHmac("sha256", getAuthSecret())
       .update(`${userId}:${version}:${expireTs}`)
       .digest("hex");
-    if (sig !== expectedSig) return null;
+    const actual = Buffer.from(sig || "", "hex");
+    const expected = Buffer.from(expectedSig, "hex");
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
     return { userId, version };
   } catch {
     return null;
@@ -51,15 +63,17 @@ function verify(token: string): { userId: string; version: number } | null {
 /** 从 Authorization header 中提取 token */
 export function extractToken(req: Request): string | null {
   const auth = req.headers.get("authorization");
-  if (!auth) return null;
-  const parts = auth.split(" ");
-  if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
-    return parts[1];
+  if (auth) {
+    const parts = auth.split(" ");
+    if (parts.length === 2 && parts[0].toLowerCase() === "bearer") return parts[1];
+    if (parts[0]) return parts[0];
   }
-  return parts[0] || null;
+  const cookie = req.headers.get("cookie") || "";
+  const encoded = cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("yanshu_session="))?.slice("yanshu_session=".length);
+  return encoded ? decodeURIComponent(encoded) : null;
 }
 
-function toUser(row: any): User {
+function toUser(row: UserRow): User {
   return {
     id: row.id,
     username: row.username,
@@ -76,7 +90,7 @@ export function getCurrentUser(req: Request): User | null {
   const payload = verify(token);
   if (!payload) return null;
   const db = getDB();
-  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.userId) as any;
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.userId) as UserRow | undefined;
   if (!row) return null;
   // token 版本校验：登出后 version 递增，旧 token 失效
   if ((row.token_version || 0) !== payload.version) return null;
@@ -103,9 +117,13 @@ export function login(username: string, password: string): AuthResult | null {
   const db = getDB();
   const row = db
     .prepare("SELECT * FROM users WHERE username = ? OR email = ?")
-    .get(username, username) as any;
+    .get(username, username) as UserRow | undefined;
   if (!row) return null;
   if (!verifyPassword(password, row.password_hash)) return null;
+  if (passwordHashNeedsUpgrade(row.password_hash)) {
+    db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now','localtime') WHERE id = ?")
+      .run(hashPassword(password), row.id);
+  }
   const version = row.token_version || 0;
   const expire = Date.now() + TOKEN_TTL_MS;
   const token = sign(row.id, version, expire);
@@ -120,17 +138,19 @@ export function register(params: {
   displayName?: string;
 }): AuthResult | { error: string } {
   const db = getDB();
+  const username = params.username.trim().toLowerCase();
+  const email = params.email?.trim().toLowerCase() || undefined;
   // 检查用户名重复
   const exists = db
     .prepare("SELECT COUNT(*) as n FROM users WHERE username = ?")
-    .get(params.username) as any;
+    .get(username) as CountRow;
   if (exists.n > 0) {
     return { error: "用户名已存在" };
   }
-  if (params.email) {
+  if (email) {
     const emailExists = db
       .prepare("SELECT COUNT(*) as n FROM users WHERE email = ?")
-      .get(params.email) as any;
+      .get(email) as CountRow;
     if (emailExists.n > 0) {
       return { error: "邮箱已被注册" };
     }
@@ -143,10 +163,10 @@ export function register(params: {
      VALUES (?, ?, ?, ?, ?, ?)`
   ).run(
     userId,
-    params.username,
-    params.email || null,
+    username,
+    email || null,
     hashPassword(params.password),
-    params.displayName || params.username,
+    params.displayName?.trim() || username,
     color
   );
   const expire = Date.now() + TOKEN_TTL_MS;
@@ -155,9 +175,9 @@ export function register(params: {
     token,
     user: {
       id: userId,
-      username: params.username,
-      email: params.email || null,
-      display_name: params.displayName || params.username,
+      username,
+      email: email || null,
+      display_name: params.displayName?.trim() || username,
       avatar_color: color,
     },
   };

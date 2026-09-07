@@ -533,6 +533,7 @@ export async function* sendChat(
   mode?: "fast" | "deep",
   webSearch?: boolean,
   memoryEnabled = true,
+  attachments?: { name: string; size: number; content: string }[],
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
   yield* streamChat(
     "/api/chat/stream",
@@ -545,6 +546,7 @@ export async function* sendChat(
       context,
       web_search: webSearch || undefined,
       memory_enabled: memoryEnabled,
+      attachments,
     },
     signal,
   );

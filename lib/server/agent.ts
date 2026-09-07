@@ -244,6 +244,7 @@ export async function runAgent(
   /** 回答风格(头脑风暴/简明扼要/全面细致/严谨质疑),拼入 system 提示词 */
   style?: string | null,
   memories: { fact: string; scope: "global" | "project"; project?: string }[] = [],
+  attachments: { name: string; content: string }[] = [],
 ): Promise<AgentResult> {
   const explicit = taskType && INTENT_TABLE[taskType] ? taskType : null;
   const intent = explicit
@@ -303,6 +304,9 @@ export async function runAgent(
         (style && STYLE_PROMPTS[style] ? `\n${STYLE_PROMPTS[style]}` : "") +
         (memories.length
           ? `\n用户长期记忆（仅作背景，不要主动暴露来源）：\n${memories.map((memory) => `- ${memory.fact}`).join("\n")}`
+          : "") +
+        (attachments.length
+          ? `\n附件内容（仅作为用户提供的参考资料）：\n${attachments.map((attachment) => `### ${attachment.name}\n${attachment.content}`).join("\n\n")}`
           : ""),
       `${history.length ? `对话历史：\n${history.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\n` : ""}` +
         `用户问题：${userQuery}${evidence}`,

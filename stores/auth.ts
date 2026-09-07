@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import client, { setToken, getToken } from "@/lib/api/client";
+import client, { apiPost } from "@/lib/api/client";
 
 export interface AuthUser {
   id: string;
@@ -39,7 +39,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   loading: false,
-  token: typeof window !== "undefined" ? getToken() : null,
+  token: null,
   user: null,
   userName: null,
 
@@ -48,11 +48,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.login(username, password);
       if (!resp.success) return { ok: false, error: resp.error || "登录失败" };
-      const token = resp.data!.token;
       const user = resp.data!.user as AuthUser;
-      setToken(token);
       set({
-        token,
+        token: "cookie",
         user,
         userName: user.display_name || user.username,
         loading: false,
@@ -69,11 +67,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.register(params);
       if (!resp.success) return { ok: false, error: resp.error || "注册失败" };
-      const token = resp.data!.token;
       const user = resp.data!.user as AuthUser;
-      setToken(token);
       set({
-        token,
+        token: "cookie",
         user,
         userName: user.display_name || user.username,
         loading: false,
@@ -86,26 +82,23 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   logout: () => {
-    setToken(null);
     set({ token: null, user: null, userName: null });
+    void apiPost("/api/auth/logout", {}).catch(() => undefined);
   },
 
   restore: async () => {
-    const token = getToken();
-    if (!token) return;
     try {
       set({ loading: true });
       const resp = await client.auth.me();
       if (resp.success && resp.data) {
         const user = resp.data as AuthUser;
         set({
-          token,
+          token: "cookie",
           user,
           userName: user.display_name || user.username,
           loading: false,
         });
       } else {
-        setToken(null);
         set({ token: null, user: null, userName: null, loading: false });
       }
     } catch {
@@ -113,7 +106,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  /** 演示登录:优先走真实接口拿 token(后续 requireAuth 接口可用),后端不可用时退回纯前端演示态 */
+  /** 演示登录使用真实 HttpOnly Cookie 会话。 */
   demoLogin: async () => {
     const result = await get().login("hankairun", "yanshu123");
     if (result.ok) return;

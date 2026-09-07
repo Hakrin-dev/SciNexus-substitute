@@ -6,11 +6,47 @@ import type Database from "better-sqlite3";
 import { getDB, jsonParse } from "./db";
 import { genId } from "./utils";
 
-/** 校验项目存在且属于该用户 */
+export type ProjectPermission = "read" | "write" | "admin" | "owner";
+export type ProjectRole = "public" | "viewer" | "editor" | "admin" | "owner";
+const ROLE_LEVEL: Record<ProjectRole, number> = { public: 1, viewer: 1, editor: 2, admin: 3, owner: 4 };
+const PERMISSION_LEVEL: Record<ProjectPermission, number> = { read: 1, write: 2, admin: 3, owner: 4 };
+type ProjectRoleRow = { user_id: string; visibility: string; member_role: ProjectRole | null; organization_role: string | null };
+type ProjectMemberRow = { user_id: string; username: string; display_name: string | null; role: ProjectRole };
+
+export function projectRole(projectId: string, userId?: string | null): ProjectRole | null {
+  const row = getDB().prepare(`SELECT p.user_id,p.visibility,pm.role member_role,om.role organization_role
+    FROM projects p LEFT JOIN project_members pm ON pm.project_id=p.id AND pm.user_id=?
+    LEFT JOIN organization_members om ON om.organization_id=p.organization_id AND om.user_id=? WHERE p.id=?`)
+    .get(userId ?? "", userId ?? "", projectId) as ProjectRoleRow | undefined;
+  if (!row) return null;
+  if (userId && row.user_id === userId) return "owner";
+  if (row.member_role) return row.member_role;
+  if (row.visibility === "organization" && row.organization_role) return row.organization_role === "owner" ? "owner" : row.organization_role === "admin" ? "admin" : row.organization_role === "member" ? "editor" : "viewer";
+  return row.visibility === "public_readonly" ? "public" : null;
+}
+
+export function canAccessProject(projectId: string, userId: string | null | undefined, permission: ProjectPermission) {
+  const role = projectRole(projectId, userId);
+  return role !== null && ROLE_LEVEL[role] >= PERMISSION_LEVEL[permission];
+}
+
+/** Backward-compatible owner assertion; new routes should call canAccessProject. */
 export function assertProjectOwner(projectId: string, userId: string): boolean {
-  return !!getDB()
-    .prepare("SELECT 1 FROM projects WHERE id = ? AND user_id = ?")
-    .get(projectId, userId);
+  return canAccessProject(projectId, userId, "write");
+}
+
+export function projectMembers(projectId: string) {
+  return getDB().prepare(`SELECT u.id user_id,u.username,u.display_name,pm.role FROM project_members pm JOIN users u ON u.id=pm.user_id
+    WHERE pm.project_id=? ORDER BY CASE pm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'editor' THEN 2 ELSE 3 END,u.username`).all(projectId)
+    .map((row) => {
+      const member = row as ProjectMemberRow;
+      return { userId: member.user_id, username: member.username, name: member.display_name || member.username, role: member.role };
+    });
+}
+
+export function writeAudit(input: { userId?: string | null; projectId?: string | null; action: string; resourceType: string; resourceId?: string | null; metadata?: unknown }) {
+  getDB().prepare(`INSERT INTO audit_logs (id,user_id,project_id,action,resource_type,resource_id,metadata_json,created_at) VALUES (?,?,?,?,?,?,?,?)`)
+    .run(genId("audit_"), input.userId ?? null, input.projectId ?? null, input.action, input.resourceType, input.resourceId ?? null, JSON.stringify(input.metadata ?? {}), new Date().toISOString());
 }
 
 /* ── 各表枚举(与 db.ts CHECK 约束一致)───────────────────────── */
@@ -29,6 +65,7 @@ export const CARD_KINDS = [
   "hint",
 ] as const;
 export const CARD_STATUSES = ["todo", "doing", "done"] as const;
+export const RESEARCH_STAGES = ["plan", "search", "read", "synthesize", "design", "code", "run", "report"] as const;
 export const ASSET_KINDS = ["paper", "dataset", "note", "experiment"] as const;
 export const ASSET_STATUSES = ["unread", "active", "analyzed", "archived"] as const;
 export const ACTIVITY_TYPES = ["note", "literature", "data", "task", "summary"] as const;
@@ -163,6 +200,7 @@ export function mapCard(r: Row) {
     kind: string;
     title: string;
     summary: string;
+    stage: string;
     status: string;
     assetRefs: string[];
     nodeRef?: string;
@@ -174,6 +212,7 @@ export function mapCard(r: Row) {
     kind: String(r.kind),
     title: String(r.title || ""),
     summary: String(r.summary || ""),
+    stage: String(r.stage || "plan"),
     status: String(r.status),
     assetRefs: jsonParse<string[]>(String(r.asset_refs_json || "[]"), []),
     createdAt: String(r.created_at || ""),
@@ -184,7 +223,7 @@ export function mapCard(r: Row) {
 }
 
 export function mapAsset(r: Row) {
-  return {
+  const asset: Record<string,unknown> = {
     id: String(r.id),
     kind: String(r.kind),
     title: String(r.title || ""),
@@ -195,4 +234,6 @@ export function mapAsset(r: Row) {
     tags: jsonParse<string[]>(String(r.tags_json || "[]"), []),
     updatedAt: String(r.updated_at || ""),
   };
+  if(r.artifact_run_id) asset.artifact={runId:String(r.artifact_run_id),stage:String(r.artifact_stage),kind:String(r.artifact_kind),uri:r.artifact_uri==null?null:String(r.artifact_uri),content:r.artifact_content==null?null:String(r.artifact_content),metadata:jsonParse(String(r.artifact_metadata_json||"{}"),{})};
+  return asset;
 }

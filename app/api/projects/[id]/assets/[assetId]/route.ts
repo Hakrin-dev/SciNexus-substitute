@@ -5,9 +5,10 @@
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
 import { getDB, jsonParse, jsonStringify } from "@/lib/server/db";
-import { requireAuth } from "@/lib/server/auth";
+import { getCurrentUser, requireAuth } from "@/lib/server/auth";
 import {
   assertProjectOwner,
+  canAccessProject,
   ASSET_KINDS,
   ASSET_STATUSES,
   isOneOf,
@@ -19,6 +20,16 @@ import {
 export const runtime = "nodejs";
 
 type Row = Record<string, unknown>;
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; assetId: string }> }) {
+  ensureSeed();
+  const { id, assetId } = await params;
+  if (!canAccessProject(id, getCurrentUser(req)?.id, "read")) return fail("项目不存在", 404);
+  const row = getDB().prepare(`SELECT a.*,ra.run_id artifact_run_id,ra.stage artifact_stage,ra.kind artifact_kind,ra.uri artifact_uri,ra.content artifact_content,ra.metadata_json artifact_metadata_json
+    FROM wb_assets a LEFT JOIN research_artifacts ra ON ra.id=a.id AND ra.project_id=a.project_id
+    WHERE a.id=? AND a.project_id=?`).get(assetId, id) as Row | undefined;
+  return row ? ok(mapAsset(row)) : fail("资产不存在", 404);
+}
 
 /** 校验 questionIds/hypothesisIds 引用的节点属于本项目(悬空引用显式拒绝,与综述管线零幽灵引用原则一致) */
 function assertRefsBelongToProject(projectId: string, ids: unknown[]): boolean {

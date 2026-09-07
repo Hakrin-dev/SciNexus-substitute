@@ -6,11 +6,13 @@
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody, genId } from "@/lib/server/utils";
 import { getDB, jsonStringify } from "@/lib/server/db";
-import { requireAuth } from "@/lib/server/auth";
+import { getCurrentUser, requireAuth } from "@/lib/server/auth";
 import {
   assertProjectOwner,
+  canAccessProject,
   CARD_KINDS,
   CARD_STATUSES,
+  RESEARCH_STAGES,
   isOneOf,
   logActivity,
   mapCard,
@@ -26,9 +28,8 @@ export async function GET(
   ensureSeed();
   const { id } = await params;
   try {
-    const user = requireAuth(req);
-    if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-    if (!assertProjectOwner(id, user.id)) return fail("项目不存在", 404);
+    const user = getCurrentUser(req);
+    if (!canAccessProject(id, user?.id, "read")) return fail("项目不存在", 404);
 
     const rows = getDB()
       .prepare(
@@ -57,6 +58,7 @@ export async function POST(
       kind?: string;
       title?: string;
       summary?: string;
+      stage?: string;
       status?: string;
       nodeRef?: string | null;
       aiGenerated?: boolean;
@@ -67,6 +69,12 @@ export async function POST(
     if (!isOneOf(body.kind, CARD_KINDS)) return fail("卡片类型非法");
     if (body.status !== undefined && !isOneOf(body.status, CARD_STATUSES)) {
       return fail("卡片状态非法");
+    }
+    if (body.stage !== undefined && !isOneOf(body.stage, RESEARCH_STAGES)) {
+      return fail("研究阶段非法");
+    }
+    if (body.assetRefs !== undefined && !Array.isArray(body.assetRefs)) {
+      return fail("assetRefs 必须是数组");
     }
 
     const db = getDB();
@@ -84,12 +92,25 @@ export async function POST(
       if (!node) return fail("关联的大纲节点不存在", 404);
       nodeRef = body.nodeRef;
     }
+    const assetRefs = [...new Set((body.assetRefs ?? []).filter((value): value is string => typeof value === "string"))];
+    if (assetRefs.length) {
+      const placeholders = assetRefs.map(() => "?").join(",");
+      const count = (db.prepare(
+        `SELECT COUNT(*) AS n FROM wb_assets WHERE project_id = ? AND id IN (${placeholders})`,
+      ).get(id, ...assetRefs) as { n: number }).n;
+      if (count !== assetRefs.length) return fail("关联资产不存在", 422);
+    }
+    const defaultStage: Record<string, (typeof RESEARCH_STAGES)[number]> = {
+      question: "plan", literature: "read", hypothesis: "synthesize", experiment: "design",
+      result: "run", analysis: "run", conclusion: "report", next: "report", hint: "synthesize",
+    };
+    const stage = isOneOf(body.stage, RESEARCH_STAGES) ? body.stage : defaultStage[body.kind];
 
     const cardId = genId("card_");
     db.prepare(
       `INSERT INTO wb_thread_cards
-        (id, project_id, thread_id, kind, title, summary, status, node_ref, ai_generated, created_at, asset_refs_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (id, project_id, thread_id, kind, title, summary, stage, status, node_ref, ai_generated, created_at, asset_refs_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       cardId,
       id,
@@ -97,11 +118,12 @@ export async function POST(
       body.kind,
       body.title.trim(),
       body.summary ?? "",
+      stage,
       body.status ?? "todo",
       nodeRef,
       body.aiGenerated ? 1 : 0,
       nowIso(),
-      jsonStringify(body.assetRefs ?? [])
+      jsonStringify(assetRefs)
     );
 
     logActivity(db, {

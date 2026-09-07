@@ -5,9 +5,10 @@
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody, genId } from "@/lib/server/utils";
 import { getDB, jsonStringify } from "@/lib/server/db";
-import { requireAuth } from "@/lib/server/auth";
+import { getCurrentUser, requireAuth } from "@/lib/server/auth";
 import {
   assertProjectOwner,
+  canAccessProject,
   buildOutlineTree,
   getOutlineRows,
   isOneOf,
@@ -26,9 +27,8 @@ export async function GET(
   ensureSeed();
   const { id } = await params;
   try {
-    const user = requireAuth(req);
-    if (!user) return fail("请先登录", 401, "UNAUTHORIZED");
-    if (!assertProjectOwner(id, user.id)) return fail("项目不存在", 404);
+    const user = getCurrentUser(req);
+    if (!canAccessProject(id, user?.id, "read")) return fail("项目不存在", 404);
 
     const rows = getOutlineRows(getDB(), id);
     return ok(buildOutlineTree(rows));

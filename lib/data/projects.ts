@@ -1,4 +1,4 @@
-/** 科研项目 mock 数据 —— 项目由用户自己建立;样例「研枢」取自仓库 README */
+/** 科研项目展示数据；平台品牌仍为“研枢”，示例项目使用具体课题名。 */
 
 export type MilestoneStatus = "done" | "doing" | "todo";
 
@@ -21,13 +21,17 @@ export interface Project {
   milestones: Milestone[];
   members: { name: string; role: string }[];
   links: { label: string; href: string }[];
+  visibility?: "private"|"organization"|"public_readonly";
+  organizationId?: string|null;
+  role?: "public"|"viewer"|"editor"|"admin"|"owner";
+  readOnly?: boolean;
 }
 
 export const projects: Project[] = [
   {
     id: "scinexus",
-    name: "研枢",
-    tagline: "SciNexus —— 面向 AI 领域的个性化自主科研知识智能体平台",
+    name: "多智能体综述引用可信性研究",
+    tagline: "验证自动综述中的引用真实性、论断完整性与跨领域鲁棒性",
     status: "进行中",
     progress: 68,
     createdAt: "2025-11-02",

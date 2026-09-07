@@ -14,21 +14,15 @@ export const API_BASE =
     ? window.__API_BASE__ || process.env.NEXT_PUBLIC_API_URL
     : process.env.NEXT_PUBLIC_API_URL) || "";
 
-// 存储 token 的 key（与 stores/auth.ts 保持一致，可替换为 Cookie/HttpOnly）
-const TOKEN_KEY = "yanshu_token";
-
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return null;
 }
 
 export function setToken(token: string | null) {
-  if (typeof window === "undefined") return;
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  void token;
 }
 
-export interface ApiResp<T = any> {
+export interface ApiResp<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -42,8 +36,16 @@ export interface ApiResp<T = any> {
     total: number;
     total_pages: number;
   };
-  stats?: any;
-  meta?: any;
+  stats?: unknown;
+  meta?: Record<string, unknown>;
+}
+
+export interface ApiUser {
+  id: string;
+  username: string;
+  email: string | null;
+  display_name: string | null;
+  avatar_color: string;
 }
 
 class ApiError extends Error {
@@ -56,12 +58,12 @@ class ApiError extends Error {
   }
 }
 
-async function request<T = any>(
+async function request<T = unknown>(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   url: string,
   options?: {
-    query?: Record<string, any>;
-    body?: any;
+    query?: Record<string, unknown>;
+    body?: unknown;
     headers?: Record<string, string>;
     skipAuth?: boolean;
   }
@@ -72,10 +74,6 @@ async function request<T = any>(
   };
   if (options?.body && !(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
-  }
-  const token = getToken();
-  if (!options?.skipAuth && token) {
-    headers["Authorization"] = `Bearer ${token}`;
   }
 
   let fullUrl = API_BASE + url;
@@ -97,9 +95,10 @@ async function request<T = any>(
         ? options.body
         : JSON.stringify(options.body)
       : undefined,
+    credentials: "include",
   });
 
-  let parsed: any = null;
+  let parsed: unknown = null;
   const text = await resp.text();
   try {
     parsed = text ? JSON.parse(text) : null;
@@ -108,8 +107,14 @@ async function request<T = any>(
   }
 
   if (!resp.ok) {
-    const msg = parsed?.error || `HTTP ${resp.status} ${resp.statusText}`;
-    throw new ApiError(msg, resp.status, parsed?.code);
+    const errorPayload = parsed && typeof parsed === "object"
+      ? parsed as { error?: unknown; code?: unknown }
+      : {};
+    const msg = typeof errorPayload.error === "string"
+      ? errorPayload.error
+      : `HTTP ${resp.status} ${resp.statusText}`;
+    const code = typeof errorPayload.code === "string" ? errorPayload.code : undefined;
+    throw new ApiError(msg, resp.status, code);
   }
 
   return (parsed || { success: true }) as ApiResp<T>;
@@ -119,7 +124,7 @@ export const client = {
   // ---------- 认证 ----------
   auth: {
     login: (username: string, password: string) =>
-      request<{ token: string; user: any }>("POST", "/api/auth/login", {
+      request<{ user: ApiUser }>("POST", "/api/auth/login", {
         body: { username, password },
         skipAuth: true,
       }),
@@ -129,11 +134,11 @@ export const client = {
       email?: string;
       displayName?: string;
     }) =>
-      request<{ token: string; user: any }>("POST", "/api/auth/register", {
+      request<{ user: ApiUser }>("POST", "/api/auth/register", {
         body: params,
         skipAuth: true,
       }),
-    me: () => request<any>("GET", "/api/auth/me"),
+    me: () => request<ApiUser>("GET", "/api/auth/me"),
   },
 
   // ---------- 文献库 ----------
@@ -146,7 +151,7 @@ export const client = {
       authors?: string;
       folder?: string;
       tags?: string[];
-    }) => request<any>("POST", "/api/library", { body }),
+    }) => request<unknown>("POST", "/api/library", { body }),
   },
 };
 
@@ -176,41 +181,41 @@ export { ApiError };
 // ==================== 低层函数（供 services.ts / 组件直接调用） ====================
 
 /** GET 请求，返回统一响应结构（含 data/success/pagination） */
-export async function apiGet<T = any>(
+export async function apiGet<T = unknown>(
   path: string,
-  query?: Record<string, any>
+  query?: Record<string, unknown>
 ): Promise<ApiResp<T>> {
   return request<T>("GET", path, { query });
 }
 
 /** POST 请求 */
-export async function apiPost<T = any>(
+export async function apiPost<T = unknown>(
   path: string,
-  body?: any
+  body?: unknown
 ): Promise<ApiResp<T>> {
   return request<T>("POST", path, { body });
 }
 
 /** PUT 请求 */
-export async function apiPut<T = any>(
+export async function apiPut<T = unknown>(
   path: string,
-  body?: any
+  body?: unknown
 ): Promise<ApiResp<T>> {
   return request<T>("PUT", path, { body });
 }
 
 /** PATCH 请求 */
-export async function apiPatch<T = any>(
+export async function apiPatch<T = unknown>(
   path: string,
-  body?: any
+  body?: unknown
 ): Promise<ApiResp<T>> {
   return request<T>("PATCH", path, { body });
 }
 
 /** DELETE 请求 */
-export async function apiDelete<T = any>(
+export async function apiDelete<T = unknown>(
   path: string,
-  body?: any
+  body?: unknown
 ): Promise<ApiResp<T>> {
   return request<T>("DELETE", path, { body });
 }

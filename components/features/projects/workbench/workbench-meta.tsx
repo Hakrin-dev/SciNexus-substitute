@@ -2,12 +2,12 @@
 
 import {
   BookOpen,
+  CircleCheckBig,
   CircleDashed,
   CornerDownRight,
   Database,
   FileSearch,
   FileText,
-  Flag,
   FlaskConical,
   HelpCircle,
   Info,
@@ -42,7 +42,7 @@ export const NODE_KIND_META: Record<OutlineKind, KindMeta> = {
   question: { label: "问题", icon: HelpCircle, tone: "bg-primary-soft text-primary" },
   hypothesis: { label: "假设", icon: Lightbulb, tone: "bg-brand-blue-soft text-brand-blue" },
   evidence: { label: "证据", icon: FileSearch, tone: "bg-success-soft text-success" },
-  conclusion: { label: "结论", icon: Flag, tone: "bg-ink text-white" },
+  conclusion: { label: "结论", icon: CircleCheckBig, tone: "bg-primary text-white" },
   note: { label: "笔记", icon: StickyNote, tone: "bg-chip text-muted" },
 };
 
@@ -62,7 +62,7 @@ export const CARD_KIND_META: Record<ThreadCardKind, KindMeta> = {
   experiment: { label: "实验设计", icon: FlaskConical, tone: "bg-success-soft text-success" },
   result: { label: "数据结果", icon: LineChart, tone: "bg-success-soft text-success" },
   analysis: { label: "分析笔记", icon: NotebookPen, tone: "bg-chip text-muted" },
-  conclusion: { label: "结论", icon: Flag, tone: "bg-ink text-white" },
+  conclusion: { label: "结论", icon: CircleCheckBig, tone: "bg-primary text-white" },
   next: { label: "下一步", icon: CornerDownRight, tone: "bg-primary-soft text-primary" },
   hint: { label: "AI 提示", icon: TriangleAlert, tone: "bg-primary-soft text-primary" },
 };

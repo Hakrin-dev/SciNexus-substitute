@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { normalizeVenues, toFeedPaper } from "../lib/api/adapters.ts";
+import { normalizeVenues, toFeedPaper, toPaperDetail } from "../lib/api/adapters.ts";
 import { getAuthSecret } from "../lib/server/auth-secret.ts";
 import {
   normalizeKnowledgeGraph,
@@ -10,17 +10,17 @@ import {
 } from "../lib/server/knowledge-base.ts";
 import { isPrivatePdfAddress } from "../lib/pdf-safety.ts";
 
-test("Next authentication uses the fixed fallback when production AUTH_SECRET is missing", () => {
-  assert.equal(
-    getAuthSecret({ NODE_ENV: "production" }),
-    "yanshu-dev-secret-change-me",
+test("Next authentication rejects a missing production AUTH_SECRET", () => {
+  assert.throws(
+    () => getAuthSecret({ NODE_ENV: "production" }),
+    /生产环境必须配置 AUTH_SECRET/,
   );
 });
 
 const pythonProbe = spawnSync("python", ["--version"], { encoding: "utf8" });
 const pythonUnavailable = pythonProbe.error?.code === "ENOENT" || pythonProbe.status !== 0;
 
-test("FastAPI authentication starts with the fixed fallback when AUTH_SECRET is missing", {
+test("FastAPI authentication rejects a missing production AUTH_SECRET", {
   skip: pythonUnavailable ? "Python runtime is not installed on this machine" : false,
 }, () => {
   const result = spawnSync(
@@ -36,7 +36,8 @@ test("FastAPI authentication starts with the fixed fallback when AUTH_SECRET is 
     },
   );
 
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.match(`${result.stdout}\n${result.stderr}`, /AUTH_SECRET/);
 });
 
 test("external venue payload gains arrays required by VenueCard", () => {
@@ -143,6 +144,20 @@ test("remote search cards retain source data and never render NaN likes", () => 
   assert.equal(card.authors, "未提供作者");
   assert.equal(card.source, "remote_knowledge_base");
   assert.equal(card.rank, 1);
+});
+
+test("remote paper details preserve camelCase PDF URLs for the reader", () => {
+  const paper = toPaperDetail({
+    id: "paper:remote:pdf",
+    title: "Remote PDF Paper",
+    authors: "Alice",
+    venue: "AAAI",
+    abstract: "Abstract",
+    pdfUrl: "https://papers.example.test/remote.pdf",
+  }, "paper:remote:pdf");
+
+  assert.equal(paper.pdfUrl, "https://papers.example.test/remote.pdf");
+  assert.equal(paper.readingState, "pdf");
 });
 
 test("remote graph normalization preserves directed citation lines", () => {

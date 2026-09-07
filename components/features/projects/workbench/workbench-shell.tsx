@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -10,6 +10,7 @@ import {
   PanelRight,
   PanelRightClose,
   ScrollText,
+  BookOpenCheck,
   Table2,
   Workflow,
 } from "lucide-react";
@@ -17,9 +18,12 @@ import { ProposalStudio } from "@/components/features/projects/proposal-studio";
 import { cn } from "@/lib/utils";
 import {
   useAgentTasks,
+  useCreateThreadCard,
   useProject,
   useProjectOutline,
   useProjectThreads,
+  useResearchExperiments,
+  useResearchRuns,
   useThreadCards,
   useUpdateThreadCardStatus,
   useWorkbenchActivity,
@@ -27,13 +31,10 @@ import {
   useWorkbenchOverview,
 } from "@/lib/api/services";
 import { apiPut } from "@/lib/api/client";
-import { useDemoState } from "@/stores/demo-state";
 import { toast } from "@/stores/toast";
 import type {
   ResearchStageKey,
   Selection,
-  ThreadCard,
-  WorkbenchAsset,
   WorkbenchView,
 } from "@/lib/data/workbench";
 import { OutlineRail, type ResearchInputPhase } from "./outline-rail";
@@ -43,41 +44,19 @@ import { AssetTableView } from "./asset-table-view";
 import { LogView } from "./log-view";
 import { OverviewView } from "./overview-view";
 import { AssistantSidebar } from "./assistant-sidebar";
+import { AutoResearchPanel } from "./auto-research-panel";
+import { ReportView } from "./report-view";
 
 const VIEW_TABS = [
   { value: "overview", label: "概览", icon: LayoutDashboard },
   { value: "thread", label: "研究过程", icon: Workflow },
   { value: "outline", label: "大纲", icon: ListTree },
   { value: "assets", label: "资产", icon: Table2 },
+  { value: "report", label: "报告", icon: BookOpenCheck },
   { value: "log", label: "日志", icon: ScrollText },
 ] as const;
 
 const VIEW_VALUES = new Set<string>(VIEW_TABS.map((t) => t.value));
-
-const EXPERIMENT_LINKED_ASSETS: WorkbenchAsset[] = [
-  {
-    id: "a7",
-    kind: "experiment",
-    title: "跨领域引用校验实验 #2",
-    meta: "实验合同 + 待审阅代码方案",
-    questionIds: ["q1"],
-    hypothesisIds: ["h2"],
-    status: "active",
-    tags: ["跨领域验证", "实验 #2"],
-    updatedAt: "2026-08-23T18:00:00+08:00",
-  },
-  {
-    id: "a8",
-    kind: "note",
-    title: "跨领域实验 #2 分析与审阅笔记",
-    meta: "Markdown · 等待代码审阅",
-    questionIds: ["q1"],
-    hypothesisIds: ["h2"],
-    status: "active",
-    tags: ["结果判读", "实验 #2"],
-    updatedAt: "2026-08-23T18:00:00+08:00",
-  },
-];
 
 /**
  * 课题工作台 `/projects/[id]` —— 左大纲轨 + 主工作区(五视图 / AI 生成工作台) + 可折叠右侧助手栏。
@@ -90,49 +69,74 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
   const view: WorkbenchView = VIEW_VALUES.has(rawView) ? (rawView as WorkbenchView) : "thread";
 
   const [selection, setSelection] = useState<Selection>(null);
-  const [localResearchCards, setLocalResearchCards] = useState<ThreadCard[]>([]);
   /** AI 助手首次进入默认收起,仅由用户点击侧边栏按钮展开。 */
   const [sidebarOpen, setPanelOverride] = useState(false);
   /** AI 生成工作台(中间栏内联编辑);支持 ?studio=1 深链 */
   const [studioOpen, setStudioOpen] = useState(searchParams.get("studio") === "1");
 
-  const { data: project } = useProject(projectId);
+  const { data: project, isPending: projectPending, isError: projectError } = useProject(projectId);
   const { data: outline = [] } = useProjectOutline(projectId);
   const { data: threads = [] } = useProjectThreads(projectId);
   const { data: cards = [] } = useThreadCards(projectId);
-  const { data: loadedAssets = [] } = useWorkbenchAssets(projectId);
-  const assets = [
-    ...loadedAssets,
-    ...EXPERIMENT_LINKED_ASSETS.filter(
-      (candidate) => !loadedAssets.some((asset) => asset.id === candidate.id),
-    ),
-  ];
+  const { data: assets = [] } = useWorkbenchAssets(projectId);
   const { data: activity = [] } = useWorkbenchActivity(projectId);
   const { data: overview } = useWorkbenchOverview(projectId);
   const { data: agentTasks = [] } = useAgentTasks(projectId);
   const updateCardStatus = useUpdateThreadCardStatus(projectId);
+  const createThreadCard = useCreateThreadCard(projectId);
+  const { data: researchRuns = [] } = useResearchRuns(project ? projectId : "");
+  const [selectedRunId, setSelectedRunId] = useState<string>();
+  const selectedRun = researchRuns.find((run) => run.id === selectedRunId) ?? researchRuns[0];
+  const { data: researchExperiments = [] } = useResearchExperiments(projectId, selectedRun?.id);
 
   const queryClient = useQueryClient();
-  const archiveProject = useDemoState((s) => s.archiveDemoProject);
   const [archiving, setArchiving] = useState(false);
+
+  useEffect(() => {
+    if (!selectedRun?.updatedAt) return;
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "threads"] }),
+      queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "thread-cards"] }),
+      queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "assets"] }),
+      queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "activity"] }),
+      queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "overview"] }),
+    ]);
+  }, [projectId, queryClient, selectedRun?.updatedAt]);
 
   const handleArchive = async () => {
     if (!project) return;
     setArchiving(true);
-    archiveProject(project.id);
     try {
       await apiPut(`/api/projects/${project.id}`, { status: "已搁置" });
-    } catch {
-      /* 演示态项目无后端记录,忽略接口错误 */
+      await queryClient.invalidateQueries({ queryKey: ["api", "projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["api", "project", project.id] });
+      toast.success(`「${project.name}」已归档，可在「归档项目」中恢复`);
+      router.push("/my-projects");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "归档失败，请稍后重试");
+    } finally {
+      setArchiving(false);
     }
-    await queryClient.invalidateQueries({ queryKey: ["api", "projects"] });
-    await queryClient.invalidateQueries({ queryKey: ["api", "project", project.id] });
-    toast.success(`「${project.name}」已归档，可在「归档项目」中恢复`);
-    setArchiving(false);
-    router.push("/my-projects");
   };
 
-  if (!project || !overview) return null;
+  if (projectPending) {
+    return <div className="mx-auto max-w-3xl px-6 py-16 text-center text-sm text-muted">正在加载课题…</div>;
+  }
+
+  if (projectError || !project) {
+    return (
+      <section className="mx-auto mt-16 max-w-xl rounded-2xl bg-card p-8 text-center shadow-card">
+        <h1 className="text-lg font-bold text-ink">无法打开这个课题</h1>
+        <p className="mt-2 text-sm leading-6 text-muted">该课题不存在，或不属于当前登录账号。新账号需要先创建自己的课题，再启动自动研究。</p>
+        <div className="mt-6 flex justify-center gap-2">
+          <button onClick={() => router.push("/projects")} className="h-9 rounded-lg border border-line px-4 text-sm text-muted hover:bg-chip">返回课题列表</button>
+          <button onClick={() => router.push("/projects/new")} className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-white">新建课题</button>
+        </div>
+      </section>
+    );
+  }
+
+  if (!overview) return null;
 
   const setView = (next: WorkbenchView) =>
     router.replace(`/projects/${projectId}?view=${next}`, { scroll: false });
@@ -142,7 +146,7 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
 
   const selectAssetAndShow = (assetId: string) => {
     setSelection({ kind: "asset", id: assetId });
-    if (view !== "assets") setView("assets");
+    router.push(`/projects/${projectId}/assets/${encodeURIComponent(assetId)}`);
   };
 
   const activeQuestionId =
@@ -154,7 +158,10 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
 
   const addResearchEntry = (phase: ResearchInputPhase, text: string) => {
     const thread = threads[0];
-    if (!thread) return;
+    if (!thread) {
+      toast.error("当前课题还没有研究线程");
+      return;
+    }
     const stageByPhase: Record<ResearchInputPhase, ResearchStageKey> = {
       plan: "plan",
       search: "search",
@@ -171,35 +178,16 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
       experiment: "实验",
       report: "报告",
     };
-    const now = Date.now();
     const stage = stageByPhase[phase];
     const label = labelByPhase[phase];
-    setLocalResearchCards((current) => [
-      ...current,
-      {
-        id: `local-user-${now}`,
-        threadId: thread.id,
-        kind: "next",
-        stage,
-        title: `用户补充 · ${label}`,
-        summary: text,
-        status: "todo",
-        assetRefs: [],
-        createdAt: new Date(now).toISOString(),
-      },
-      {
-        id: `local-ai-${now}`,
-        threadId: thread.id,
-        kind: "hint",
-        stage,
-        title: "AI 初步整理",
-        summary: `已将内容归入「${label}」。建议核对相关证据与资产，再决定是否更新研究判断。`,
-        status: "todo",
-        assetRefs: [],
-        aiGenerated: true,
-        createdAt: new Date(now + 1).toISOString(),
-      },
-    ]);
+    createThreadCard.mutate({
+      threadId: thread.id,
+      kind: phase === "report" ? "conclusion" : phase === "experiment" ? "experiment" : "next",
+      stage,
+      title: `用户补充 · ${label}`,
+      summary: text,
+      status: "todo",
+    });
     if (view !== "thread") setView("thread");
   };
 
@@ -236,7 +224,7 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {project.status === "进行中" && (
+          {project.status === "进行中" && !project.readOnly && (
             <button
               onClick={() => void handleArchive()}
               disabled={archiving}
@@ -310,20 +298,26 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
                 <OverviewView project={project} overview={overview} onJump={jumpTo} />
               )}
               {view === "thread" && (
-                <ThreadView
-                  threads={threads}
-                  cards={cards}
-                  localCards={localResearchCards}
-                  selection={selection}
-                  onSelect={(cardId) => setSelection({ kind: "card", id: cardId })}
-                  onSelectAsset={selectAssetAndShow}
-                  onPhaseSelect={(phaseId) =>
-                    setSelection(phaseId ? { kind: "phase", id: phaseId } : null)
-                  }
-                  onStatusChange={(cardId, status) =>
-                    updateCardStatus.mutate({ cardId, status })
-                  }
-                />
+                <>
+                  <AutoResearchPanel projectId={projectId} defaultObjective={project.tagline} readOnly={project.readOnly} selectedRunId={selectedRunId} onSelectedRunIdChange={setSelectedRunId} />
+                  <ThreadView
+                    threads={threads}
+                    cards={cards}
+                    localCards={[]}
+                    selection={selection}
+                    onSelect={(cardId) => setSelection({ kind: "card", id: cardId })}
+                    onSelectAsset={selectAssetAndShow}
+                    onPhaseSelect={(phaseId) =>
+                      setSelection(phaseId ? { kind: "phase", id: phaseId } : null)
+                    }
+                    onStatusChange={project.readOnly ? undefined : (cardId, status) =>
+                      updateCardStatus.mutate({ cardId, status })
+                    }
+                    latestRun={selectedRun}
+                    experiments={researchExperiments}
+                    assets={assets}
+                  />
+                </>
               )}
               {view === "outline" && (
                 <OutlineView
@@ -334,11 +328,16 @@ export function WorkbenchShell({ projectId }: { projectId: string }) {
               )}
               {view === "assets" && (
                 <AssetTableView
+                  projectId={projectId}
+                  projectName={project.name}
                   assets={assets}
                   selection={selection}
                   onSelect={(assetId) => setSelection({ kind: "asset", id: assetId })}
+                  readOnly={project.readOnly}
+                  questionId={activeQuestionId}
                 />
               )}
+              {view === "report" && <ReportView run={selectedRun} assets={assets} experiments={researchExperiments} />}
               {view === "log" && <LogView entries={activity} />}
             </>
           )}

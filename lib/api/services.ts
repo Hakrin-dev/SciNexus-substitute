@@ -20,6 +20,7 @@ import {
   toFeedPaper,
   toPaperDetail,
   toVenue,
+  type BackendPaper,
   type BackendMatchedVenue,
   type BackendScholarDetail,
   type BackendVenue,
@@ -30,17 +31,7 @@ import { venues } from "@/lib/data/venues";
 import { libraryItems } from "@/lib/data/library";
 import { scholars as mockScholars, scholarDetail as mockScholarDetail } from "@/lib/data/scholars";
 import { institutions as mockInstitutions } from "@/lib/data/institutions";
-import { getProject as mockGetProject, projects as mockProjects } from "@/lib/data/projects";
 import { useDemoState } from "@/stores/demo-state";
-import {
-  workbenchActivity as wbActivity,
-  workbenchAgentTasks as wbAgentTasks,
-  workbenchAssets as wbAssets,
-  workbenchCards as wbCards,
-  workbenchOutline as wbOutline,
-  workbenchOverview as wbOverview,
-  workbenchThreads as wbThreads,
-} from "@/lib/data/workbench";
 import type {
   ActivityEntry,
   AgentTask,
@@ -52,7 +43,7 @@ import type {
 } from "@/lib/data/workbench";
 import { privateGraph as mockPrivateGraph, publicGraph as mockPublicGraph } from "@/lib/data/knowledge-graph";
 import type { Project } from "@/lib/data/projects";
-import type { FeedPaper, LibraryItem, MatchedVenue, PaperGraph, Scholar, Venue } from "@/types";
+import type { FeedPaper, LibraryItem, MatchedVenue, PaperGraph, Scholar } from "@/types";
 
 /* ── mock 兜底显式化 ─────────────────────────────────────────── */
 
@@ -99,6 +90,39 @@ export function useFeedPapers() {
     },
     placeholderData: feedPapers,
     staleTime: 60_000,
+  });
+}
+
+/** 首页随机发现流：只接受知识底座结果，不回退到本地演示论文。 */
+export function useRandomKnowledgePapers() {
+  return useQuery({
+    queryKey: ["api", "knowledge", "discover"],
+    queryFn: async () => {
+      const json = await apiGet<{ results: KnowledgeApiPaper[] }>("/api/v1/knowledge/discover");
+      return (json.data?.results ?? []).map((paper) => toFeedPaper({
+        id: paper.paperId,
+        title: paper.title,
+        authors: paper.authors.join(", "),
+        author_list: paper.authors,
+        venue: paper.venue,
+        year: paper.year,
+        citations: paper.citationCount ?? 0,
+        abstract: paper.abstract,
+        tags: [...paper.keywords, ...paper.subjects],
+        keywords: paper.keywords,
+        subjects: paper.subjects,
+        doi: paper.doi,
+        relevance: paper.score,
+        knowledgeScore: paper.score,
+        rank: paper.rank,
+        source: "remote_knowledge_base",
+        pdf_url: paper.pdfUrl,
+      }));
+    },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    retry: 0,
   });
 }
 
@@ -228,7 +252,7 @@ export function useScholarDetail(id: string) {
     queryKey: ["api", "scholar", id],
     queryFn: async () => {
       try {
-        const json = await apiGet<any>(`/api/scholars/${id}`);
+        const json = await apiGet<BackendScholarDetail>(`/api/scholars/${id}`);
         const d = json.data;
         if (d && Array.isArray(d.bio) && d.metrics) {
           return d;
@@ -250,7 +274,7 @@ export function useInstitutions() {
     queryKey: ["api", "institutions"],
     queryFn: async () => {
       try {
-        const json = await apiGet<any[]>("/api/institutions");
+        const json = await apiGet<(typeof mockInstitutions)[number][]>("/api/institutions");
         return json.data ?? [];
       } catch (err) {
         return mockFallback("/api/institutions", err, mockInstitutions);
@@ -263,29 +287,14 @@ export function useInstitutions() {
 
 /** 项目列表 */
 export function useProjects() {
-  const demoProjects = useDemoState((s) => s.demoProjects);
-  const query = useQuery({
+  return useQuery({
     queryKey: ["api", "projects"],
     queryFn: async () => {
-      try {
-        const json = await apiGet<Project[]>("/api/projects");
-        return json.data ?? [];
-      } catch (err) {
-        return mockFallback("/api/projects", err, mockProjects);
-      }
+      const json = await apiGet<Project[]>("/api/projects");
+      return json.data ?? [];
     },
-    placeholderData: mockProjects,
     staleTime: 60_000,
   });
-
-  /** 合并前端演示态新建的项目(去重) */
-  const data = React.useMemo(() => {
-    const base = (query.data ?? []) as Project[];
-    const extra = demoProjects.filter((d) => !base.some((b) => b.id === d.id));
-    return [...extra, ...base];
-  }, [query.data, demoProjects]);
-
-  return { ...query, data };
 }
 
 /** 项目详情 */
@@ -293,14 +302,9 @@ export function useProject(id: string) {
   return useQuery({
     queryKey: ["api", "project", id],
     queryFn: async () => {
-      try {
-        const json = await apiGet<Project>(`/api/projects/${id}`);
-        return json.data;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}`, err, mockGetProject(id));
-      }
+      const json = await apiGet<Project>(`/api/projects/${id}`);
+      return json.data;
     },
-    placeholderData: mockGetProject(id),
     staleTime: 60_000,
   });
 }
@@ -311,15 +315,7 @@ export function useProject(id: string) {
 export function useProjectOutline(id: string) {
   return useQuery({
     queryKey: ["api", "project", id, "outline"],
-    queryFn: async () => {
-      try {
-        const json = await apiGet<OutlineNode[]>(`/api/projects/${id}/outline`);
-        return json.data ?? wbOutline;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}/outline`, err, wbOutline);
-      }
-    },
-    placeholderData: wbOutline,
+    queryFn: async () => (await apiGet<OutlineNode[]>(`/api/projects/${id}/outline`)).data ?? [],
     staleTime: 60_000,
   });
 }
@@ -328,15 +324,7 @@ export function useProjectOutline(id: string) {
 export function useProjectThreads(id: string) {
   return useQuery({
     queryKey: ["api", "project", id, "threads"],
-    queryFn: async () => {
-      try {
-        const json = await apiGet<ResearchThread[]>(`/api/projects/${id}/threads`);
-        return json.data ?? wbThreads;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}/threads`, err, wbThreads);
-      }
-    },
-    placeholderData: wbThreads,
+    queryFn: async () => (await apiGet<ResearchThread[]>(`/api/projects/${id}/threads`)).data ?? [],
     staleTime: 60_000,
   });
 }
@@ -345,15 +333,7 @@ export function useProjectThreads(id: string) {
 export function useThreadCards(id: string) {
   return useQuery({
     queryKey: ["api", "project", id, "thread-cards"],
-    queryFn: async () => {
-      try {
-        const json = await apiGet<ThreadCard[]>(`/api/projects/${id}/thread-cards`);
-        return json.data ?? wbCards;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}/thread-cards`, err, wbCards);
-      }
-    },
-    placeholderData: wbCards,
+    queryFn: async () => (await apiGet<ThreadCard[]>(`/api/projects/${id}/thread-cards`)).data ?? [],
     staleTime: 60_000,
   });
 }
@@ -362,16 +342,100 @@ export function useThreadCards(id: string) {
 export function useWorkbenchAssets(id: string) {
   return useQuery({
     queryKey: ["api", "project", id, "assets"],
-    queryFn: async () => {
-      try {
-        const json = await apiGet<WorkbenchAsset[]>(`/api/projects/${id}/assets`);
-        return json.data ?? wbAssets;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}/assets`, err, wbAssets);
-      }
-    },
-    placeholderData: wbAssets,
+    queryFn: async () => (await apiGet<WorkbenchAsset[]>(`/api/projects/${id}/assets`)).data ?? [],
     staleTime: 60_000,
+  });
+}
+
+export function useCreateThreadCard(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Pick<ThreadCard, "threadId" | "kind" | "stage" | "title" | "summary" | "status">) =>
+      apiPost<ThreadCard>(`/api/projects/${projectId}/thread-cards`, input).then((response) => response.data!),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "thread-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "activity"] }),
+        queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "overview"] }),
+      ]);
+      toast.success("研究记录已保存");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "研究记录保存失败"),
+  });
+}
+
+export function useCreateWorkbenchAsset(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Pick<WorkbenchAsset, "kind" | "title" | "meta" | "status" | "tags" | "questionIds" | "hypothesisIds">) =>
+      apiPost<WorkbenchAsset>(`/api/projects/${projectId}/assets`, input).then((response) => response.data!),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "assets"] }),
+        queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "activity"] }),
+        queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "overview"] }),
+      ]);
+      toast.success("资产已加入项目");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "资产创建失败"),
+  });
+}
+
+export function useResearchRuns(id: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "research-runs"],
+    queryFn: () => apiGet<import("@/lib/data/workbench").ResearchRun[]>(`/api/projects/${id}/research-runs`).then((response) => response.data ?? []),
+    enabled: Boolean(id),
+    refetchInterval: 2_000,
+  });
+}
+
+export function useResearchRunEvents(id: string, runId?: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "research-runs", runId, "events"],
+    queryFn: () => apiGet<import("@/lib/data/workbench").ResearchRunEvent[]>(`/api/projects/${id}/research-runs/${runId}/events`).then((response) => response.data ?? []),
+    enabled: Boolean(id && runId),
+    refetchInterval: 2_000,
+  });
+}
+
+export function useResearchExperiments(id: string, runId?: string) {
+  return useQuery({
+    queryKey: ["api", "project", id, "research-runs", runId, "experiments"],
+    queryFn: () => apiGet<import("@/lib/data/workbench").ResearchExperiment[]>(`/api/projects/${id}/research-runs/${runId}/experiments`).then((response) => response.data ?? []),
+    enabled: Boolean(id && runId),
+    refetchInterval: 2_000,
+  });
+}
+
+export function useStartResearchRun(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { objective: string; config?: Record<string, unknown> }) =>
+      apiPost<{ run: import("@/lib/data/workbench").ResearchRun }>(`/api/projects/${id}/research-runs`, input).then((response) => response.data!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api", "project", id, "research-runs"] }),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "自动研究启动失败"),
+  });
+}
+
+export function useResearchRunAction(id: string, runId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: "pause" | "resume" | "cancel") => apiPost(`/api/projects/${id}/research-runs/${runId}/actions`, { action }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api", "project", id, "research-runs"] }),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "研究任务操作失败"),
+  });
+}
+
+export function useAddResearchInstruction(projectId: string, runId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (content: string) => apiPost(`/api/projects/${projectId}/research-runs/${runId}/instructions`, { content }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["api", "project", projectId, "research-runs", runId, "events"] });
+      toast.success("指令已加入，将在下一安全检查点应用");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "追加指令失败"),
   });
 }
 
@@ -379,15 +443,7 @@ export function useWorkbenchAssets(id: string) {
 export function useWorkbenchActivity(id: string) {
   return useQuery({
     queryKey: ["api", "project", id, "activity"],
-    queryFn: async () => {
-      try {
-        const json = await apiGet<ActivityEntry[]>(`/api/projects/${id}/activity`);
-        return json.data ?? wbActivity;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}/activity`, err, wbActivity);
-      }
-    },
-    placeholderData: wbActivity,
+    queryFn: async () => (await apiGet<ActivityEntry[]>(`/api/projects/${id}/activity`)).data ?? [],
     staleTime: 60_000,
   });
 }
@@ -396,15 +452,7 @@ export function useWorkbenchActivity(id: string) {
 export function useWorkbenchOverview(id: string) {
   return useQuery({
     queryKey: ["api", "project", id, "overview"],
-    queryFn: async () => {
-      try {
-        const json = await apiGet<WorkbenchOverview>(`/api/projects/${id}/overview`);
-        return json.data ?? wbOverview;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}/overview`, err, wbOverview);
-      }
-    },
-    placeholderData: wbOverview,
+    queryFn: async () => (await apiGet<WorkbenchOverview>(`/api/projects/${id}/overview`)).data,
     staleTime: 60_000,
   });
 }
@@ -413,15 +461,7 @@ export function useWorkbenchOverview(id: string) {
 export function useAgentTasks(id: string) {
   return useQuery({
     queryKey: ["api", "project", id, "agent-tasks"],
-    queryFn: async () => {
-      try {
-        const json = await apiGet<AgentTask[]>(`/api/projects/${id}/tasks`);
-        return json.data ?? wbAgentTasks;
-      } catch (err) {
-        return mockFallback(`/api/projects/${id}/tasks`, err, wbAgentTasks);
-      }
-    },
-    placeholderData: wbAgentTasks,
+    queryFn: async () => (await apiGet<AgentTask[]>(`/api/projects/${id}/tasks`)).data ?? [],
     staleTime: 30_000,
   });
 }
@@ -466,17 +506,22 @@ export function useUpdateThreadCardStatus(projectId: string) {
 }
 
 /** 论文详情（+ 全文回退 intro / 页码） */
-export function usePaperDetail(id: string, source?: "remote_knowledge_base") {
+export function usePaperDetail(id: string, source?: "remote_knowledge_base", title?: string) {
   return useQuery({
     queryKey: ["api", "paper", id, source ?? "default"],
     queryFn: async () => {
       // 详情与全文并行拉取；远程失败时保留真实错误，不伪装成本地论文。
+      const remoteQuery = source
+        ? `?source=remote_knowledge_base${title ? `&title=${encodeURIComponent(title)}` : ""}`
+        : "";
+      const encodedId = encodeURIComponent(id);
       const [json, fulltext] = await Promise.all([
-        apiGet<any>(`/api/papers/${id}${source ? "?source=remote_knowledge_base" : ""}`),
+        apiGet<BackendPaper>(`/api/papers/${encodedId}${remoteQuery}`),
         apiGet<{ chunks?: { page: number; text: string }[]; has_fulltext?: boolean }>(
-          `/api/papers/${id}/fulltext${source ? "?source=remote_knowledge_base" : ""}`,
+          `/api/papers/${encodedId}/fulltext${remoteQuery}`,
         ).catch(() => null),
       ]);
+      if (!json.data) throw new Error("论文详情不存在");
       return toPaperDetail(json.data, id, fulltext?.data ?? null);
     },
     staleTime: 60_000,
@@ -647,13 +692,14 @@ export function useMemory(): { data: MemoryData; source: "api" | "demo" } {
   const query = useQuery({
     queryKey: ["api", "memory"],
     queryFn: async (): Promise<MemoryData> => {
-      const json = await apiGet<{ enabled?: boolean; items?: any[] }>("/api/memory");
+      const json = await apiGet<{ enabled?: boolean; items?: unknown[] }>("/api/memory");
       const items = json.data?.items;
       if (!Array.isArray(items)) throw new Error("missing memory shape");
       return {
         enabled: json.data?.enabled ?? true,
-        items: items.map(
-          (it): MemoryItem => ({
+        items: items.map((value): MemoryItem => {
+          const it = value as Record<string, unknown>;
+          return {
             id: String(it.id ?? ""),
             fact: String(it.fact ?? ""),
             source: String(it.source ?? "手动"),
@@ -661,8 +707,8 @@ export function useMemory(): { data: MemoryData; source: "api" | "demo" } {
             scope: it.scope === "project" ? "project" : "global",
             project: typeof it.project === "string" && it.project ? it.project : undefined,
             enabled: it.enabled !== false,
-          }),
-        ),
+          };
+        }),
       };
     },
     placeholderData: demoData,

@@ -377,6 +377,64 @@ export async function searchKnowledgeBase(input: KnowledgeSearchInput): Promise<
   };
 }
 
+/** 列表 ID 与详情 ID 不一致时，用标题解析出可阅读的规范论文记录。 */
+export async function findKnowledgePaperByTitle(title: string): Promise<KnowledgePaper> {
+  const normalizedTitle = title.trim().toLowerCase();
+  if (!normalizedTitle || normalizedTitle.length > 500) {
+    throw new KnowledgeBaseError("论文标题不合法", 422, "INVALID_ARGUMENT");
+  }
+  try {
+    const list = await requestJson<{ items?: unknown }>(
+      `/api/papers?q=${encodeURIComponent(title.trim())}&limit=20&offset=0`,
+    );
+    if (Array.isArray(list.items)) {
+      const exact = list.items
+        .map(normalizeKnowledgePaper)
+        .find((candidate) => candidate.title.trim().toLowerCase() === normalizedTitle);
+      if (exact) return exact;
+    }
+  } catch {
+    // 兼容上游列表搜索不可用的情况，继续使用增强检索解析标题。
+  }
+  const result = await searchKnowledgeBase({ query: title.trim(), topK: 5 });
+  const paper = result.results.find((candidate) => candidate.title.trim().toLowerCase() === normalizedTitle);
+  if (!paper) throw new KnowledgeBaseError("论文或知识底座资源不存在", 404, "NOT_FOUND");
+  return paper;
+}
+
+type KnowledgePaperListResponse = {
+  items?: unknown;
+  total?: unknown;
+};
+
+/** 首页发现流：从知识底座论文全集的随机 offset 返回一页论文。 */
+export async function getRandomKnowledgePapers(limit = 10): Promise<KnowledgePaper[]> {
+  const safeLimit = Math.min(10, Math.max(1, Math.floor(limit)));
+  const overview = await requestJson<KnowledgePaperListResponse>("/api/papers?limit=1&offset=0");
+  const total = numberOrNull(overview.total);
+  if (total === null || total < 1 || !Number.isInteger(total)) {
+    throw new KnowledgeBaseError("知识底座论文列表总数格式不完整", 502, "CONTRACT_VIOLATION");
+  }
+
+  // 上游列表存在重复记录，取更大的随机窗口后在本地去重，保证 Feed 尽量有 10 篇不同论文。
+  const windowSize = Math.min(50, Math.max(safeLimit, safeLimit * 3));
+  const maxOffset = Math.max(0, total - windowSize);
+  const offset = Math.floor(Math.random() * (maxOffset + 1));
+  const page = await requestJson<KnowledgePaperListResponse>(
+    `/api/papers?limit=${windowSize}&offset=${offset}`,
+  );
+  if (!Array.isArray(page.items)) {
+    throw new KnowledgeBaseError("知识底座论文列表格式不完整", 502, "CONTRACT_VIOLATION");
+  }
+
+  const unique = new Map<string, KnowledgePaper>();
+  for (const paper of page.items.map(normalizeKnowledgePaper)) {
+    if (paper.paperId && paper.title && !unique.has(paper.paperId)) unique.set(paper.paperId, paper);
+    if (unique.size >= safeLimit) break;
+  }
+  return [...unique.values()].slice(0, safeLimit);
+}
+
 export async function getKnowledgePaper(paperId: string): Promise<KnowledgePaper> {
   const raw = await requestJson<unknown>(`/api/kg/paper?paperId=${encodeURIComponent(paperId)}`);
   const paper = normalizeKnowledgePaper(raw);

@@ -162,7 +162,7 @@ const scholars = [
   },
 ];
 
-const scholarPublications: Record<string, any[]> = {
+const scholarPublications = {
   "kaiming-he": [
     {
       id: "resnet",
@@ -654,8 +654,8 @@ function seedWorkbench(db: Database.Database): void {
   ).run("t1", wb, "q1", "多智能体综述管线如何保证引用真实性与论断不丢失?", "数据分析");
 
   const insertCard = db.prepare(
-    `INSERT INTO wb_thread_cards (id, project_id, thread_id, kind, title, summary, status, node_ref, ai_generated, created_at, asset_refs_json)
-     VALUES (@id, @project_id, @thread_id, @kind, @title, @summary, @status, @node_ref, @ai_generated, @created_at, @asset_refs_json)`
+    `INSERT INTO wb_thread_cards (id, project_id, thread_id, kind, title, summary, stage, status, node_ref, ai_generated, created_at, asset_refs_json)
+     VALUES (@id, @project_id, @thread_id, @kind, @title, @summary, @stage, @status, @node_ref, @ai_generated, @created_at, @asset_refs_json)`
   );
   const cardRows: {
     id: string; kind: string; title: string; summary: string; status: string;
@@ -679,6 +679,7 @@ function seedWorkbench(db: Database.Database): void {
       kind: c.kind,
       title: c.title,
       summary: c.summary,
+      stage: ({ question: "plan", literature: "read", hypothesis: "synthesize", experiment: "design", result: "run", analysis: "run", conclusion: "report", next: "report", hint: "synthesize" } as Record<string, string>)[c.kind] || "plan",
       status: c.status,
       node_ref: c.nodeRef ?? null,
       ai_generated: c.aiGenerated ? 1 : 0,
@@ -765,6 +766,130 @@ function seedWorkbench(db: Database.Database): void {
       updated_at: "2026-08-23T18:00:00+08:00",
     });
   }
+}
+
+/** Public sample history and its complete eight-stage card stream. */
+function seedDemoResearchRun(db: Database.Database): void {
+  const project = db.prepare("SELECT 1 FROM projects WHERE id='scinexus'").get();
+  const user = db.prepare("SELECT 1 FROM users WHERE id='user_demo'").get();
+  if (!project || !user) return;
+  const runId = "run_demo_citation_reliability";
+  const threadId = `ar_thread_${runId}`;
+  const createdAt = "2026-08-23T17:48:00+08:00";
+  const finishedAt = "2026-08-23T18:00:00+08:00";
+  db.prepare(`INSERT OR IGNORE INTO research_runs
+    (id,project_id,created_by_user_id,objective,status,phase,engine_stage,progress,executor,attempt,config_json,decision_json,created_at,updated_at,started_at,finished_at)
+    VALUES (?,?,?,'验证多智能体综述中论断聚类与引用校验能否避免证据丢失和幽灵引用','completed','report','report',100,'adapter',1,'{"research_profile":"standard","max_papers":12}','{"action":"accept","reason":"受限域实验支持核心假设，并明确记录跨领域验证边界","progressed":true}',?,?,?,?)`)
+    .run(runId, "scinexus", "user_demo", createdAt, finishedAt, "2026-08-23T17:48:12+08:00", finishedAt);
+  db.prepare(`UPDATE research_runs SET created_at=?, updated_at=?, started_at=?, finished_at=?
+    WHERE id=? AND project_id='scinexus'`)
+    .run(createdAt, finishedAt, "2026-08-23T17:48:12+08:00", finishedAt, runId);
+
+  const stages = [
+    { stage: "plan", kind: "question", title: "研究计划", summary: "完成研究问题拆解与评价指标定义。" },
+    { stage: "search", kind: "literature", title: "文献检索", summary: "完成混合检索，筛选 28 篇候选文献。" },
+    { stage: "read", kind: "literature", title: "结构化阅读", summary: "完成关键文献结构化阅读与论断提取。" },
+    { stage: "synthesize", kind: "hypothesis", title: "证据综合", summary: "完成证据聚类并形成 3 个可检验假设。" },
+    { stage: "design", kind: "experiment", title: "实验设计", summary: "完成引用可靠性回归实验设计。" },
+    { stage: "code", kind: "experiment", title: "实验代码", summary: "完成全局引用编号池与校验脚本。" },
+    { stage: "run", kind: "result", title: "实验运行与判读", summary: "完成 13 组回归测试，其中 12 组通过。" },
+    { stage: "report", kind: "conclusion", title: "研究报告", summary: "生成研究报告并记录适用边界。" },
+  ];
+  db.prepare(`INSERT OR IGNORE INTO wb_threads
+    (id,project_id,question_node_id,title,stage) VALUES (?,?,'q1',?,'report')`)
+    .run(threadId, "scinexus", "自动研究：多智能体综述引用可信性验证");
+
+  const insertEvent = db.prepare(`INSERT OR IGNORE INTO research_run_events
+    (id,run_id,project_id,kind,level,message,payload_json,sequence,created_at)
+    VALUES (?,?,?,'checkpoint','info',?,?,?,?)`);
+  const insertCard = db.prepare(`INSERT OR IGNORE INTO wb_thread_cards
+    (id,project_id,thread_id,kind,title,summary,stage,status,node_ref,ai_generated,created_at,asset_refs_json)
+    VALUES (?,?,?,?,?,?,?,'done',NULL,1,?,?)`);
+  const insertArtifact = db.prepare(`INSERT INTO research_artifacts
+    (id,run_id,project_id,stage,kind,title,content,metadata_json,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET stage=excluded.stage,kind=excluded.kind,title=excluded.title,
+      content=excluded.content,metadata_json=excluded.metadata_json,created_at=excluded.created_at`);
+  const insertWorkbenchAsset = db.prepare(`INSERT INTO wb_assets
+    (id,project_id,kind,title,meta,status,tags_json,question_ids_json,hypothesis_ids_json,updated_at)
+    VALUES (?,?,?,?,?,'analyzed',?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET
+      kind=excluded.kind,title=excluded.title,meta=excluded.meta,status=excluded.status,
+      tags_json=excluded.tags_json,question_ids_json=excluded.question_ids_json,
+      hypothesis_ids_json=excluded.hypothesis_ids_json,updated_at=excluded.updated_at`);
+  const assetPresentation: Record<string, { kind: "paper" | "dataset" | "note" | "experiment"; title: string; meta: string; tags: string[] }> = {
+    plan: { kind: "note", title: "研究问题与验收标准.md", meta: "Markdown · 研究计划", tags: ["研究计划", "评价指标"] },
+    search: { kind: "paper", title: "候选文献检索清单.json", meta: "28 篇候选 · 混合检索", tags: ["文献检索", "候选集"] },
+    read: { kind: "paper", title: "关键文献结构化阅读笔记.md", meta: "5 篇关键文献 · 论断提取", tags: ["结构化阅读", "引用真实性"] },
+    synthesize: { kind: "note", title: "论断—证据矩阵.json", meta: "3 个假设 · 证据聚类", tags: ["证据综合", "论断完整性"] },
+    design: { kind: "experiment", title: "引用可靠性回归实验方案.md", meta: "13 组用例 · 实验设计", tags: ["实验设计", "回归测试"] },
+    code: { kind: "experiment", title: "全局引用编号池校验脚本.py", meta: "Python · 可复现实验代码", tags: ["实验代码", "引用校验"] },
+    run: { kind: "dataset", title: "引用可靠性回归结果.json", meta: "12/13 通过 · accuracy 0.923", tags: ["实验结果", "失败用例"] },
+    report: { kind: "note", title: "多智能体综述引用可信性研究报告.md", meta: "Markdown · 最终研究报告", tags: ["研究报告", "适用边界"] },
+  };
+  const reportContent = `# 多智能体综述引用可信性研究报告
+
+## 研究问题
+
+多智能体综述管线能否同时保证引用真实性，并避免论断在提取、聚类和成文过程中静默丢失？
+
+## 研究方法
+
+研究依次完成问题定义、混合检索、结构化阅读、证据聚类、实验设计、代码实现、回归运行和报告生成。引用校验使用全局编号池；论断完整性通过全分划聚类不变式检查。
+
+## 证据与资产
+
+- 关键文献结构化阅读笔记：提取引用校验与论断聚类方法。
+- 论断—证据矩阵：形成 3 个可检验假设，并保留来源关系。
+- 引用可靠性回归实验方案：覆盖短文档、长文档和跨章节引用场景。
+- 引用可靠性回归结果：13 组用例中 12 组通过。
+
+## 实验结果
+
+引用校验准确率为 0.923。唯一失败用例来自长文档的跨章节编号漂移；该问题已定位到局部重编号未同步正文引用。
+
+## 结论
+
+在当前 AI 领域语料与受限文档长度内，管线能够维持引用—来源对应关系，并通过全分划聚类避免论断静默丢失。
+
+## 研究边界
+
+现有证据不足以证明该结论可直接推广到生物医学等跨领域语料。幽灵引用“降为 0”的强结论暂不成立。
+
+## 下一步
+
+补充生物医学语料，复跑跨领域回归；修复全局编号同步后重新验证长文档用例，再更新最终判断。
+`;
+  stages.forEach((item, index) => {
+    const sequence = index + 1;
+    const artifactId = `demo_artifact_${item.stage}`;
+    const at = `2026-08-${String(19 + Math.min(index, 4)).padStart(2, "0")}T${String(10 + index).padStart(2, "0")}:00:00+08:00`;
+    insertEvent.run(`re_demo_${item.stage}`, runId, "scinexus", item.summary,
+      jsonStringify({ engineStage: item.stage, completed: true }), sequence, at);
+    insertCard.run(`ar_card_${runId}_${item.stage}`, "scinexus", threadId, item.kind,
+      item.title, item.summary, item.stage, at, jsonStringify([artifactId]));
+    insertArtifact.run(artifactId, runId, "scinexus", item.stage,
+      item.stage === "report" ? "report" : "note", `${item.title}产物`,
+      item.stage === "report" ? reportContent : `# ${item.title}\n\n${item.summary}\n`,
+      jsonStringify({ sample: true, sequence, stage: item.stage }), at);
+    const presentation = assetPresentation[item.stage];
+    insertWorkbenchAsset.run(
+      artifactId,
+      "scinexus",
+      presentation.kind,
+      presentation.title,
+      presentation.meta,
+      jsonStringify([...presentation.tags, item.stage]),
+      jsonStringify(["q1"]),
+      jsonStringify(["plan", "search", "read"].includes(item.stage) ? [] : ["h1", "h2"]),
+      at,
+    );
+  });
+
+  db.prepare(`INSERT OR IGNORE INTO research_experiments
+    (id,run_id,project_id,title,round,status,hypothesis,metrics_json,stdout,stderr,code_ref,created_at,updated_at)
+    VALUES ('demo_citation_experiment',?,?,'幽灵引用回归实验',1,'partial','引用校验重生成可将幽灵引用降为 0','{"passed":12,"total":13,"accuracy":0.923}', '12/13 cases passed','1 dangling citation','demo://citation-check',?,?)`)
+    .run(runId, "scinexus", finishedAt, finishedAt);
 }
 
 // ====== AI 长期记忆演示数据（与 lib/data/memory.ts memoryMock 对齐） ======
@@ -858,10 +983,11 @@ export function runSeed() {
   const db = getDB();
   const tx = db.transaction(() => {
     // ---- 检查是否已初始化（只要 papers 表有数据就跳过） ----
-    const paperCount = (db.prepare("SELECT COUNT(*) as n FROM papers").get() as any).n;
+    const paperCount = (db.prepare("SELECT COUNT(*) as n FROM papers").get() as { n: number }).n;
     if (paperCount > 0) {
       // 老库升级:工作台表后加入,若为空则单独补种(幂等)
       seedWorkbench(db);
+      seedDemoResearchRun(db);
             seedMemory(db);
       seedNotes(db);
       seedAnnotations(db);
@@ -884,7 +1010,7 @@ console.log("[seed] 数据库已有数据，跳过初始化");
        VALUES (@id, @date, @venue, @venue_tone, @authors, @title, @abstract, @ai_link, @tags_json, @likes, @citations, @thumb, @ccf, @year)`
     );
     // FTS5 全文索引同步（可选能力，表不存在时跳过）
-    let insertFts: any = null;
+    let insertFts: import("better-sqlite3").Statement | null = null;
     try {
       insertFts = db.prepare(
         `INSERT INTO papers_fts (id, title, abstract, tags) VALUES (?, ?, ?, ?)`
@@ -1045,7 +1171,7 @@ console.log("[seed] 数据库已有数据，跳过初始化");
       `INSERT INTO library_folders (user_id, name, count, active) VALUES (?, ?, ?, ?)`
     );
     for (const f of defaultLibraryFolders) {
-      insertFolder.run("user_demo", f.name, f.count, (f as any).active || 0);
+      insertFolder.run("user_demo", f.name, f.count, "active" in f ? f.active : 0);
     }
 
     // ---- 默认用户的知识库文献 ----
@@ -1081,8 +1207,8 @@ console.log("[seed] 数据库已有数据，跳过初始化");
        VALUES (?, 'user_demo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       projectId,
-      "研枢",
-      "SciNexus —— 面向 AI 领域的个性化自主科研知识智能体平台",
+      "多智能体综述引用可信性研究",
+      "验证自动综述中的引用真实性、论断完整性与跨领域鲁棒性",
       "进行中",
       68,
       "2025-11-02",
@@ -1110,6 +1236,7 @@ console.log("[seed] 数据库已有数据，跳过初始化");
     }
 
     seedWorkbench(db);
+    seedDemoResearchRun(db);
 
         seedMemory(db);
 

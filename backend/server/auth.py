@@ -21,19 +21,12 @@ from typing import Optional
 # token 有效期 7 天
 TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60
 
-# 未配置时使用与 Next.js 一致的固定回退密钥；生产环境建议通过环境变量覆盖。
+# 开发环境可使用固定回退密钥；生产环境必须显式配置。
 _is_production = os.environ.get("NODE_ENV", "").lower() == "production" or os.environ.get("ENV", "").lower() == "production"
 DEFAULT_AUTH_SECRET = "yanshu-dev-secret-change-me"
 SECRET = os.environ.get("AUTH_SECRET") or DEFAULT_AUTH_SECRET
-if not SECRET:
-    SECRET = DEFAULT_AUTH_SECRET
 if _is_production and not os.environ.get("AUTH_SECRET"):
-    import warnings
-    warnings.warn(
-        "[auth] 未配置 AUTH_SECRET，使用固定默认密钥；生产环境建议配置独立密钥。",
-        RuntimeWarning,
-        stacklevel=2,
-    )
+    raise RuntimeError("生产环境必须配置 AUTH_SECRET")
 
 
 def production_secret_configured() -> bool:
@@ -148,6 +141,8 @@ def register(params: dict) -> dict:
         return {"error": "用户名至少 2 个字符"}
     if len(password) < 6:
         return {"error": "密码至少 6 位"}
+    if len(password) > 12:
+        return {"error": "密码最多 12 位"}
     if email and "@" not in email:
         return {"error": "邮箱格式不正确"}
 

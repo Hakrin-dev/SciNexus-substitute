@@ -7,6 +7,16 @@ services:
       AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required}"
       RETRIEVAL_API_URL: "${RETRIEVAL_API_URL:?RETRIEVAL_API_URL is required}"
       RETRIEVAL_API_TOKEN: "${RETRIEVAL_API_TOKEN:?RETRIEVAL_API_TOKEN is required}"
+      SCINEXUS_DB_PATH: /app/data/yanshu.db
+    volumes: ["scinexus_data:/app/data"]
+    restart: unless-stopped
+  worker:
+    image: ghcr.io/hakrin-dev/scinexus-frontend:latest
+    command: ["python3", "-m", "backend.worker.main", "--poll", "2"]
+    environment:
+      SCINEXUS_DB_PATH: /app/data/yanshu.db
+    volumes: ["scinexus_data:/app/data"]
+    depends_on: [web]
     restart: unless-stopped
   caddy:
     image: caddy:2.8-alpine
@@ -22,3 +32,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  scinexus_data:

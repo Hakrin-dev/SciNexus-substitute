@@ -35,14 +35,14 @@ export async function GET(req: NextRequest) {
       params.push(scope);
     }
     sql += " ORDER BY created_at DESC";
-    const rows = db.prepare(sql).all(...params) as any[];
+    const rows = db.prepare(sql).all(...params) as unknown as Record<string, unknown>[];
 
     return ok({
-      enabled: settings ? !!settings.enabled : true,
+      enabled: settings ? !!settings.enabled : false,
       items: rows.map(mapMemoryEntry),
     });
-  } catch (e: any) {
-    return fail(e.message || "获取记忆失败");
+  } catch (error: unknown) {
+    return fail(error instanceof Error ? error.message : "获取记忆失败");
   }
 }
 
@@ -62,7 +62,7 @@ export async function PUT(req: NextRequest) {
     ).run(user.id, body.enabled ? 1 : 0);
 
     return ok({ enabled: body.enabled });
-  } catch (e: any) {
-    return fail(e.message || "设置记忆开关失败");
+  } catch (error: unknown) {
+    return fail(error instanceof Error ? error.message : "设置记忆开关失败");
   }
 }

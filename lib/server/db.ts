@@ -195,6 +195,8 @@ function initSchema(db: Database.Database) {
       tech_stack_json TEXT DEFAULT '[]',
       members_json TEXT DEFAULT '[]',
       links_json TEXT DEFAULT '[]',
+      visibility TEXT NOT NULL DEFAULT 'private' CHECK(visibility IN ('private','organization','public_readonly')),
+      organization_id TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -294,6 +296,69 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS organizations (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
+      owner_user_id TEXT NOT NULL, created_at TEXT NOT NULL,
+      FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE RESTRICT
+    );
+    CREATE TABLE IF NOT EXISTS organization_members (
+      organization_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('owner','admin','member','viewer')),
+      created_at TEXT NOT NULL, PRIMARY KEY (organization_id,user_id),
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS project_members (
+      project_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('owner','admin','editor','viewer')),
+      created_at TEXT NOT NULL, PRIMARY KEY (project_id,user_id),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id,project_id);
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY, user_id TEXT, project_id TEXT, action TEXT NOT NULL,
+      resource_type TEXT NOT NULL, resource_id TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      key TEXT PRIMARY KEY, count INTEGER NOT NULL, window_started_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS research_runs (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, created_by_user_id TEXT NOT NULL,
+      objective TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('queued','running','paused','completed','failed','cancelled')),
+      phase TEXT NOT NULL DEFAULT 'plan', engine_stage TEXT NOT NULL DEFAULT 'plan', progress INTEGER NOT NULL DEFAULT 0,
+      executor TEXT NOT NULL DEFAULT 'mock', config_json TEXT NOT NULL DEFAULT '{}', control_requested TEXT,
+      worker_id TEXT, heartbeat_at TEXT, attempt INTEGER NOT NULL DEFAULT 1, decision_json TEXT,
+      error_message TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, started_at TEXT, finished_at TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_runs_queue ON research_runs(status,created_at);
+    CREATE TABLE IF NOT EXISTS research_run_events (
+      id TEXT PRIMARY KEY, run_id TEXT NOT NULL, project_id TEXT NOT NULL, kind TEXT NOT NULL,
+      level TEXT NOT NULL DEFAULT 'info', message TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', sequence INTEGER NOT NULL, created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS research_experiments (
+      id TEXT PRIMARY KEY, run_id TEXT NOT NULL, project_id TEXT NOT NULL, title TEXT NOT NULL,
+      round INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL, hypothesis TEXT, metrics_json TEXT NOT NULL DEFAULT '{}',
+      stdout TEXT NOT NULL DEFAULT '', stderr TEXT NOT NULL DEFAULT '', code_ref TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS research_artifacts (
+      id TEXT PRIMARY KEY, run_id TEXT NOT NULL, project_id TEXT NOT NULL, stage TEXT NOT NULL,
+      kind TEXT NOT NULL, title TEXT NOT NULL, uri TEXT, content TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS research_run_instructions (
+      id TEXT PRIMARY KEY, run_id TEXT NOT NULL, project_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      content TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, applied_at TEXT,
+      FOREIGN KEY (run_id) REFERENCES research_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_instructions_pending ON research_run_instructions(run_id,status,created_at);
+
     -- 知识图谱节点
     CREATE TABLE IF NOT EXISTS graph_nodes (
       id TEXT PRIMARY KEY,
@@ -385,7 +450,7 @@ function initSchema(db: Database.Database) {
     -- AI 长期记忆总开关
     CREATE TABLE IF NOT EXISTS memory_settings (
       user_id TEXT PRIMARY KEY,
-      enabled INTEGER NOT NULL DEFAULT 1,
+      enabled INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -454,6 +519,34 @@ function runMigrations(db: Database.Database) {
   ensureColumn(db, "scholars", "citation_count", "citation_count INTEGER DEFAULT 0");
   // projects.updated_at:PUT 更新器会 touch 该列,旧库补齐
   ensureColumn(db, "projects", "updated_at", "updated_at TEXT");
+  ensureColumn(db, "projects", "visibility", "visibility TEXT NOT NULL DEFAULT 'private'");
+  ensureColumn(db, "projects", "organization_id", "organization_id TEXT");
+  ensureColumn(db, "wb_thread_cards", "stage", "stage TEXT NOT NULL DEFAULT 'plan'");
+  // Older databases received the stage column with its default value only. Restore
+  // the original workbench phase distribution so phase tabs and card layout match
+  // the established sample experience.
+  db.prepare(`UPDATE wb_thread_cards SET stage = CASE kind
+    WHEN 'literature' THEN 'read'
+    WHEN 'hypothesis' THEN 'synthesize'
+    WHEN 'experiment' THEN 'design'
+    WHEN 'result' THEN 'run'
+    WHEN 'analysis' THEN 'run'
+    WHEN 'conclusion' THEN 'report'
+    WHEN 'next' THEN 'report'
+    WHEN 'hint' THEN 'synthesize'
+    ELSE stage END
+    WHERE stage = 'plan' AND kind <> 'question'`).run();
+  // Remove the short-lived rebuild placeholder. The seed replaces it with the
+  // full public demonstration run used by the established workbench UI.
+  db.prepare("DELETE FROM wb_assets WHERE id = 'sample_report_asset' AND project_id = 'scinexus'").run();
+  db.prepare("DELETE FROM research_runs WHERE id = 'sample_research_run' AND project_id = 'scinexus'").run();
+  // Existing owners become canonical project members; members_json is display-only legacy data.
+  db.prepare(`INSERT OR IGNORE INTO project_members (project_id,user_id,role,created_at)
+    SELECT id,user_id,'owner',COALESCE(created_at,datetime('now')) FROM projects`).run();
+  // Long-term memory requires explicit opt-in for accounts without a setting.
+  db.prepare("UPDATE memory_settings SET enabled = 0 WHERE enabled IS NULL").run();
+  db.prepare("UPDATE projects SET visibility = 'public_readonly' WHERE id = 'scinexus'").run();
+  db.prepare("UPDATE projects SET name = '多智能体综述引用可信性研究', tagline = '验证自动综述中的引用真实性、论断完整性与跨领域鲁棒性' WHERE id = 'scinexus'").run();
   // 会话消息补充 references_json(历史回放时还原参考卡;2026-08 前的旧消息为 NULL,前端优雅降级)
   ensureColumn(
     db,
@@ -465,7 +558,7 @@ function runMigrations(db: Database.Database) {
   // 迁移旧的无盐 SHA-256 demo 密码为 PBKDF2 格式（密码已知为 "yanshu123"）
   const demo = db
     .prepare("SELECT id, password_hash FROM users WHERE username = ?")
-    .get("hankairun") as any;
+    .get("hankairun") as { id: string; password_hash: string } | undefined;
   if (demo && !String(demo.password_hash).includes(":")) {
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(
       hashPassword("yanshu123"),
@@ -480,11 +573,11 @@ function runMigrations(db: Database.Database) {
       `CREATE VIRTUAL TABLE IF NOT EXISTS papers_fts USING fts5(id UNINDEXED, title, abstract, tags);`
     );
     // 旧库升级：FTS 为空时从 papers 表回填
-    const ftsCount = (db.prepare("SELECT COUNT(*) as n FROM papers_fts").get() as any).n;
+    const ftsCount = (db.prepare("SELECT COUNT(*) as n FROM papers_fts").get() as { n: number }).n;
     if (ftsCount === 0) {
       const papers = db
         .prepare("SELECT id, title, abstract, tags_json FROM papers")
-        .all() as any[];
+        .all() as { id: string; title: string; abstract: string; tags_json: string | null }[];
       const insertFts = db.prepare(
         "INSERT INTO papers_fts (id, title, abstract, tags) VALUES (?, ?, ?, ?)"
       );
@@ -500,7 +593,7 @@ function runMigrations(db: Database.Database) {
 }
 
 function columnExists(db: Database.Database, table: string, column: string): boolean {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   return cols.some((c) => c.name === column);
 }
 
@@ -511,7 +604,7 @@ function ensureColumn(db: Database.Database, table: string, column: string, ddl:
 }
 
 // 工具函数
-export function jsonParse<T = any>(str: string | null, fallback: T): T {
+export function jsonParse<T = unknown>(str: string | null, fallback: T): T {
   if (!str) return fallback;
   try {
     return JSON.parse(str) as T;
@@ -520,12 +613,12 @@ export function jsonParse<T = any>(str: string | null, fallback: T): T {
   }
 }
 
-export function jsonStringify(obj: any): string {
+export function jsonStringify(obj: unknown): string {
   return JSON.stringify(obj, null, 0);
 }
 
 /** 论文列表项序列化（papers 列表 / 推荐 / 搜索 共用） */
-export function mapPaper(r: any) {
+export function mapPaper(r: Record<string, unknown>) {
   return {
     id: r.id,
     date: r.date,
@@ -535,7 +628,7 @@ export function mapPaper(r: any) {
     title: r.title,
     abstract: r.abstract,
     aiLink: r.ai_link,
-    tags: jsonParse<string[]>(r.tags_json, []),
+    tags: jsonParse<string[]>(typeof r.tags_json === "string" ? r.tags_json : null, []),
     likes: r.likes,
     citations: r.citations,
     ccf: r.ccf ?? null,
@@ -544,10 +637,10 @@ export function mapPaper(r: any) {
 }
 
 /** 知识图谱节点序列化（公域 / 私域 共用） */
-export function mapGraphNode(r: any) {
+export function mapGraphNode(r: Record<string, unknown>) {
   return {
     id: r.id,
-    labelLines: jsonParse<[string, string]>(r.label_lines_json, ["", ""]),
+    labelLines: jsonParse<[string, string]>(typeof r.label_lines_json === "string" ? r.label_lines_json : null, ["", ""]),
     weight: r.weight,
     year: r.year,
     title: r.title,
@@ -562,7 +655,7 @@ export function mapGraphNode(r: any) {
 
 
 /** AI 记忆条目序列化（memory 列表 / 增改 共用；scope=project 时附带项目信息） */
-export function mapMemoryEntry(r: any) {
+export function mapMemoryEntry(r: Record<string, unknown>) {
   const base = {
     id: r.id,
     fact: r.fact,

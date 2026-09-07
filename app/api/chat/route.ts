@@ -29,6 +29,7 @@ interface ChatReq {
   model?: string;
   project_id?: string;
   memory_enabled?: boolean;
+  attachments?: { name?: string; size?: number; content?: string }[];
 }
 
 /** 从 messages 中提取多轮历史（排除最后一条用户消息），最多保留最近 24 条 */
@@ -85,7 +86,11 @@ export async function POST(req: NextRequest) {
     const memories = body.memory_enabled === false
       ? []
       : retrieveMemories(userId, msg, body.project_id);
-    const result = await runAgent(msg, body.task_type, body.paper_id, chatHistory(body), body.model, null, memories);
+    const attachments = (body.attachments ?? [])
+      .filter((item) => item.name && item.content)
+      .slice(0, 10)
+      .map((item) => ({ name: String(item.name), content: String(item.content).slice(0, 24_000) }));
+    const result = await runAgent(msg, body.task_type, body.paper_id, chatHistory(body), body.model, null, memories, attachments);
     const { reply, workflow, references, generatedFiles } = result;
 
     // 写入 AI 消息

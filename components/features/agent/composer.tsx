@@ -25,6 +25,7 @@ import kimiLogo from "@/brand/LOGO/Kimi.png";
 import qwenLogo from "@/brand/LOGO/Qwen.svg";
 import { cn } from "@/lib/utils";
 import { AttachmentMenu } from "./attachment-menu";
+import type { ParsedAttachment } from "./attachment-menu";
 
 /** 回答模式:快速(闪电)/ 深度(原子核) */
 export const MODES = [
@@ -533,6 +534,8 @@ export function ComposerShell({
   memoryOn,
   onMemoryChange,
   onSearchPapers,
+  attachments = [],
+  onAttachmentsChange,
   headerRight,
   sendLeft,
 }: {
@@ -555,6 +558,8 @@ export function ComposerShell({
   onMemoryChange?: (v: boolean) => void;
   /** Alt+Enter:检索论文(各页面自行决定结果呈现方式) */
   onSearchPapers?: () => void;
+  attachments?: ParsedAttachment[];
+  onAttachmentsChange?: (attachments: ParsedAttachment[]) => void;
   /** 输入框右上方挂载的附加内容(如 compact 圆环) */
   headerRight?: ReactNode;
   /** 发送键左侧挂载的附加内容(如任务进度条) */
@@ -593,6 +598,21 @@ export function ComposerShell({
   return (
     <div className="rounded-2xl bg-card p-3 shadow-pop">
       <div className="relative">
+        {attachments.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5 px-1.5" aria-label="已添加附件">
+            {attachments.map((attachment) => (
+              <button
+                key={`${attachment.name}-${attachment.size}`}
+                type="button"
+                title={`移除 ${attachment.name}`}
+                onClick={() => onAttachmentsChange?.(attachments.filter((item) => item !== attachment))}
+                className="max-w-56 truncate rounded-md bg-chip px-2 py-1 text-xs text-ink-2 hover:bg-primary-soft hover:text-primary"
+              >
+                {attachment.name}
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value}
@@ -650,6 +670,13 @@ export function ComposerShell({
           onInsert={(token) =>
             onChange(`${value}${value && !value.endsWith(" ") ? " " : ""}${token} `)
           }
+          onAttach={(items) => {
+            const existing = new Set(attachments.map((item) => item.name));
+            onAttachmentsChange?.([
+              ...attachments,
+              ...items.filter((item) => !existing.has(item.name)),
+            ]);
+          }}
         />
         <ModelPicker
           placement={menuPlacement}

@@ -24,6 +24,7 @@ interface ChatReq {
   context?: { style?: string; [key: string]: unknown };
   project_id?: string;
   memory_enabled?: boolean;
+  attachments?: { name?: string; size?: number; content?: string }[];
 }
 
 export async function POST(req: NextRequest) {
@@ -42,7 +43,19 @@ export async function POST(req: NextRequest) {
   const memories = body.memory_enabled === false
     ? []
     : retrieveMemories(userId, userMessage, body.project_id);
-  const result = await runAgent(userMessage, body.task_type, body.paper_id, history, body.model, style, memories);
+  const attachments = (body.attachments ?? [])
+    .filter((item) => item.name && item.content)
+    .slice(0, 10)
+    .map((item) => ({ name: String(item.name), content: String(item.content).slice(0, 24_000) }));
+  let attachmentChars = 0;
+  const boundedAttachments = attachments.filter((attachment) => {
+    if (attachmentChars >= 60_000) return false;
+    const remaining = 60_000 - attachmentChars;
+    attachment.content = attachment.content.slice(0, remaining);
+    attachmentChars += attachment.content.length;
+    return attachment.content.length > 0;
+  });
+  const result = await runAgent(userMessage, body.task_type, body.paper_id, history, body.model, style, memories, boundedAttachments);
   const { reply, workflow, references, generatedFiles } = result;
 
   const conversationId = body.conversation_id || genId("conv_");

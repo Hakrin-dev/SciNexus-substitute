@@ -41,7 +41,7 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
           </div>
 
           {/* 标题 */}
-          <Link href={`/papers/${paper.id}`} className="group mt-2 block">
+          <Link href={`/papers/${paper.id}${paper.source === "remote_knowledge_base" ? "?source=remote_knowledge_base" : ""}`} className="group mt-2 block">
             <h3 className="text-[17px] font-bold leading-snug text-ink transition-colors group-hover:text-primary">
               {paper.title}
             </h3>
@@ -111,7 +111,7 @@ export function PaperCard({ paper, index }: { paper: FeedPaper; index: number })
                 <Bookmark className="size-4" fill={bookmarked ? "currentColor" : "none"} />
                 收藏
               </Button>
-              <Link href={`/papers/${paper.id}`}>
+              <Link href={`/papers/${paper.id}${paper.source === "remote_knowledge_base" ? "?source=remote_knowledge_base" : ""}`}>
                 <Button size="sm" className="h-9 rounded-lg px-4 text-[13px]">
                   立即阅读
                   <ArrowRight className="size-3.5" />

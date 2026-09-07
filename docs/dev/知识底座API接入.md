@@ -14,6 +14,8 @@ RETRIEVAL_DEFAULT_TOP_K=10
 RETRIEVAL_FALLBACK_LOCAL=false
 RETRIEVAL_CIRCUIT_FAILURE_THRESHOLD=3
 RETRIEVAL_CIRCUIT_RESET_SECONDS=30
+# KNOWLEDGE_PDF_MAX_BYTES=52428800
+# KNOWLEDGE_PDF_ALLOW_PRIVATE_NETWORK=false
 ```
 
 - `remote`：检索、论文详情和图谱优先使用远程知识底座。
@@ -34,6 +36,12 @@ RETRIEVAL_CIRCUIT_RESET_SECONDS=30
 正式 Knowledge API 的成功响应为 `{ success: true, data }`；失败响应为 `{ success: false, error: { code, message, retryable, requestId } }`。`code` 只会是 `NOT_FOUND`、`INVALID_ARGUMENT`、`RATE_LIMITED`、`UPSTREAM_UNAVAILABLE`、`TIMEOUT`、`CONTRACT_VIOLATION` 或 `UNKNOWN`。同一条链路必须满足 `SearchResult.paperId === Paper.paperId === Graph.rootId`。
 
 远程 `score` 是排序分值，不应解释为百分比；`citationCount` 和 `referenceCount` 缺失时为 `null`，不能解释成 0。兼容接口中的 `meta.source` 为 `remote_knowledge_base` 或 `local`；`fallbackUsed` 表示是否发生降级。
+
+## 论文阅读与 PDF
+
+- 从远程搜索结果进入 `/papers/[id]?source=remote_knowledge_base` 时，详情和 PDF 代理都会保持远程来源优先，避免本地同 ID 论文覆盖远程论文。
+- PDF 始终通过同源 `/api/papers/[id]/pdf` 代理；浏览器不会拿到上游 URL。代理仅允许 HTTP(S)、拒绝 URL 凭据与私网/localhost 地址、最多跟随 3 次已校验重定向、要求 `application/pdf` 响应，并限制文件大小（默认 50 MiB）。
+- 受控内网部署若确实需要访问私网 PDF 地址，可显式设置 `KNOWLEDGE_PDF_ALLOW_PRIVATE_NETWORK=true`；公网环境不得设置。知识底座尚未提供正文分块接口时，阅读页只显示摘要或 PDF，不会将摘要伪装为全文。
 
 ## 智能体
 

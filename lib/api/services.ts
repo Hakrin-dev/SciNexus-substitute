@@ -466,15 +466,15 @@ export function useUpdateThreadCardStatus(projectId: string) {
 }
 
 /** 论文详情（+ 全文回退 intro / 页码） */
-export function usePaperDetail(id: string) {
+export function usePaperDetail(id: string, source?: "remote_knowledge_base") {
   return useQuery({
-    queryKey: ["api", "paper", id],
+    queryKey: ["api", "paper", id, source ?? "default"],
     queryFn: async () => {
       // 详情与全文并行拉取；远程失败时保留真实错误，不伪装成本地论文。
       const [json, fulltext] = await Promise.all([
-        apiGet<any>(`/api/papers/${id}`),
+        apiGet<any>(`/api/papers/${id}${source ? "?source=remote_knowledge_base" : ""}`),
         apiGet<{ chunks?: { page: number; text: string }[]; has_fulltext?: boolean }>(
-          `/api/papers/${id}/fulltext`,
+          `/api/papers/${id}/fulltext${source ? "?source=remote_knowledge_base" : ""}`,
         ).catch(() => null),
       ]);
       return toPaperDetail(json.data, id, fulltext?.data ?? null);

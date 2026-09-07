@@ -12,7 +12,7 @@ import { copyText, toast } from "@/stores/toast";
 import { cn } from "@/lib/utils";
 
 /** 阅读器顶栏 —— Paper / AI Blog 切换 + 标题 + 操作 */
-export function PaperTopbar({ paperId, title, likes, pdfUrl }: { paperId: string; title: string; likes: number; pdfUrl?: string | null }) {
+export function PaperTopbar({ paperId, title, likes, pdfUrl, source }: { paperId: string; title: string; likes: number; pdfUrl?: string | null; source?: string }) {
   const liked = useUserPreferences((s) => !!s.likedPapers[paperId]);
   const bookmarked = useUserPreferences((s) => !!s.bookmarkedPapers[paperId]);
   const toggleLike = useUserPreferences((s) => s.toggleLike);
@@ -73,7 +73,7 @@ export function PaperTopbar({ paperId, title, likes, pdfUrl }: { paperId: string
           aria-label="下载"
           disabled={!pdfUrl}
           title={pdfUrl ? "下载 PDF" : "暂无 PDF"}
-          onClick={() => { if (pdfUrl) window.location.href = `/api/papers/${encodeURIComponent(paperId)}/pdf`; }}
+          onClick={() => { if (pdfUrl) window.location.href = `/api/papers/${encodeURIComponent(paperId)}/pdf${source === "remote_knowledge_base" ? "?source=remote_knowledge_base" : ""}`; }}
           className={cn("rounded-lg p-2", pdfUrl ? "cursor-pointer hover:bg-chip" : "cursor-not-allowed text-faint")}
         >
           <Download className="size-4" />

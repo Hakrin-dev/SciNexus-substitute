@@ -17,12 +17,33 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const requestedSource = new URL(req.url).searchParams.get("source");
+  const preferRemote = requestedSource === "remote_knowledge_base";
   try {
-    // 首页 Feed 当前由本地论文库提供；本地已有记录时优先展示，
-    // 避免远程知识底座不可用把本地可读论文错误地变成 502。
     ensureSeed();
     const db = getDB();
     const localRow = db.prepare("SELECT * FROM papers WHERE id = ?").get(id) as any;
+    // A remote search result must remain remote through the reader. Otherwise a
+    // colliding local ID can silently show a different paper to the user.
+    if (preferRemote && shouldUseRemoteKnowledgeBase()) {
+      try {
+        const remote = toFrontendKnowledgePaper(await getKnowledgePaper(id));
+        return ok({
+          ...remote,
+          authors: remote.author_list,
+          fallbackUsed: false,
+          hasFulltext: false,
+          page: { current: 1, total: 1 },
+          toc: [{ id: "abstract", label: "摘要 Abstract", active: true }],
+          introduction: remote.abstract,
+        });
+      } catch (error) {
+        if (!shouldFallbackToLocal()) {
+          return fail(error instanceof Error ? error.message : "知识底座暂不可用", 502);
+        }
+        recordKnowledgeFallback();
+      }
+    }
     if (localRow) {
       return ok({
         id: localRow.id,

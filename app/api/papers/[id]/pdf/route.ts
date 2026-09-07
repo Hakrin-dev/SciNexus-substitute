@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getKnowledgePaper } from "@/lib/server/knowledge-base";
+import { getKnowledgePaper, KnowledgeBaseError, shouldUseRemoteKnowledgeBase } from "@/lib/server/knowledge-base";
 import { ensureSeed } from "@/lib/server/utils";
 import { getDB } from "@/lib/server/db";
+import { fetchSafePdf } from "@/lib/server/pdf-proxy";
 
 export const runtime = "nodejs";
 
@@ -14,45 +15,28 @@ export async function GET(
   try {
     ensureSeed();
     const local = getDB().prepare("SELECT title, pdf_url FROM papers WHERE id = ?").get(id) as { title?: string; pdf_url?: string | null } | undefined;
-    const remote = local ? null : await getKnowledgePaper(id);
-    const title = local?.title || remote?.title || id;
-    const sourceUrl = local?.pdf_url || remote?.pdfUrl;
+    const preferRemote = new URL(req.url).searchParams.get("source") === "remote_knowledge_base";
+    const remote = (preferRemote || (!local && shouldUseRemoteKnowledgeBase())) ? await getKnowledgePaper(id) : null;
+    const title = preferRemote ? remote?.title || id : local?.title || remote?.title || id;
+    const sourceUrl = preferRemote ? remote?.pdfUrl : local?.pdf_url || remote?.pdfUrl;
     if (!sourceUrl) {
       return NextResponse.json({ success: false, error: "该论文暂无可下载 PDF" }, { status: 404 });
     }
 
-    let pdfUrl: URL;
-    try {
-      pdfUrl = new URL(sourceUrl);
-    } catch {
-      return NextResponse.json({ success: false, error: "论文 PDF 地址无效" }, { status: 502 });
-    }
-    if (!["http:", "https:"].includes(pdfUrl.protocol)) {
-      return NextResponse.json({ success: false, error: "论文 PDF 地址协议不受支持" }, { status: 502 });
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30_000);
-    let response: Response;
-    try {
-      response = await fetch(pdfUrl, { signal: controller.signal, cache: "no-store" });
-    } finally {
-      clearTimeout(timer);
-    }
-    if (!response.ok || !response.body) {
-      return NextResponse.json({ success: false, error: "论文 PDF 暂不可用" }, { status: 502 });
-    }
+    const response = await fetchSafePdf(sourceUrl);
 
     const safeName = title.replace(/[\\/:*?"<>|\r\n]+/g, "_").slice(0, 120);
     const inline = new URL(req.url).searchParams.get("inline") === "1";
     return new NextResponse(response.body, {
       headers: {
-        "Content-Type": response.headers.get("content-type")?.includes("pdf") ? "application/pdf" : "application/octet-stream",
+        "Content-Type": "application/pdf",
         "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(`${safeName}.pdf`)}`,
         "Cache-Control": "private, no-store",
       },
     });
-  } catch {
-    return NextResponse.json({ success: false, error: "论文 PDF 暂不可用" }, { status: 502 });
+  } catch (error) {
+    const status = error instanceof KnowledgeBaseError ? error.status ?? 502 : 502;
+    const message = error instanceof KnowledgeBaseError ? error.message : "论文 PDF 暂不可用";
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

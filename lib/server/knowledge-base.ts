@@ -180,7 +180,7 @@ export function shouldUseRemoteKnowledgeBase(): boolean {
 
 export function shouldFallbackToLocal(): boolean {
   return !["0", "false", "no", "off"].includes(
-    (process.env.RETRIEVAL_FALLBACK_LOCAL || "true").toLowerCase(),
+    (process.env.RETRIEVAL_FALLBACK_LOCAL || "false").toLowerCase(),
   );
 }
 

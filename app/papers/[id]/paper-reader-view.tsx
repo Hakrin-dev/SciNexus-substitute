@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { PaperTopbar } from "@/components/features/paper/paper-topbar";
 import { PaperLeftSidebar } from "@/components/features/paper/paper-left-sidebar";
 import { PaperRightPanel } from "@/components/features/paper/right-panel";
@@ -15,7 +16,9 @@ import { useRecentViews } from "@/stores/recent-views";
  * 由同目录 server 壳 page.tsx 提供 id 与元信息。
  */
 export function PaperReaderView({ id }: { id: string }) {
-  const { data: paper, isLoading, isError, error } = usePaperDetail(id);
+  const searchParams = useSearchParams();
+  const source = searchParams.get("source") === "remote_knowledge_base" ? "remote_knowledge_base" : undefined;
+  const { data: paper, isLoading, isError, error } = usePaperDetail(id, source);
   const record = useRecentViews((s) => s.record);
 
   // 浏览记录埋点(本地持久化)
@@ -43,7 +46,7 @@ export function PaperReaderView({ id }: { id: string }) {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      <PaperTopbar paperId={paper.id} title={paper.title} likes={paper.likes} pdfUrl={paper.pdfUrl} />
+      <PaperTopbar paperId={paper.id} title={paper.title} likes={paper.likes} pdfUrl={paper.pdfUrl} source={paper.source} />
 
       <div className="flex min-h-0 flex-1">
         <PaperLeftSidebar
@@ -57,7 +60,7 @@ export function PaperReaderView({ id }: { id: string }) {
           {paper.readingState === "pdf" ? (
             <div className="h-full min-h-[calc(100vh-6rem)] overflow-hidden rounded-2xl bg-card shadow-card">
               <iframe
-                src={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1`}
+                src={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1${paper.source === "remote_knowledge_base" ? "&source=remote_knowledge_base" : ""}`}
                 title={`${paper.title} PDF`}
                 className="h-full min-h-[calc(100vh-6rem)] w-full border-0"
               />
@@ -81,7 +84,7 @@ export function PaperReaderView({ id }: { id: string }) {
               <Link href={`/papers/${encodeURIComponent(paper.id)}/graph`} className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">
                 查看引用图谱
               </Link>
-              {paper.pdfUrl && <a href={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1`} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">在新窗口打开 PDF</a>}
+              {paper.pdfUrl && <a href={`/api/papers/${encodeURIComponent(paper.id)}/pdf?inline=1${paper.source === "remote_knowledge_base" ? "&source=remote_knowledge_base" : ""}`} target="_blank" rel="noreferrer" className="rounded-full bg-chip px-2.5 py-1 text-ink-2 hover:text-primary">在新窗口打开 PDF</a>}
             </div>
 
             <hr className="mx-auto mt-6 w-16 border-line" />

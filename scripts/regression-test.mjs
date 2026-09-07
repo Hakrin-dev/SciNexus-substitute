@@ -8,6 +8,7 @@ import {
   normalizeKnowledgePaper,
   toFrontendKnowledgePaper,
 } from "../lib/server/knowledge-base.ts";
+import { isPrivatePdfAddress } from "../lib/pdf-safety.ts";
 
 test("Next authentication uses the fixed fallback when production AUTH_SECRET is missing", () => {
   assert.equal(
@@ -112,6 +113,15 @@ test("knowledge contract preserves unknown citation and reference counts as null
 
   assert.equal(paper.citationCount, null);
   assert.equal(paper.referenceCount, null);
+});
+
+test("PDF proxy rejects loopback and private network targets", () => {
+  assert.equal(isPrivatePdfAddress("127.0.0.1"), true);
+  assert.equal(isPrivatePdfAddress("10.0.0.8"), true);
+  assert.equal(isPrivatePdfAddress("172.20.0.1"), true);
+  assert.equal(isPrivatePdfAddress("192.168.1.20"), true);
+  assert.equal(isPrivatePdfAddress("::1"), true);
+  assert.equal(isPrivatePdfAddress("8.8.8.8"), false);
 });
 
 test("remote search cards retain source data and never render NaN likes", () => {

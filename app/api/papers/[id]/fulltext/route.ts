@@ -16,11 +16,11 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  // 首页本地论文优先走本地数据，不因远程知识底座健康状态影响阅读。
+  const preferRemote = new URL(req.url).searchParams.get("source") === "remote_knowledge_base";
   ensureSeed();
   const db = getDB();
   const localRow = db.prepare("SELECT * FROM papers WHERE id = ?").get(id) as any;
-  if (localRow) {
+  if (localRow && !preferRemote) {
     return NextResponse.json({
       success: true,
       data: { paper_id: id, has_pdf: Boolean(localRow.pdf_url), has_fulltext: false, source: "local_metadata_only", pdf_url: localRow.pdf_url || null, chunks: [] },
@@ -49,22 +49,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
 
-  const row = db.prepare("SELECT * FROM papers WHERE id = ?").get(id) as any;
-  if (!row) return fail("论文未找到", 404);
-
-  const abstract = (row.abstract || "").trim();
-  const chunks = abstract
-    ? [{ chunk_id: `${id}-p1-c1`, page: 1, text: abstract }]
-    : [];
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      paper_id: id,
-      has_pdf: false,
-      has_fulltext: false,
-      source: "abstract_fallback",
-      chunks,
-    },
-  });
+  if (localRow) {
+    return NextResponse.json({
+      success: true,
+      data: { paper_id: id, has_pdf: Boolean(localRow.pdf_url), has_fulltext: false, source: "local_metadata_only", pdf_url: localRow.pdf_url || null, chunks: [] },
+    });
+  }
+  return fail("论文未找到", 404);
 }

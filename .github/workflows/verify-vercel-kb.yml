@@ -47,7 +47,7 @@ jobs:
               -H "Content-Type: application/json" \
               -d '{"query":"graph neural network","top_k":3,"year_gte":2022,"year_lte":2026,"conference":[],"author":[],"keyword":[],"subject":[]}')
             echo "$SRCH" | head -c 600
-            PAPER_ID=$(echo "$SRCH" | jq -r '(.data.results // .results // [])[0].paper_id // ""' 2>/dev/null)
+            PAPER_ID=$(echo "$SRCH" | jq -r '(.data.results // .results // [])[0] | .paper_id // .paperId // ""' 2>/dev/null)
             echo ""
             echo '```'
             echo ""
@@ -76,7 +76,20 @@ jobs:
             echo '```'
             echo ""
 
-            echo "## 6. 首页"
+            echo "## 6. /api/papers/{paperId}/pdf (服务端 PDF 代理)"
+            echo '```'
+            if [ -n "$PAPER_ID" ]; then
+              ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$PAPER_ID")
+              curl -s -m 90 -o /dev/null -w "HTTP %{http_code}, Content-Type: %{content_type}, 大小: %{size_download} bytes" \
+                "$BASE/api/papers/$ENC/pdf?source=remote_knowledge_base" || echo "CURL_FAILED"
+            else
+              echo "NO_PAPER_ID_FROM_SEARCH"
+            fi
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 7. 首页"
             echo '```'
             curl -s -m 60 -o /dev/null -w "HTTP %{http_code}, 总耗时 %{time_total}s" "$BASE/" || echo "CURL_FAILED"
             echo ""

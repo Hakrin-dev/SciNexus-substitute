@@ -37,22 +37,7 @@ jobs:
             echo "## 2. /api/v1/knowledge/discover (随机论文)"
             echo '```json'
             DISC=$(curl -s -m 60 "$BASE/api/v1/knowledge/discover")
-            echo "$DISC" | python3 -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    meta=d.get('data',{}).get('meta',{})
-    results=d.get('data',{}).get('results',[])
-    print('success:',d.get('success'))
-    print('meta:',json.dumps(meta,ensure_ascii=False))
-    print('results_count:',len(results))
-    if results:
-        p=results[0]
-        print('first_paper:',json.dumps({k:p.get(k) for k in ('id','paper_id','title','conference','year')},ensure_ascii=False)[:300])
-        print('first_pdfUrl:',str(p.get('pdfUrl') or p.get('pdf_url'))[:150])
-except Exception as e:
-    print('PARSE_FAILED:',e)
-" || echo "CURL_FAILED"
+            echo "$DISC" | jq '{success: .success, meta: .data.meta, results_count: (.data.results | length), first_paper: (.data.results[0] | {id, paper_id, title, conference, year, pdfUrl})}' || echo "$DISC" | head -c 600
             echo '```'
             echo ""
 
@@ -62,15 +47,7 @@ except Exception as e:
               -H "Content-Type: application/json" \
               -d '{"query":"graph neural network","top_k":3,"year_gte":2022,"year_lte":2026,"conference":[],"author":[],"keyword":[],"subject":[]}')
             echo "$SRCH" | head -c 600
-            PAPER_ID=$(echo "$SRCH" | python3 -c "
-import sys,json
-try:
-    d=json.load(sys.stdin)
-    rs=d.get('data',{}).get('results',[]) or d.get('results',[])
-    print(rs[0].get('paper_id','') if rs else '')
-except Exception:
-    print('')
-" 2>/dev/null)
+            PAPER_ID=$(echo "$SRCH" | jq -r '(.data.results // .results // [])[0].paper_id // ""' 2>/dev/null)
             echo ""
             echo '```'
             echo ""
@@ -78,7 +55,7 @@ except Exception:
             echo "## 4. /api/v1/knowledge/paper (详情, paperId 取自搜索结果)"
             echo '```json'
             if [ -n "$PAPER_ID" ]; then
-              ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote('$PAPER_ID',safe=''))")
+              ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$PAPER_ID")
               curl -s -m 60 "$BASE/api/v1/knowledge/paper?paperId=$ENC" | head -c 500
             else
               echo "NO_PAPER_ID_FROM_SEARCH"
@@ -90,7 +67,7 @@ except Exception:
             echo "## 5. /api/v1/knowledge/graph (引用图谱, depth=1)"
             echo '```json'
             if [ -n "$PAPER_ID" ]; then
-              ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote('$PAPER_ID',safe=''))")
+              ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$PAPER_ID")
               curl -s -m 60 "$BASE/api/v1/knowledge/graph?paperId=$ENC&depth=1" | head -c 400
             else
               echo "NO_PAPER_ID_FROM_SEARCH"

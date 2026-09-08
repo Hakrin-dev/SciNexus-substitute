@@ -1,0 +1,116 @@
+name: verify-vercel-kb
+
+# 临时冒烟验证工作流(境外 Runner 访问 vercel.app):
+# 验证知识底座环境变量配置后的完整链路;结果写回 verify-results.md。
+# 验证完成后应删除本文件及 verify-results.md。
+on:
+  push:
+    paths:
+      - .github/workflows/verify-vercel-kb.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Smoke test knowledge base on Vercel
+        run: |
+          BASE="https://scinexus-five.vercel.app"
+          {
+            echo "# Vercel 知识底座冒烟验证结果"
+            echo ""
+            echo "- 时间(UTC): $(date -u)"
+            echo ""
+
+            echo "## 1. /api/knowledge/health"
+            echo '```json'
+            curl -s -m 60 "$BASE/api/knowledge/health" || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 2. /api/v1/knowledge/discover (随机论文)"
+            echo '```json'
+            DISC=$(curl -s -m 60 "$BASE/api/v1/knowledge/discover")
+            echo "$DISC" | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    meta=d.get('data',{}).get('meta',{})
+    results=d.get('data',{}).get('results',[])
+    print('success:',d.get('success'))
+    print('meta:',json.dumps(meta,ensure_ascii=False))
+    print('results_count:',len(results))
+    if results:
+        p=results[0]
+        print('first_paper:',json.dumps({k:p.get(k) for k in ('id','paper_id','title','conference','year')},ensure_ascii=False)[:300])
+        print('first_pdfUrl:',str(p.get('pdfUrl') or p.get('pdf_url'))[:150])
+except Exception as e:
+    print('PARSE_FAILED:',e)
+" || echo "CURL_FAILED"
+            echo '```'
+            echo ""
+
+            echo "## 3. /api/v1/knowledge/search (graph neural network, top_k=3)"
+            echo '```json'
+            SRCH=$(curl -s -m 60 -X POST "$BASE/api/v1/knowledge/search" \
+              -H "Content-Type: application/json" \
+              -d '{"query":"graph neural network","top_k":3,"year_gte":2022,"year_lte":2026,"conference":[],"author":[],"keyword":[],"subject":[]}')
+            echo "$SRCH" | head -c 600
+            PAPER_ID=$(echo "$SRCH" | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    rs=d.get('data',{}).get('results',[]) or d.get('results',[])
+    print(rs[0].get('paper_id','') if rs else '')
+except Exception:
+    print('')
+" 2>/dev/null)
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 4. /api/v1/knowledge/paper (详情, paperId 取自搜索结果)"
+            echo '```json'
+            if [ -n "$PAPER_ID" ]; then
+              ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote('$PAPER_ID',safe=''))")
+              curl -s -m 60 "$BASE/api/v1/knowledge/paper?paperId=$ENC" | head -c 500
+            else
+              echo "NO_PAPER_ID_FROM_SEARCH"
+            fi
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 5. /api/v1/knowledge/graph (引用图谱, depth=1)"
+            echo '```json'
+            if [ -n "$PAPER_ID" ]; then
+              ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote('$PAPER_ID',safe=''))")
+              curl -s -m 60 "$BASE/api/v1/knowledge/graph?paperId=$ENC&depth=1" | head -c 400
+            else
+              echo "NO_PAPER_ID_FROM_SEARCH"
+            fi
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 6. 首页"
+            echo '```'
+            curl -s -m 60 -o /dev/null -w "HTTP %{http_code}, 总耗时 %{time_total}s" "$BASE/" || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+          } > verify-results.md
+          cat verify-results.md
+
+      - name: Commit results back
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add verify-results.md
+          git commit -m "ci: vercel 知识底座冒烟验证结果(临时,验证后删除)" || echo "no changes"
+          git push

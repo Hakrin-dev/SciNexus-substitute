@@ -2,7 +2,7 @@ name: verify-vercel-kb
 
 # 临时冒烟验证工作流(境外 Runner 访问 vercel.app):
 # 验证知识底座环境变量配置后的完整链路;结果写回 verify-results.md。
-# 验证完成后应删除本文件及 verify-results.md。
+# 验证完成后应删除本文件及 verify-results.md。(trigger 2)
 on:
   push:
     paths:

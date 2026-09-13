@@ -102,10 +102,12 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
     }
   };
 
-  /** 免密/第三方登录:后端未支持,演示态进入(优先尝试真实演示账号拿 token) */
+  /** 免密/第三方登录:后端未支持,仅使用真实演示账号登录 */
   const handleDemo = async () => {
-    await demoLogin();
-    onClose();
+    setLoginError(undefined);
+    const ok = await demoLogin();
+    if (ok) onClose();
+    else setLoginError("演示登录失败，请确认后端服务已启动");
   };
 
   if (!open) return null;

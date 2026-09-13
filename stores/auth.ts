@@ -33,8 +33,9 @@ interface AuthState {
   logout: () => void;
   /** 拉取当前用户（页面初始化调用） */
   restore: () => Promise<void>;
-  /** 演示登录（优先真实接口,失败退回纯前端演示态） */
-  demoLogin: () => Promise<void>;
+  /** 演示登录（仅在真实接口成功时建立可访问后端的登录态） */
+  /** 演示登录（仅在真实接口成功时建立可访问后端的登录态） */
+  demoLogin: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
@@ -113,19 +114,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  /** 演示登录:优先走真实接口拿 token(后续 requireAuth 接口可用),后端不可用时退回纯前端演示态 */
+  /** 演示登录:优先走真实接口拿 token，后端不可用时不建立登录态 */
   demoLogin: async () => {
     const result = await get().login("hankairun", "yanshu123");
-    if (result.ok) return;
-    set({
-      user: {
-        id: "user_demo",
-        username: "hankairun",
-        email: null,
-        display_name: "韩凯润",
-        avatar_color: "#5046E5",
-      },
-      userName: "韩凯润",
-    });
+    return result.ok;
   },
 }));

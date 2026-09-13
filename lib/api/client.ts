@@ -14,12 +14,17 @@ export const API_BASE =
     ? window.__API_BASE__ || process.env.NEXT_PUBLIC_API_URL
     : process.env.NEXT_PUBLIC_API_URL) || "";
 
+const TOKEN_KEY = "yanshu_token";
+
 export function getToken(): string | null {
-  return null;
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token: string | null) {
-  void token;
+  if (typeof window === "undefined") return;
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
 }
 
 export interface ApiResp<T = unknown> {
@@ -48,6 +53,11 @@ export interface ApiUser {
   avatar_color: string;
 }
 
+interface AuthResponse {
+  token?: string;
+  user: ApiUser;
+}
+
 class ApiError extends Error {
   status: number;
   code?: string;
@@ -74,6 +84,10 @@ async function request<T = unknown>(
   };
   if (options?.body && !(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
+  }
+  const token = getToken();
+  if (!options?.skipAuth && token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   let fullUrl = API_BASE + url;
@@ -124,7 +138,7 @@ export const client = {
   // ---------- 认证 ----------
   auth: {
     login: (username: string, password: string) =>
-      request<{ user: ApiUser }>("POST", "/api/auth/login", {
+      request<AuthResponse>("POST", "/api/auth/login", {
         body: { username, password },
         skipAuth: true,
       }),
@@ -134,7 +148,7 @@ export const client = {
       email?: string;
       displayName?: string;
     }) =>
-      request<{ user: ApiUser }>("POST", "/api/auth/register", {
+      request<AuthResponse>("POST", "/api/auth/register", {
         body: params,
         skipAuth: true,
       }),

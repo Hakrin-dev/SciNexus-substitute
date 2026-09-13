@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     if ("error" in result) {
       return fail(result.error);
     }
-    const response = ok({ user: result.user });
+    const response = ok({ token: result.token, user: result.user });
     response.cookies.set("yanshu_session", result.token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 7 * 24 * 60 * 60 });
     return response;
   } catch (error: unknown) {

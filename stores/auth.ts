@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import client, { apiPost } from "@/lib/api/client";
+import client, { apiPost, getToken, setToken } from "@/lib/api/client";
 
 export interface AuthUser {
   id: string;
@@ -34,7 +34,6 @@ interface AuthState {
   /** 拉取当前用户（页面初始化调用） */
   restore: () => Promise<void>;
   /** 演示登录（仅在真实接口成功时建立可访问后端的登录态） */
-  /** 演示登录（仅在真实接口成功时建立可访问后端的登录态） */
   demoLogin: () => Promise<boolean>;
 }
 
@@ -49,9 +48,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.login(username, password);
       if (!resp.success) return { ok: false, error: resp.error || "登录失败" };
+      setToken(typeof resp.data?.token === "string" ? resp.data.token : null);
       const user = resp.data!.user as AuthUser;
       set({
-        token: "cookie",
+        token: getToken() || "cookie",
         user,
         userName: user.display_name || user.username,
         loading: false,
@@ -68,9 +68,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.register(params);
       if (!resp.success) return { ok: false, error: resp.error || "注册失败" };
+      setToken(typeof resp.data?.token === "string" ? resp.data.token : null);
       const user = resp.data!.user as AuthUser;
       set({
-        token: "cookie",
+        token: getToken() || "cookie",
         user,
         userName: user.display_name || user.username,
         loading: false,
@@ -83,6 +84,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   logout: () => {
+    setToken(null);
     set({ token: null, user: null, userName: null });
     void apiPost("/api/auth/logout", {}).catch(() => undefined);
   },
@@ -94,7 +96,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       if (resp.success && resp.data) {
         const user = resp.data as AuthUser;
         set({
-          token: "cookie",
+          token: getToken() || "cookie",
           user,
           userName: user.display_name || user.username,
           loading: false,

@@ -8,8 +8,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { hashPassword } from "./password";
 
-// Vercel Serverless 的函数包只读(仅 /tmp 可写),首次访问时把随包 DB 拷到 /tmp 再打开,
-// 写操作在实例生命周期内有效(冷启动后回滚,演示场景可接受)。
+// 生产容器通过 SCINEXUS_DB_PATH 挂载持久卷；AUTH_DB_PATH 作为通用兼容名。
+// 未配置时，非 Serverless 使用仓库 data 目录，Vercel 使用 /tmp（仅适合演示）。
 const IS_SERVERLESS = !!process.env.VERCEL;
 
 // 数据库文件存放位置:<cwd>/data/yanshu.db
@@ -17,10 +17,18 @@ const IS_SERVERLESS = !!process.env.VERCEL;
 // 避免打包后 __dirname 指向 .next 深层目录导致路径漂移到项目外。
 const DATA_DIR = path.resolve(process.cwd(), "data");
 const BUNDLED_DB_PATH = path.join(DATA_DIR, "yanshu.db");
-const DB_PATH = IS_SERVERLESS ? "/tmp/yanshu.db" : BUNDLED_DB_PATH;
+const CONFIGURED_DB_PATH = process.env.SCINEXUS_DB_PATH?.trim() || process.env.AUTH_DB_PATH?.trim();
+const DB_PATH = CONFIGURED_DB_PATH
+  ? path.resolve(CONFIGURED_DB_PATH)
+  : IS_SERVERLESS
+    ? "/tmp/yanshu.db"
+    : BUNDLED_DB_PATH;
 
-if (!IS_SERVERLESS && !fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!IS_SERVERLESS || CONFIGURED_DB_PATH) {
+  const dbDirectory = path.dirname(DB_PATH);
+  if (!fs.existsSync(dbDirectory)) {
+    fs.mkdirSync(dbDirectory, { recursive: true });
+  }
 }
 
 let dbInstance: Database.Database | null = null;

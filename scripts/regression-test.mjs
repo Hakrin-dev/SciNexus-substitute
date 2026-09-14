@@ -9,12 +9,35 @@ import {
   toFrontendKnowledgePaper,
 } from "../lib/server/knowledge-base.ts";
 import { isPrivatePdfAddress } from "../lib/pdf-safety.ts";
+import { getPublicAppUrl } from "../lib/server/app-url.ts";
 
 test("Next authentication rejects a missing production AUTH_SECRET", () => {
   assert.throws(
     () => getAuthSecret({ NODE_ENV: "production" }),
     /生产环境必须配置 AUTH_SECRET/,
   );
+});
+
+test("password reset app URL rejects insecure production configuration", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalAppUrl = process.env.APP_URL;
+  const originalPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.APP_URL = "http://localhost:3000";
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    assert.throws(() => getPublicAppUrl(), /APP_URL_INSECURE/);
+
+    process.env.APP_URL = "https://scinexus.example.com";
+    assert.equal(getPublicAppUrl(), "https://scinexus.example.com");
+  } finally {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalAppUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = originalAppUrl;
+    if (originalPublicAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = originalPublicAppUrl;
+  }
 });
 
 const pythonProbe = spawnSync("python", ["--version"], { encoding: "utf8" });

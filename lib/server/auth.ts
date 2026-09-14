@@ -9,6 +9,7 @@ import { getDB } from "./db";
 import { getAuthSecret } from "./auth-secret";
 import { hashPassword, verifyPassword, genId } from "./utils";
 import { passwordHashNeedsUpgrade } from "./password";
+import { decodeCookieValue } from "./cookie";
 
 export interface User {
   id: string;
@@ -70,7 +71,9 @@ export function extractToken(req: Request): string | null {
   }
   const cookie = req.headers.get("cookie") || "";
   const encoded = cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("yanshu_session="))?.slice("yanshu_session=".length);
-  return encoded ? decodeURIComponent(encoded) : null;
+  if (!encoded) return null;
+  // 损坏的 Cookie 应按未登录处理，不能把请求升级为 500。
+  return decodeCookieValue(encoded);
 }
 
 function toUser(row: UserRow): User {

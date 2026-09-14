@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { normalizeVenues, toFeedPaper, toPaperDetail } from "../lib/api/adapters.ts";
 import { getAuthSecret } from "../lib/server/auth-secret.ts";
+import { decodeCookieValue } from "../lib/server/cookie.ts";
 import {
   normalizeKnowledgeGraph,
   normalizeKnowledgePaper,
@@ -16,6 +17,11 @@ test("Next authentication rejects a missing production AUTH_SECRET", () => {
     () => getAuthSecret({ NODE_ENV: "production" }),
     /生产环境必须配置 AUTH_SECRET/,
   );
+});
+
+test("malformed session cookies are treated as anonymous requests", () => {
+  assert.equal(decodeCookieValue("%ZZ"), null);
+  assert.equal(decodeCookieValue("valid%20cookie"), "valid cookie");
 });
 
 test("password reset app URL rejects insecure production configuration", () => {

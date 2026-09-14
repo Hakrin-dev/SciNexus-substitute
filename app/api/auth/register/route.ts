@@ -15,6 +15,7 @@ import {
   validatePasswordPolicy,
   PASSWORD_POLICY_MESSAGE,
 } from "@/lib/server/password-policy";
+import { decodeCookieValue } from "@/lib/server/cookie";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,8 @@ function extractTicket(req: NextRequest): string | null {
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${REGISTRATION_TICKET_COOKIE}=`))
     ?.slice(REGISTRATION_TICKET_COOKIE.length + 1);
-  return encoded ? decodeURIComponent(encoded) : null;
+  if (!encoded) return null;
+  return decodeCookieValue(encoded);
 }
 
 export async function POST(req: NextRequest) {

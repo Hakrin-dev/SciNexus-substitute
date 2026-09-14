@@ -6,7 +6,15 @@ export function clientAddress(req: Request): string {
 }
 
 export function allowRequest(req: Request, bucket: string, limit: number, windowMs: number): boolean {
-  const key = createHash("sha256").update(`${bucket}:${clientAddress(req)}`).digest("hex");
+  return allowRateLimitKey(`${bucket}:${clientAddress(req)}`, limit, windowMs);
+}
+
+/**
+ * 按业务身份限流。调用方必须先做规范化（例如邮箱转小写），避免同一
+ * 账号通过大小写或空白绕过失败计数。
+ */
+export function allowRateLimitKey(identity: string, limit: number, windowMs: number): boolean {
+  const key = createHash("sha256").update(identity).digest("hex");
   const now = Date.now();
   const db = getDB();
   return db.transaction(() => {
@@ -19,4 +27,10 @@ export function allowRequest(req: Request, bucket: string, limit: number, window
     db.prepare("UPDATE rate_limits SET count=count+1 WHERE key=?").run(key);
     return true;
   })();
+}
+
+/** 清除一个业务限流键，例如登录成功后清除账号失败计数。 */
+export function clearRateLimitKey(identity: string): void {
+  const key = createHash("sha256").update(identity).digest("hex");
+  getDB().prepare("DELETE FROM rate_limits WHERE key=?").run(key);
 }

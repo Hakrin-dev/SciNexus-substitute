@@ -22,7 +22,7 @@ import { Turnstile, isTurnstileConfigured } from "@/components/auth/turnstile";
  * 登录弹窗
  * - 账密登录：真实接口 /api/auth/login
  * - 免密登录：邮箱验证码登录（真实接口）
- * - 第三方登录：后端未支持，保留为演示入口(demoLogin)
+ * - 第三方登录：后端尚未接入，明确标记为未开放，避免伪装成真实登录
  * - 注册：三段式（邮箱 → 验证码 → 凭证），走真实后端
  */
 
@@ -143,7 +143,6 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
   const verifyRegisterOtp = useAuthStore((s) => s.verifyRegisterOtp);
   const sendLoginOtp = useAuthStore((s) => s.sendLoginOtp);
   const verifyLoginOtp = useAuthStore((s) => s.verifyLoginOtp);
-  const demoLogin = useAuthStore((s) => s.demoLogin);
   const loading = useAuthStore((s) => s.loading);
 
   // 账密登录表单
@@ -426,14 +425,6 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
     }
   };
 
-  /** 第三方登录（演示） */
-  const handleDemo = async () => {
-    setLoginError(undefined);
-    const ok = await demoLogin();
-    if (ok) onClose();
-    else setLoginError("演示登录失败，请确认后端服务已启动");
-  };
-
   if (!open) return null;
 
   return (
@@ -564,8 +555,9 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
               <Button
                 variant="outline"
                 type="button"
-                onClick={handleDemo}
+                disabled
                 className="w-full"
+                title="GitHub 登录尚未开放"
               >
                 <Image
                   src={githubLogo}
@@ -574,13 +566,14 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
                   height={16}
                   className="size-4 rounded-full"
                 />
-                GitHub 登录
+                GitHub 登录（暂未开放）
               </Button>
               <Button
                 variant="outline"
                 type="button"
-                onClick={handleDemo}
+                disabled
                 className="w-full"
+                title="Google 登录尚未开放"
               >
                 <Image
                   src={googleLogo}
@@ -589,7 +582,7 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
                   height={16}
                   className="size-4"
                 />
-                Google 登录
+                Google 登录（暂未开放）
               </Button>
             </div>
           </TabsContent>

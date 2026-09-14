@@ -97,7 +97,12 @@ class AlibabaDirectMailProvider implements EmailProvider {
       ...(fromAlias ? { FromAlias: fromAlias } : {}),
     });
 
-    await client.singleSendMail(request);
+    try {
+      await client.singleSendMail(request);
+    } catch {
+      // SDK 的错误对象可能包含请求参数或服务端响应，不能直接返回给客户端。
+      throw new Error("EMAIL_SEND_FAILED");
+    }
   }
 }
 
@@ -135,4 +140,30 @@ export function isEmailRequired(): boolean {
  */
 export function isEmailDeliveryRequired(): boolean {
   return process.env.NODE_ENV === "production" || isEmailRequired();
+}
+
+/** 将 Provider 的内部异常转换为稳定的公开错误，避免泄露 SDK 响应正文。 */
+export function emailProviderFailure(error: unknown): {
+  message: string;
+  status: number;
+  code: string;
+} | null {
+  if (
+    error instanceof Error &&
+    (error.message === EMAIL_PROVIDER_NOT_CONFIGURED_CODE ||
+      error.message === "EMAIL_SEND_FAILED")
+  ) {
+    return {
+      message:
+        error.message === EMAIL_PROVIDER_NOT_CONFIGURED_CODE
+          ? "邮件服务尚未配置，暂时无法发送邮件"
+          : "邮件服务暂时不可用，请稍后重试",
+      status: 503,
+      code:
+        error.message === EMAIL_PROVIDER_NOT_CONFIGURED_CODE
+          ? EMAIL_PROVIDER_NOT_CONFIGURED_CODE
+          : "EMAIL_SEND_FAILED",
+    };
+  }
+  return null;
 }

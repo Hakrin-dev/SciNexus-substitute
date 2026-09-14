@@ -16,6 +16,7 @@ import {
 } from "@/lib/server/email-otp";
 import {
   getEmailProvider,
+  emailProviderFailure,
   isEmailDeliveryConfigured,
   isEmailDeliveryRequired,
 } from "@/lib/server/email/provider";
@@ -82,11 +83,18 @@ export async function POST(req: NextRequest) {
       ).run(challengeId, email, otpHash, expiresAt);
 
       const { subject, htmlBody } = loginOtpEmail(otp);
-      await getEmailProvider().send({ to: email, subject, htmlBody });
+      try {
+        await getEmailProvider().send({ to: email, subject, htmlBody });
+      } catch (error) {
+        db.prepare("DELETE FROM registration_otps WHERE challenge_id = ?").run(challengeId);
+        throw error;
+      }
     }
 
     return ok({ challengeId });
   } catch (error: unknown) {
-    return fail(error instanceof Error ? error.message : "发送验证码失败");
+    const failure = emailProviderFailure(error);
+    if (failure) return fail(failure.message, failure.status, failure.code);
+    return fail("发送验证码失败");
   }
 }

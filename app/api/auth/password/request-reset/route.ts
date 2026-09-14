@@ -17,6 +17,7 @@ import {
 } from "@/lib/server/email-otp";
 import {
   getEmailProvider,
+  emailProviderFailure,
   isEmailDeliveryConfigured,
   isEmailDeliveryRequired,
 } from "@/lib/server/email/provider";
@@ -87,12 +88,20 @@ export async function POST(req: NextRequest) {
       // 发送重置邮件
       const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=${token}`;
       const { subject, htmlBody } = passwordResetEmail(resetUrl);
-      await getEmailProvider().send({ to: email, subject, htmlBody });
+      try {
+        await getEmailProvider().send({ to: email, subject, htmlBody });
+      } catch (error) {
+        // 邮件未发出时清理 token，避免用户拿不到链接却无法重新申请。
+        db.prepare("DELETE FROM password_reset_tokens WHERE token_hash = ?").run(tokenHash);
+        throw error;
+      }
     }
 
     // 无论是否找到用户，均返回成功（防邮箱枚举）
     return ok({ success: true });
   } catch (error: unknown) {
-    return fail(error instanceof Error ? error.message : "操作失败");
+    const failure = emailProviderFailure(error);
+    if (failure) return fail(failure.message, failure.status, failure.code);
+    return fail("操作失败");
   }
 }

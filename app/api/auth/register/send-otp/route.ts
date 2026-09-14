@@ -16,6 +16,7 @@ import {
 } from "@/lib/server/email-otp";
 import {
   getEmailProvider,
+  emailProviderFailure,
   isEmailDeliveryConfigured,
   isEmailDeliveryRequired,
 } from "@/lib/server/email/provider";
@@ -85,10 +86,18 @@ export async function POST(req: NextRequest) {
 
     // 发送邮件（开发环境未配置时会打印到控制台）
     const { subject, htmlBody } = registrationOtpEmail(otp);
-    await getEmailProvider().send({ to: email, subject, htmlBody });
+    try {
+      await getEmailProvider().send({ to: email, subject, htmlBody });
+    } catch (error) {
+      // 邮件未发出时不能留下可被后续请求继续尝试的 challenge。
+      db.prepare("DELETE FROM registration_otps WHERE challenge_id = ?").run(challengeId);
+      throw error;
+    }
 
     return ok({ challengeId });
   } catch (error: unknown) {
-    return fail(error instanceof Error ? error.message : "发送验证码失败");
+    const failure = emailProviderFailure(error);
+    if (failure) return fail(failure.message, failure.status, failure.code);
+    return fail("发送验证码失败");
   }
 }

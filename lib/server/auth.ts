@@ -140,9 +140,10 @@ export function loginWithEmail(email: string): AuthResult | null {
 /** 登录 */
 export function login(username: string, password: string): AuthResult | null {
   const db = getDB();
+  const account = username.trim().toLowerCase();
   const row = db
     .prepare("SELECT * FROM users WHERE username = ? OR email = ?")
-    .get(username, username) as UserRow | undefined;
+    .get(account, account) as UserRow | undefined;
   if (!row) return null;
   if (!verifyPassword(password, row.password_hash)) return null;
   if (passwordHashNeedsUpgrade(row.password_hash)) {

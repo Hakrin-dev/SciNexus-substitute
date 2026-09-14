@@ -82,6 +82,20 @@ async function main() {
     JSON.stringify(login).slice(0, 120),
   );
 
+  const caseInsensitiveLogin = await fetch(`${BASE}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-forwarded-for": `192.0.2.${10 + (Date.now() % 180)}`,
+    },
+    body: JSON.stringify({ username: "HANKAIRUN", password: "yanshu123" }),
+  });
+  const caseInsensitivePayload = await caseInsensitiveLogin.json();
+  check(
+    "账密登录按大小写不敏感匹配用户名",
+    caseInsensitiveLogin.status === 200 && caseInsensitivePayload?.success === true,
+  );
+
   // 6a. 账号维度防爆破：使用随机账号，避免污染真实用户。
   const lockTestAccount = `auth-lock-${Date.now()}`;
   const failedLoginStatuses = [];

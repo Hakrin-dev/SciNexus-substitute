@@ -78,6 +78,22 @@ async function main() {
     JSON.stringify(login).slice(0, 120),
   );
 
+  // 6a. 账号维度防爆破：使用随机账号，避免污染真实用户。
+  const lockTestAccount = `auth-lock-${Date.now()}`;
+  let lastFailedLogin;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    lastFailedLogin = await fetch(`${BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: lockTestAccount, password: "WrongPassword123" }),
+    });
+  }
+  check(
+    "账密登录连续失败后触发账号维度限制",
+    lastFailedLogin?.status === 429,
+    `实际 ${lastFailedLogin?.status}`,
+  );
+
   if (cookie) {
     const authHeaders = { Cookie: cookie };
 

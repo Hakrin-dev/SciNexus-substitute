@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "node scripts/smoke-test.mjs",
+    "test:auth-integration": "node scripts/auth-integration-test.mjs",
     "test:regression": "node --experimental-strip-types --test scripts/regression-test.mjs",
     "preflight:production": "node scripts/production-preflight.mjs"
   },

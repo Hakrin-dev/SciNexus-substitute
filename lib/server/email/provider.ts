@@ -1,4 +1,6 @@
 import Dm20151123, * as $Dm20151123 from "@alicloud/dm20151123";
+import fs from "node:fs";
+import path from "node:path";
 
 /**
  * 邮件 Provider 抽象
@@ -75,6 +77,29 @@ class ConsoleEmailProvider implements EmailProvider {
   }
 }
 
+/**
+ * 测试邮件 Provider：只接受显式 outbox 路径且拒绝生产环境。
+ * 用 JSONL 保留完整邮件事件，便于隔离数据库的端到端测试读取 OTP。
+ */
+class TestOutboxEmailProvider implements EmailProvider {
+  constructor(private readonly outboxPath: string) {}
+
+  async send({ to, subject, htmlBody }: SendEmailParams): Promise<void> {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(EMAIL_PROVIDER_NOT_CONFIGURED_CODE);
+    }
+    const otp = htmlBody.match(/验证码为：[\s\S]*?>(\d{6})</)?.[1]
+      ?? htmlBody.match(/验证码为：\s*(\d{6})/)?.[1];
+    const urls = Array.from(htmlBody.matchAll(/href="([^"]+)"/g), (match) => match[1]);
+    fs.mkdirSync(path.dirname(this.outboxPath), { recursive: true });
+    fs.appendFileSync(
+      this.outboxPath,
+      `${JSON.stringify({ to, subject, otp: otp ?? null, urls, createdAt: new Date().toISOString() })}\n`,
+      "utf8",
+    );
+  }
+}
+
 /** 阿里云 DirectMail Provider。 */
 class AlibabaDirectMailProvider implements EmailProvider {
   constructor(private readonly config: AlibabaDirectMailConfig) {}
@@ -108,6 +133,12 @@ class AlibabaDirectMailProvider implements EmailProvider {
 
 let cachedProvider: EmailProvider | null = null;
 
+function getTestOutboxPath(): string | undefined {
+  if (process.env.NODE_ENV === "production") return undefined;
+  const value = optionalEnv("AUTH_TEST_EMAIL_OUTBOX");
+  return value ? path.resolve(value) : undefined;
+}
+
 /**
  * 获取邮件 Provider 实例（单例）。
  * 配置完整时返回阿里云 DirectMail；否则返回控制台降级 Provider。
@@ -115,16 +146,19 @@ let cachedProvider: EmailProvider | null = null;
 export function getEmailProvider(): EmailProvider {
   if (cachedProvider) return cachedProvider;
 
+  const testOutboxPath = getTestOutboxPath();
   const dmConfig = getAlibabaDirectMailConfig();
-  cachedProvider = dmConfig
-    ? new AlibabaDirectMailProvider(dmConfig)
-    : new ConsoleEmailProvider();
+  cachedProvider = testOutboxPath
+    ? new TestOutboxEmailProvider(testOutboxPath)
+    : dmConfig
+      ? new AlibabaDirectMailProvider(dmConfig)
+      : new ConsoleEmailProvider();
   return cachedProvider;
 }
 
 /** 邮件服务是否已真正配置（非控制台降级）。 */
 export function isEmailDeliveryConfigured(): boolean {
-  return getAlibabaDirectMailConfig() !== undefined;
+  return getTestOutboxPath() !== undefined || getAlibabaDirectMailConfig() !== undefined;
 }
 
 export { EMAIL_PROVIDER_NOT_CONFIGURED_CODE };

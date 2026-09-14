@@ -99,7 +99,7 @@ function ResetPasswordContent() {
 
     setSubmitting(true);
     try {
-      const resp = await client.auth.resetPassword({ token, newPassword });
+      const resp = await client.auth.resetPassword({ token, newPassword, confirmPassword });
       if (resp.success) {
         setNewPassword("");
         setConfirmPassword("");

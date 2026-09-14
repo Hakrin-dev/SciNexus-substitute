@@ -31,12 +31,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await parseBody<{ token: string; newPassword: string }>(req);
+    const body = await parseBody<{
+      token: string;
+      newPassword: string;
+      confirmPassword?: string;
+    }>(req);
     const token = (body.token || "").trim();
     const newPassword = body.newPassword || "";
 
     if (!token) {
       return fail("重置链接无效，请重新申请", 400, "INVALID_TOKEN");
+    }
+
+    if (body.confirmPassword !== undefined && newPassword !== body.confirmPassword) {
+      return fail("两次输入的密码不一致", 422, "PASSWORD_MISMATCH");
     }
 
     // 密码策略校验

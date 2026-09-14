@@ -197,7 +197,7 @@ export const client = {
         skipAuth: true,
         headers: captchaToken ? { "x-captcha-response": captchaToken } : undefined,
       }),
-    resetPassword: (params: { token: string; newPassword: string }) =>
+    resetPassword: (params: { token: string; newPassword: string; confirmPassword: string }) =>
       request<{ success: boolean }>("POST", "/api/auth/password/reset", {
         body: params,
         skipAuth: true,

@@ -5,7 +5,7 @@
  */
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
-import { allowRequest } from "@/lib/server/rate-limit";
+import { allowRateLimitKey, allowRequest } from "@/lib/server/rate-limit";
 import { getDB } from "@/lib/server/db";
 import {
   generateChallengeId,
@@ -54,6 +54,11 @@ export async function POST(req: NextRequest) {
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return fail("邮箱格式不正确", 422, "INVALID_EMAIL");
+    }
+
+    // 对邮箱本身限流；未知邮箱同样计数，避免借此枚举或消耗邮件资源。
+    if (!allowRateLimitKey(`login-send-otp-email:${email}`, 3, 15 * 60_000)) {
+      return fail("请求过于频繁，请稍后再试", 429, "RATE_LIMITED");
     }
 
     if (!isEmailDeliveryConfigured() && isEmailDeliveryRequired()) {

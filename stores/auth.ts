@@ -61,7 +61,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
     try {
       set({ loading: true });
       const resp = await client.auth.login(username, password);
-      if (!resp.success) return { ok: false, error: resp.error || "登录失败" };
+      if (!resp.success) {
+        set({ loading: false });
+        return { ok: false, error: resp.error || "登录失败" };
+      }
       const user = resp.data!.user as AuthUser;
       set({
         token: getToken() || "cookie",
@@ -80,7 +83,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
     try {
       set({ loading: true });
       const resp = await client.auth.register(params);
-      if (!resp.success) return { ok: false, error: resp.error || "注册失败" };
+      if (!resp.success) {
+        set({ loading: false });
+        return { ok: false, error: resp.error || "注册失败" };
+      }
       const user = resp.data!.user as AuthUser;
       set({
         token: getToken() || "cookie",
@@ -129,7 +135,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
     try {
       set({ loading: true });
       const resp = await client.auth.verifyLoginOtp(params);
-      if (!resp.success) return { ok: false, error: resp.error || "验证失败" };
+      if (!resp.success) {
+        set({ loading: false });
+        return { ok: false, error: resp.error || "验证失败" };
+      }
       const user = resp.data!.user as AuthUser;
       set({
         token: getToken() || "cookie",

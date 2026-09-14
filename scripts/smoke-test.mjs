@@ -105,6 +105,26 @@ async function main() {
     `实际 ${failedLoginStatuses.join(",")}`,
   );
 
+  // 6b. 重置邮件也必须按邮箱限流，即使请求来自不同 IP。
+  const resetLimitEmail = `reset-limit-${Date.now()}@example.com`;
+  const resetStatuses = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const resetRequest = await fetch(`${BASE}/api/auth/password/request-reset`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-forwarded-for": `203.0.113.${ipBase + attempt}`,
+      },
+      body: JSON.stringify({ email: resetLimitEmail }),
+    });
+    resetStatuses.push(resetRequest.status);
+  }
+  check(
+    "密码重置邮件连续请求触发邮箱维度限制",
+    resetStatuses.slice(0, 3).every((status) => status === 200) && resetStatuses[3] === 429,
+    `实际 ${resetStatuses.join(",")}`,
+  );
+
   if (cookie) {
     const authHeaders = { Cookie: cookie };
 

@@ -7,7 +7,7 @@
  */
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
-import { allowRequest } from "@/lib/server/rate-limit";
+import { allowRateLimitKey, allowRequest } from "@/lib/server/rate-limit";
 import { getDB } from "@/lib/server/db";
 import {
   generateTicket,
@@ -56,6 +56,11 @@ export async function POST(req: NextRequest) {
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return fail("邮箱格式不正确", 422, "INVALID_EMAIL");
+    }
+
+    // 邮箱维度限流，防止多来源请求反复触发同一邮箱的重置邮件。
+    if (!allowRateLimitKey(`password-reset-email:${email}`, 3, 15 * 60_000)) {
+      return fail("请求过于频繁，请稍后再试", 429, "RATE_LIMITED");
     }
 
     // 在查询账号前校验邮件链接基址，避免生产环境静默发出 localhost/HTTP 链接。

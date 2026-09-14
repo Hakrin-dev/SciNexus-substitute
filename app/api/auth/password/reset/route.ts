@@ -46,24 +46,37 @@ export async function POST(req: NextRequest) {
 
     const db = getDB();
     const tokenHash = hashTicket(token);
-    const row = db
-      .prepare(
-        "SELECT user_id, expires_at, used FROM password_reset_tokens WHERE token_hash = ?",
-      )
-      .get(tokenHash) as TokenRow | undefined;
+    const result = db.transaction(() => {
+      const row = db
+        .prepare(
+          "SELECT user_id, expires_at, used FROM password_reset_tokens WHERE token_hash = ?",
+        )
+        .get(tokenHash) as TokenRow | undefined;
 
-    if (!row || row.used === 1) {
+      if (!row || row.used === 1) return { status: "invalid" as const };
+      if (new Date(row.expires_at).getTime() < Date.now()) {
+        db.prepare("DELETE FROM password_reset_tokens WHERE token_hash = ?").run(tokenHash);
+        return { status: "expired" as const };
+      }
+
+      // 先在事务内原子消费 token，再更新密码；并发请求中只有一个能继续。
+      const consumed = db
+        .prepare(
+          "UPDATE password_reset_tokens SET used = 1 WHERE token_hash = ? AND used = 0",
+        )
+        .run(tokenHash);
+      if (consumed.changes !== 1) return { status: "invalid" as const };
+
+      updatePassword(row.user_id, newPassword);
+      return { status: "ok" as const };
+    })();
+
+    if (result.status === "invalid") {
       return fail("重置链接已失效，请重新申请", 400, "INVALID_TOKEN");
     }
-    if (new Date(row.expires_at).getTime() < Date.now()) {
+    if (result.status === "expired") {
       return fail("重置链接已过期，请重新申请", 400, "TOKEN_EXPIRED");
     }
-
-    // 更新密码并使旧会话失效
-    updatePassword(row.user_id, newPassword);
-
-    // 标记 token 已使用
-    db.prepare("UPDATE password_reset_tokens SET used = 1 WHERE token_hash = ?").run(tokenHash);
 
     return ok({ success: true });
   } catch (error: unknown) {

@@ -20,6 +20,7 @@ export const runtime = "nodejs";
 interface OtpRow {
   email: string;
   otp_hash: string;
+  scene: string;
   attempts: number;
   expires_at: string;
 }
@@ -50,12 +51,15 @@ export async function POST(req: NextRequest) {
     const db = getDB();
     const row = db
       .prepare(
-        "SELECT email, otp_hash, attempts, expires_at FROM registration_otps WHERE challenge_id = ?",
+        "SELECT email, otp_hash, scene, attempts, expires_at FROM registration_otps WHERE challenge_id = ?",
       )
       .get(challengeId) as OtpRow | undefined;
 
     if (!row) {
       return fail("验证码已失效，请重新获取", 400, "OTP_EXPIRED");
+    }
+    if (row.scene !== "login") {
+      return fail("验证码用途不匹配，请重新获取", 400, "INVALID_OTP");
     }
     if (new Date(row.expires_at).getTime() < Date.now()) {
       db.prepare("DELETE FROM registration_otps WHERE challenge_id = ?").run(challengeId);

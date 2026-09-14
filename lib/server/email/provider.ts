@@ -1,3 +1,5 @@
+import Dm20151123, * as $Dm20151123 from "@alicloud/dm20151123";
+
 /**
  * 邮件 Provider 抽象
  *
@@ -73,35 +75,19 @@ class ConsoleEmailProvider implements EmailProvider {
   }
 }
 
-/** 阿里云 DirectMail Provider（按需加载 SDK）。 */
+/** 阿里云 DirectMail Provider。 */
 class AlibabaDirectMailProvider implements EmailProvider {
   constructor(private readonly config: AlibabaDirectMailConfig) {}
 
   async send({ to, subject, htmlBody }: SendEmailParams): Promise<void> {
-    let DmClient: new (config: {
-      accessKeyId: string;
-      accessKeySecret: string;
-      endpoint: string;
-    }) => { singleSendMail: (request: Record<string, unknown>) => Promise<void> };
-    try {
-      // 动态加载阿里云邮件推送 SDK；若未安装则降级到控制台输出
-      // @ts-expect-error 阿里云邮件推送 SDK 为可选依赖，未安装时由 catch 降级
-      const mod = await import("@alicloud/dm20151123");
-      DmClient = mod.default || mod;
-    } catch {
-      // 配置了真实 Provider 却缺少 SDK 时必须失败，不能把邮件内容泄露到日志，
-      // 也不能让调用方误以为邮件已经发送。
-      throw new Error("EMAIL_PROVIDER_UNAVAILABLE");
-    }
-
     const { accessKeyId, accessKeySecret, endpoint, from, fromAlias } = this.config;
-    const client = new DmClient({
+    const client = new Dm20151123({
       accessKeyId,
       accessKeySecret,
       endpoint,
-    });
+    } as ConstructorParameters<typeof Dm20151123>[0]);
 
-    const request = {
+    const request = new $Dm20151123.SingleSendMailRequest({
       AccountName: from,
       AddressType: 1,
       ReplyToAddress: false,
@@ -109,7 +95,7 @@ class AlibabaDirectMailProvider implements EmailProvider {
       Subject: subject,
       HtmlBody: htmlBody,
       ...(fromAlias ? { FromAlias: fromAlias } : {}),
-    };
+    });
 
     await client.singleSendMail(request);
   }

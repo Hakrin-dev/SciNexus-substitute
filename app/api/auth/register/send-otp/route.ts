@@ -79,8 +79,8 @@ export async function POST(req: NextRequest) {
     const expiresAt = otpExpiresAt();
 
     db.prepare(
-      `INSERT INTO registration_otps (challenge_id, email, otp_hash, attempts, expires_at)
-       VALUES (?, ?, ?, 0, ?)`,
+      `INSERT INTO registration_otps (challenge_id, email, otp_hash, scene, attempts, expires_at)
+       VALUES (?, ?, ?, 'registration', 0, ?)`,
     ).run(challengeId, email, otpHash, expiresAt);
 
     // 发送邮件（开发环境未配置时会打印到控制台）

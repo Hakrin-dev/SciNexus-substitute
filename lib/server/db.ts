@@ -61,6 +61,7 @@ function initSchema(db: Database.Database) {
       challenge_id TEXT PRIMARY KEY,
       email TEXT NOT NULL,
       otp_hash TEXT NOT NULL,
+      scene TEXT NOT NULL DEFAULT 'registration',
       attempts INTEGER NOT NULL DEFAULT 0,
       expires_at TEXT NOT NULL
     );
@@ -540,6 +541,7 @@ function initSchema(db: Database.Database) {
  */
 function runMigrations(db: Database.Database) {
   ensureColumn(db, "users", "token_version", "token_version INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "registration_otps", "scene", "scene TEXT NOT NULL DEFAULT 'registration'");
   ensureColumn(db, "scholars", "citation_count", "citation_count INTEGER DEFAULT 0");
   // projects.updated_at:PUT 更新器会 touch 该列,旧库补齐
   ensureColumn(db, "projects", "updated_at", "updated_at TEXT");

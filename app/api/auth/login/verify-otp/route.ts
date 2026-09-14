@@ -49,49 +49,59 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDB();
-    const row = db
-      .prepare(
-        "SELECT email, otp_hash, scene, attempts, expires_at FROM registration_otps WHERE challenge_id = ?",
-      )
-      .get(challengeId) as OtpRow | undefined;
+    const result = db.transaction(() => {
+      const row = db
+        .prepare(
+          "SELECT email, otp_hash, scene, attempts, expires_at FROM registration_otps WHERE challenge_id = ?",
+        )
+        .get(challengeId) as OtpRow | undefined;
 
-    if (!row) {
+      if (!row) return { status: "expired" as const };
+      if (row.scene !== "login") return { status: "invalid" as const };
+      if (new Date(row.expires_at).getTime() < Date.now()) {
+        db.prepare("DELETE FROM registration_otps WHERE challenge_id = ?").run(challengeId);
+        return { status: "expired" as const };
+      }
+      if (row.email !== email) return { status: "invalid" as const };
+      if (row.attempts >= OTP_MAX_ATTEMPTS) {
+        db.prepare("DELETE FROM registration_otps WHERE challenge_id = ?").run(challengeId);
+        return { status: "too-many-attempts" as const };
+      }
+
+      const candidateHash = hashOtp(challengeId, otp);
+      if (!otpMatches(candidateHash, row.otp_hash)) {
+        db.prepare(
+          "UPDATE registration_otps SET attempts = attempts + 1 WHERE challenge_id = ? AND attempts < ?",
+        ).run(challengeId, OTP_MAX_ATTEMPTS);
+        return { status: "invalid" as const };
+      }
+
+      const consumed = db
+        .prepare("DELETE FROM registration_otps WHERE challenge_id = ?")
+        .run(challengeId);
+      if (consumed.changes !== 1) return { status: "expired" as const };
+
+      const auth = loginWithEmail(email);
+      if (!auth) return { status: "email-not-registered" as const };
+      return { status: "ok" as const, auth };
+    })();
+
+    if (result.status === "expired") {
       return fail("验证码已失效，请重新获取", 400, "OTP_EXPIRED");
     }
-    if (row.scene !== "login") {
-      return fail("验证码用途不匹配，请重新获取", 400, "INVALID_OTP");
-    }
-    if (new Date(row.expires_at).getTime() < Date.now()) {
-      db.prepare("DELETE FROM registration_otps WHERE challenge_id = ?").run(challengeId);
-      return fail("验证码已过期，请重新获取", 400, "OTP_EXPIRED");
-    }
-    if (row.email !== email) {
-      return fail("验证码错误，请检查后重试", 400, "INVALID_OTP");
-    }
-    if (row.attempts >= OTP_MAX_ATTEMPTS) {
-      db.prepare("DELETE FROM registration_otps WHERE challenge_id = ?").run(challengeId);
+    if (result.status === "too-many-attempts") {
       return fail("验证码尝试次数过多，请重新获取", 403, "TOO_MANY_ATTEMPTS");
     }
-
-    const candidateHash = hashOtp(challengeId, otp);
-    if (!otpMatches(candidateHash, row.otp_hash)) {
-      db.prepare(
-        "UPDATE registration_otps SET attempts = attempts + 1 WHERE challenge_id = ?",
-      ).run(challengeId);
-      return fail("验证码错误，请检查后重试", 400, "INVALID_OTP");
-    }
-
-    // 验证通过：删除 challenge 记录
-    db.prepare("DELETE FROM registration_otps WHERE challenge_id = ?").run(challengeId);
-
-    const result = loginWithEmail(email);
-    if (!result) {
+    if (result.status === "email-not-registered") {
       return fail("该邮箱未注册，请先注册", 404, "EMAIL_NOT_REGISTERED");
+    }
+    if (result.status !== "ok") {
+      return fail("验证码错误，请检查后重试", 400, "INVALID_OTP");
     }
 
     // 会话 token 只通过 HttpOnly Cookie 下发，避免暴露给浏览器 JavaScript。
-    const response = ok({ user: result.user });
-    response.cookies.set("yanshu_session", result.token, {
+    const response = ok({ user: result.auth.user });
+    response.cookies.set("yanshu_session", result.auth.token, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",

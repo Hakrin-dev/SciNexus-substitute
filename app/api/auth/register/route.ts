@@ -88,19 +88,39 @@ export async function POST(req: NextRequest) {
       return fail(PASSWORD_POLICY_MESSAGE, 422, "PASSWORD_POLICY_VIOLATION");
     }
 
-    const result = register({
-      username,
-      password: body.password,
-      email,
-      displayName: body.displayName?.trim() || username,
-    });
+    const result = db.transaction(() => {
+      // 重新读取 ticket，并与用户创建、ticket 消费放在同一事务中，防止并发重放。
+      const currentTicket = db
+        .prepare(
+          "SELECT email, expires_at FROM registration_tickets WHERE ticket_hash = ?",
+        )
+        .get(ticketHash) as { email: string; expires_at: string } | undefined;
+      if (!currentTicket) return { error: "邮箱验证已失效，请重新验证" };
+      if (new Date(currentTicket.expires_at).getTime() < Date.now()) {
+        db.prepare("DELETE FROM registration_tickets WHERE ticket_hash = ?").run(ticketHash);
+        return { error: "邮箱验证已过期，请重新验证" };
+      }
+
+      const authResult = register({
+        username,
+        password: body.password,
+        email,
+        displayName: body.displayName?.trim() || username,
+      });
+      if ("error" in authResult) return authResult;
+
+      const consumed = db
+        .prepare("DELETE FROM registration_tickets WHERE ticket_hash = ?")
+        .run(ticketHash);
+      if (consumed.changes !== 1) {
+        throw new Error("REGISTRATION_TICKET_CONSUME_FAILED");
+      }
+      return authResult;
+    })();
 
     if ("error" in result) {
       return fail(result.error);
     }
-
-    // 注册成功：删除 ticket（一次性使用）
-    db.prepare("DELETE FROM registration_tickets WHERE ticket_hash = ?").run(ticketHash);
 
     // 会话 token 只通过 HttpOnly Cookie 下发，避免暴露给浏览器 JavaScript。
     const response = ok({ user: result.user });
@@ -122,6 +142,14 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      String((error as { code?: unknown }).code).startsWith("SQLITE_CONSTRAINT")
+    ) {
+      return fail("用户名或邮箱已被注册", 409, "ACCOUNT_ALREADY_EXISTS");
+    }
     return fail(error instanceof Error ? error.message : "注册失败");
   }
 }

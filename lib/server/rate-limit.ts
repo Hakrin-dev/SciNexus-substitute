@@ -18,6 +18,8 @@ export function allowRateLimitKey(identity: string, limit: number, windowMs: num
   const now = Date.now();
   const db = getDB();
   return db.transaction(() => {
+    // 限流键来自用户输入（IP/邮箱），定期清理过期键，避免恶意制造无限增长。
+    db.prepare("DELETE FROM rate_limits WHERE window_started_at < ?").run(now - 24 * 60 * 60_000);
     const row = db.prepare("SELECT count,window_started_at FROM rate_limits WHERE key=?").get(key) as { count: number; window_started_at: number } | undefined;
     if (!row || now - row.window_started_at >= windowMs) {
       db.prepare("INSERT INTO rate_limits (key,count,window_started_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=1,window_started_at=excluded.window_started_at").run(key, now);

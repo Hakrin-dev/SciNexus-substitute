@@ -362,6 +362,7 @@ function initSchema(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS rate_limits (
       key TEXT PRIMARY KEY, count INTEGER NOT NULL, window_started_at INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits(window_started_at);
 
     CREATE TABLE IF NOT EXISTS research_runs (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL, created_by_user_id TEXT NOT NULL,

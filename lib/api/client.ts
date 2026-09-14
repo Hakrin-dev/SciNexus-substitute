@@ -58,6 +58,14 @@ interface AuthResponse {
   user: ApiUser;
 }
 
+interface SendOtpResponse {
+  challengeId: string;
+}
+
+interface VerifyOtpResponse {
+  success: boolean;
+}
+
 class ApiError extends Error {
   status: number;
   code?: string;
@@ -153,6 +161,50 @@ export const client = {
         skipAuth: true,
       }),
     me: () => request<ApiUser>("GET", "/api/auth/me"),
+    // 注册邮箱验证码
+    sendRegisterOtp: (email: string, captchaToken?: string) =>
+      request<SendOtpResponse>("POST", "/api/auth/register/send-otp", {
+        body: { email },
+        skipAuth: true,
+        headers: captchaToken ? { "x-captcha-response": captchaToken } : undefined,
+      }),
+    verifyRegisterOtp: (params: {
+      email: string;
+      challengeId: string;
+      otp: string;
+    }) =>
+      request<VerifyOtpResponse>("POST", "/api/auth/register/verify-otp", {
+        body: params,
+        skipAuth: true,
+      }),
+    // 登录邮箱验证码
+    sendLoginOtp: (email: string, captchaToken?: string) =>
+      request<SendOtpResponse>("POST", "/api/auth/login/send-otp", {
+        body: { email },
+        skipAuth: true,
+        headers: captchaToken ? { "x-captcha-response": captchaToken } : undefined,
+      }),
+    verifyLoginOtp: (params: {
+      email: string;
+      challengeId: string;
+      otp: string;
+    }) =>
+      request<AuthResponse>("POST", "/api/auth/login/verify-otp", {
+        body: params,
+        skipAuth: true,
+      }),
+    // 密码重置
+    requestPasswordReset: (email: string, captchaToken?: string) =>
+      request<{ success: boolean }>("POST", "/api/auth/password/request-reset", {
+        body: { email },
+        skipAuth: true,
+        headers: captchaToken ? { "x-captcha-response": captchaToken } : undefined,
+      }),
+    resetPassword: (params: { token: string; newPassword: string }) =>
+      request<{ success: boolean }>("POST", "/api/auth/password/reset", {
+        body: params,
+        skipAuth: true,
+      }),
   },
 
   // ---------- 文献库 ----------

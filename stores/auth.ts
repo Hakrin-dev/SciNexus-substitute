@@ -29,6 +29,22 @@ interface AuthState {
     email?: string;
     displayName?: string;
   }) => Promise<{ ok: boolean; error?: string }>;
+  /** 发送注册邮箱验证码 */
+  sendRegisterOtp: (email: string, captchaToken?: string) => Promise<{ ok: boolean; challengeId?: string; error?: string }>;
+  /** 验证注册邮箱验证码（成功后后端签发 ticket Cookie） */
+  verifyRegisterOtp: (params: {
+    email: string;
+    challengeId: string;
+    otp: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  /** 发送登录邮箱验证码 */
+  sendLoginOtp: (email: string, captchaToken?: string) => Promise<{ ok: boolean; challengeId?: string; error?: string }>;
+  /** 验证登录邮箱验证码（成功后建立登录态） */
+  verifyLoginOtp: (params: {
+    email: string;
+    challengeId: string;
+    otp: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
   /** 登出 */
   logout: () => void;
   /** 拉取当前用户（页面初始化调用） */
@@ -80,6 +96,56 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     } catch (e) {
       set({ loading: false });
       return { ok: false, error: e instanceof Error ? e.message : "注册失败" };
+    }
+  },
+
+  sendRegisterOtp: async (email, captchaToken) => {
+    try {
+      const resp = await client.auth.sendRegisterOtp(email, captchaToken);
+      if (!resp.success) return { ok: false, error: resp.error || "发送验证码失败" };
+      return { ok: true, challengeId: resp.data?.challengeId };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "发送验证码失败" };
+    }
+  },
+
+  verifyRegisterOtp: async (params) => {
+    try {
+      const resp = await client.auth.verifyRegisterOtp(params);
+      if (!resp.success) return { ok: false, error: resp.error || "验证失败" };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "验证失败" };
+    }
+  },
+
+  sendLoginOtp: async (email, captchaToken) => {
+    try {
+      const resp = await client.auth.sendLoginOtp(email, captchaToken);
+      if (!resp.success) return { ok: false, error: resp.error || "发送验证码失败" };
+      return { ok: true, challengeId: resp.data?.challengeId };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "发送验证码失败" };
+    }
+  },
+
+  verifyLoginOtp: async (params) => {
+    try {
+      set({ loading: true });
+      const resp = await client.auth.verifyLoginOtp(params);
+      if (!resp.success) return { ok: false, error: resp.error || "验证失败" };
+      setToken(typeof resp.data?.token === "string" ? resp.data.token : null);
+      const user = resp.data!.user as AuthUser;
+      set({
+        token: getToken() || "cookie",
+        user,
+        userName: user.display_name || user.username,
+        loading: false,
+      });
+      return { ok: true };
+    } catch (e) {
+      set({ loading: false });
+      return { ok: false, error: e instanceof Error ? e.message : "验证失败" };
     }
   },
 

@@ -112,6 +112,28 @@ export function revokeAllTokens(userId: string): void {
     .run(userId);
 }
 
+/** 更新用户密码（用于密码重置），同时递增 token_version 使旧会话失效。 */
+export function updatePassword(userId: string, newPassword: string): void {
+  getDB()
+    .prepare(
+      "UPDATE users SET password_hash = ?, token_version = token_version + 1, updated_at = datetime('now','localtime') WHERE id = ?",
+    )
+    .run(hashPassword(newPassword), userId);
+}
+
+/** 邮箱验证码登录：通过 email 查找用户并签发 token（无需密码）。 */
+export function loginWithEmail(email: string): AuthResult | null {
+  const db = getDB();
+  const row = db
+    .prepare("SELECT * FROM users WHERE email = ?")
+    .get(email) as UserRow | undefined;
+  if (!row) return null;
+  const version = row.token_version || 0;
+  const expire = Date.now() + TOKEN_TTL_MS;
+  const token = sign(row.id, version, expire);
+  return { token, user: toUser(row) };
+}
+
 /** 登录 */
 export function login(username: string, password: string): AuthResult | null {
   const db = getDB();

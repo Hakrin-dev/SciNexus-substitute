@@ -56,6 +56,30 @@ function initSchema(db: Database.Database) {
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
+    -- 注册邮箱验证码（challenge 机制，OTP 仅存哈希）
+    CREATE TABLE IF NOT EXISTS registration_otps (
+      challenge_id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      otp_hash TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      expires_at TEXT NOT NULL
+    );
+
+    -- 注册邮箱验证通过后签发的一次性 ticket（存哈希）
+    CREATE TABLE IF NOT EXISTS registration_tickets (
+      ticket_hash TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+
+    -- 密码重置 token（存哈希，一次性使用）
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0
+    );
+
     -- 论文表（Feed流用）
     CREATE TABLE IF NOT EXISTS papers (
       id TEXT PRIMARY KEY,

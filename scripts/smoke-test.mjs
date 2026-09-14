@@ -64,9 +64,13 @@ async function main() {
   check("GET /api/graph/private 未登录返回 401", graph401.status === 401, `实际 ${graph401.status}`);
 
   // 5. 登录 demo 用户
+  const smokeIp = `192.0.2.${10 + (Date.now() % 180)}`;
   const loginRes = await fetch(`${BASE}/api/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-forwarded-for": smokeIp,
+    },
     body: JSON.stringify({ username: "hankairun", password: "yanshu123" }),
   });
   const login = await loginRes.json();
@@ -74,24 +78,31 @@ async function main() {
   const cookie = setCookie.split(";")[0];
   check(
     "POST /api/auth/login 设置 HttpOnly 会话 Cookie",
-    login?.success === true && cookie.includes("=") && /httponly/i.test(setCookie),
+    login?.success === true && !login?.data?.token && cookie.includes("=") && /httponly/i.test(setCookie),
     JSON.stringify(login).slice(0, 120),
   );
 
   // 6a. 账号维度防爆破：使用随机账号，避免污染真实用户。
   const lockTestAccount = `auth-lock-${Date.now()}`;
-  let lastFailedLogin;
+  const failedLoginStatuses = [];
+  const ipBase = 10 + (Date.now() % 180);
   for (let attempt = 0; attempt < 6; attempt++) {
-    lastFailedLogin = await fetch(`${BASE}/api/auth/login`, {
+    const failedLogin = await fetch(`${BASE}/api/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // 每次使用不同的文档保留测试 IP，绕开 IP 桶以单独验证账号桶。
+        "x-forwarded-for": `198.51.100.${ipBase + attempt}`,
+      },
       body: JSON.stringify({ username: lockTestAccount, password: "WrongPassword123" }),
     });
+    failedLoginStatuses.push(failedLogin.status);
   }
   check(
     "账密登录连续失败后触发账号维度限制",
-    lastFailedLogin?.status === 429,
-    `实际 ${lastFailedLogin?.status}`,
+    failedLoginStatuses.slice(0, 5).every((status) => status === 401) &&
+      failedLoginStatuses[5] === 429,
+    `实际 ${failedLoginStatuses.join(",")}`,
   );
 
   if (cookie) {

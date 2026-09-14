@@ -1,6 +1,7 @@
 /**
  * 研枢前端 API 调用客户端
- * 统一封装所有后端接口调用，自动附加 token，统一处理响应结构
+ * 统一封装所有后端接口调用，统一处理响应结构。
+ * Next.js 认证会话只通过 HttpOnly Cookie 传递，不在浏览器存储 token。
  *
  * 使用：
  *   import api from '@/lib/api/client';
@@ -14,17 +15,14 @@ export const API_BASE =
     ? window.__API_BASE__ || process.env.NEXT_PUBLIC_API_URL
     : process.env.NEXT_PUBLIC_API_URL) || "";
 
-const TOKEN_KEY = "yanshu_token";
-
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  // 保留接口兼容性；Cookie token 对 JavaScript 不可读，因此始终返回 null。
+  return null;
 }
 
 export function setToken(token: string | null) {
-  if (typeof window === "undefined") return;
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  // 认证 token 由服务端通过 HttpOnly Cookie 管理，禁止写入 localStorage。
+  void token;
 }
 
 export interface ApiResp<T = unknown> {
@@ -54,7 +52,6 @@ export interface ApiUser {
 }
 
 interface AuthResponse {
-  token?: string;
   user: ApiUser;
 }
 

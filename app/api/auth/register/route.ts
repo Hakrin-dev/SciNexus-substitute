@@ -102,7 +102,8 @@ export async function POST(req: NextRequest) {
     // 注册成功：删除 ticket（一次性使用）
     db.prepare("DELETE FROM registration_tickets WHERE ticket_hash = ?").run(ticketHash);
 
-    const response = ok({ token: result.token, user: result.user });
+    // 会话 token 只通过 HttpOnly Cookie 下发，避免暴露给浏览器 JavaScript。
+    const response = ok({ user: result.user });
     response.cookies.set("yanshu_session", result.token, {
       httpOnly: true,
       sameSite: "lax",

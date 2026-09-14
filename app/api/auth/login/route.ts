@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
       return fail("用户名或密码错误", 401);
     }
     clearRateLimitKey(accountKey);
-    const response = ok({ token: result.token, user: result.user });
+    // 会话 token 只通过 HttpOnly Cookie 下发，避免暴露给浏览器 JavaScript。
+    const response = ok({ user: result.user });
     response.cookies.set("yanshu_session", result.token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 7 * 24 * 60 * 60 });
     return response;
   } catch (error: unknown) {

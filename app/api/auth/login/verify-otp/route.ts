@@ -89,7 +89,8 @@ export async function POST(req: NextRequest) {
       return fail("该邮箱未注册，请先注册", 404, "EMAIL_NOT_REGISTERED");
     }
 
-    const response = ok({ token: result.token, user: result.user });
+    // 会话 token 只通过 HttpOnly Cookie 下发，避免暴露给浏览器 JavaScript。
+    const response = ok({ user: result.user });
     response.cookies.set("yanshu_session", result.token, {
       httpOnly: true,
       sameSite: "lax",

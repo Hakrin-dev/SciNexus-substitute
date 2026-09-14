@@ -14,7 +14,7 @@ export interface AuthUser {
 interface AuthState {
   /** 是否正在加载 */
   loading: boolean;
-  /** 登录 token（持久化到 localStorage） */
+  /** 会话标记；真实 token 只存在 HttpOnly Cookie，前端不可读取。 */
   token: string | null;
   /** 当前登录用户（未登录为 null） */
   user: AuthUser | null;
@@ -64,7 +64,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.login(username, password);
       if (!resp.success) return { ok: false, error: resp.error || "登录失败" };
-      setToken(typeof resp.data?.token === "string" ? resp.data.token : null);
       const user = resp.data!.user as AuthUser;
       set({
         token: getToken() || "cookie",
@@ -84,7 +83,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.register(params);
       if (!resp.success) return { ok: false, error: resp.error || "注册失败" };
-      setToken(typeof resp.data?.token === "string" ? resp.data.token : null);
       const user = resp.data!.user as AuthUser;
       set({
         token: getToken() || "cookie",
@@ -134,7 +132,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: true });
       const resp = await client.auth.verifyLoginOtp(params);
       if (!resp.success) return { ok: false, error: resp.error || "验证失败" };
-      setToken(typeof resp.data?.token === "string" ? resp.data.token : null);
       const user = resp.data!.user as AuthUser;
       set({
         token: getToken() || "cookie",

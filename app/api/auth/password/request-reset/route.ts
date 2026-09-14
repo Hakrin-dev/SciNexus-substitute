@@ -22,6 +22,7 @@ import {
   isEmailDeliveryRequired,
 } from "@/lib/server/email/provider";
 import { passwordResetEmail } from "@/lib/server/email/templates";
+import { getPublicAppUrl } from "@/lib/server/app-url";
 import { EMAIL_PROVIDER_NOT_CONFIGURED_CODE } from "@/lib/server/email/provider";
 import {
   extractTurnstileToken,
@@ -57,6 +58,9 @@ export async function POST(req: NextRequest) {
       return fail("邮箱格式不正确", 422, "INVALID_EMAIL");
     }
 
+    // 在查询账号前校验邮件链接基址，避免生产环境静默发出 localhost/HTTP 链接。
+    const publicAppUrl = getPublicAppUrl();
+
     // 邮件服务未配置时直接报错（生产环境）
     if (!isEmailDeliveryConfigured() && isEmailDeliveryRequired()) {
       return fail(
@@ -86,7 +90,8 @@ export async function POST(req: NextRequest) {
       ).run(tokenHash, user.id, expiresAt);
 
       // 发送重置邮件
-      const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=${token}`;
+      const resetUrl = new URL("/reset-password", `${publicAppUrl}/`);
+      resetUrl.searchParams.set("token", token);
       const { subject, htmlBody } = passwordResetEmail(resetUrl);
       try {
         await getEmailProvider().send({ to: email, subject, htmlBody });
@@ -102,6 +107,12 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const failure = emailProviderFailure(error);
     if (failure) return fail(failure.message, failure.status, failure.code);
+    if (
+      error instanceof Error &&
+      ["APP_URL_NOT_CONFIGURED", "APP_URL_INVALID", "APP_URL_INSECURE"].includes(error.message)
+    ) {
+      return fail("密码重置服务尚未完成安全配置", 503, error.message);
+    }
     return fail("操作失败");
   }
 }

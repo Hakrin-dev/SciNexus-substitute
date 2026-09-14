@@ -49,7 +49,7 @@ export function loginOtpEmail(otp: string): { subject: string; htmlBody: string 
 }
 
 /** 密码重置邮件 HTML（含重置链接）。 */
-export function passwordResetEmail(resetUrl: string): { subject: string; htmlBody: string } {
+export function passwordResetEmail(resetUrl: string | URL): { subject: string; htmlBody: string } {
   const subject = `【${BRAND}】重置密码`;
   const htmlBody = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1f2937;">

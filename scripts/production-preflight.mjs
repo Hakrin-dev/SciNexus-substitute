@@ -8,6 +8,16 @@ const failures = required.filter((key) => !process.env[key]?.trim()).map((key) =
 if (!process.env.SCINEXUS_DB_PATH?.trim() && !process.env.AUTH_DB_PATH?.trim()) {
   failures.push("SCINEXUS_DB_PATH 或 AUTH_DB_PATH 未配置：生产账户数据必须使用持久化数据库");
 }
+const publicAppUrl = process.env.APP_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
+try {
+  const url = new URL(publicAppUrl || "");
+  if (url.protocol !== "https:" || ["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
+    failures.push("APP_URL/NEXT_PUBLIC_APP_URL 必须是公网 HTTPS 地址");
+  }
+  if (url.username || url.password || url.search || url.hash) failures.push("APP_URL 不得包含凭据、查询参数或片段");
+} catch {
+  failures.push("APP_URL 或 NEXT_PUBLIC_APP_URL 未配置或不是有效 URL");
+}
 const configuredDbPath = process.env.SCINEXUS_DB_PATH?.trim() || process.env.AUTH_DB_PATH?.trim();
 const dbPath = configuredDbPath ? path.resolve(configuredDbPath) : path.resolve("data/yanshu.db");
 if (fs.existsSync(dbPath)) {

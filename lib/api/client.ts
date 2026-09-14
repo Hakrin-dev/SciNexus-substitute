@@ -319,6 +319,7 @@ export async function* streamChat(
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    credentials: "include",
     signal,
   });
   if (!res.ok) throw new ApiError(`API ${res.status}: ${path}`, res.status);

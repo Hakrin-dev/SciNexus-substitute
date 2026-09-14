@@ -40,6 +40,33 @@ test("password reset app URL rejects insecure production configuration", () => {
   }
 });
 
+test("streaming API includes the HttpOnly session cookie", async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, init) => {
+    request = { url: String(url), init };
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode("event: done\\n\\ndata: {}\\n\\n"));
+        controller.close();
+      },
+    });
+    return new Response(body, { status: 200 });
+  };
+
+  try {
+    const { streamChat } = await import("../lib/api/client.ts");
+    for await (const event of streamChat("/api/chat/stream", { message: "test" })) {
+      assert.equal(event.type, "done");
+    }
+    assert.equal(request.init.credentials, "include");
+    assert.equal(request.init.headers.Authorization, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 const pythonProbe = spawnSync("python", ["--version"], { encoding: "utf8" });
 const pythonUnavailable = pythonProbe.error?.code === "ENOENT" || pythonProbe.status !== 0;
 

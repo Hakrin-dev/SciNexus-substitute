@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "node scripts/smoke-test.mjs",
+    "test:auth-integration": "node scripts/auth-integration-test.mjs",
     "test:regression": "node --experimental-strip-types --test scripts/regression-test.mjs",
     "preflight:production": "node scripts/production-preflight.mjs"
   },
   "dependencies": {
+    "@alicloud/dm20151123": "^1.11.0",
     "@tanstack/react-query": "^5.62.0",
     "better-sqlite3": "^13.0.3",
     "class-variance-authority": "^0.7.1",

@@ -6,7 +6,11 @@
 import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
 import { login } from "@/lib/server/auth";
-import { allowRequest } from "@/lib/server/rate-limit";
+import {
+  allowRateLimitKey,
+  allowRequest,
+  clearRateLimitKey,
+} from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -18,11 +22,18 @@ export async function POST(req: NextRequest) {
     if (!body.username || !body.password) {
       return fail("用户名和密码不能为空");
     }
-    const result = login(body.username.trim(), body.password);
+    const account = body.username.trim();
+    const accountKey = `auth-login-account:${account.toLowerCase()}`;
+    if (!allowRateLimitKey(accountKey, 5, 10 * 60_000)) {
+      return fail("用户名或密码错误，尝试次数过多，请稍后再试", 429, "RATE_LIMITED");
+    }
+    const result = login(account, body.password);
     if (!result) {
       return fail("用户名或密码错误", 401);
     }
-    const response = ok({ token: result.token, user: result.user });
+    clearRateLimitKey(accountKey);
+    // 会话 token 只通过 HttpOnly Cookie 下发，避免暴露给浏览器 JavaScript。
+    const response = ok({ user: result.user });
     response.cookies.set("yanshu_session", result.token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 7 * 24 * 60 * 60 });
     return response;
   } catch (error: unknown) {

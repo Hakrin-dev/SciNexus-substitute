@@ -8,8 +8,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { hashPassword } from "./password";
 
-// Vercel Serverless 的函数包只读(仅 /tmp 可写),首次访问时把随包 DB 拷到 /tmp 再打开,
-// 写操作在实例生命周期内有效(冷启动后回滚,演示场景可接受)。
+// 生产容器通过 SCINEXUS_DB_PATH 挂载持久卷；AUTH_DB_PATH 作为通用兼容名。
+// 未配置时，非 Serverless 使用仓库 data 目录；Vercel 的 /tmp 仅允许非生产演示。
 const IS_SERVERLESS = !!process.env.VERCEL;
 
 // 数据库文件存放位置:<cwd>/data/yanshu.db
@@ -17,10 +17,24 @@ const IS_SERVERLESS = !!process.env.VERCEL;
 // 避免打包后 __dirname 指向 .next 深层目录导致路径漂移到项目外。
 const DATA_DIR = path.resolve(process.cwd(), "data");
 const BUNDLED_DB_PATH = path.join(DATA_DIR, "yanshu.db");
-const DB_PATH = IS_SERVERLESS ? "/tmp/yanshu.db" : BUNDLED_DB_PATH;
+const CONFIGURED_DB_PATH = process.env.SCINEXUS_DB_PATH?.trim() || process.env.AUTH_DB_PATH?.trim();
+const DB_PATH = CONFIGURED_DB_PATH
+  ? path.resolve(CONFIGURED_DB_PATH)
+  : IS_SERVERLESS
+    ? "/tmp/yanshu.db"
+    : BUNDLED_DB_PATH;
 
-if (!IS_SERVERLESS && !fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+if (IS_SERVERLESS && process.env.NODE_ENV === "production" && !CONFIGURED_DB_PATH) {
+  throw new Error(
+    "SCINEXUS_DB_PATH 或 AUTH_DB_PATH 未配置：生产 Serverless 环境不能使用临时 SQLite 数据库",
+  );
+}
+
+if (!IS_SERVERLESS || CONFIGURED_DB_PATH) {
+  const dbDirectory = path.dirname(DB_PATH);
+  if (!fs.existsSync(dbDirectory)) {
+    fs.mkdirSync(dbDirectory, { recursive: true });
+  }
 }
 
 let dbInstance: Database.Database | null = null;
@@ -54,6 +68,31 @@ function initSchema(db: Database.Database) {
       token_version INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    -- 注册邮箱验证码（challenge 机制，OTP 仅存哈希）
+    CREATE TABLE IF NOT EXISTS registration_otps (
+      challenge_id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      otp_hash TEXT NOT NULL,
+      scene TEXT NOT NULL DEFAULT 'registration',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      expires_at TEXT NOT NULL
+    );
+
+    -- 注册邮箱验证通过后签发的一次性 ticket（存哈希）
+    CREATE TABLE IF NOT EXISTS registration_tickets (
+      ticket_hash TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+
+    -- 密码重置 token（存哈希，一次性使用）
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0
     );
 
     -- 论文表（Feed流用）
@@ -323,6 +362,7 @@ function initSchema(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS rate_limits (
       key TEXT PRIMARY KEY, count INTEGER NOT NULL, window_started_at INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON rate_limits(window_started_at);
 
     CREATE TABLE IF NOT EXISTS research_runs (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL, created_by_user_id TEXT NOT NULL,
@@ -516,6 +556,7 @@ function initSchema(db: Database.Database) {
  */
 function runMigrations(db: Database.Database) {
   ensureColumn(db, "users", "token_version", "token_version INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "registration_otps", "scene", "scene TEXT NOT NULL DEFAULT 'registration'");
   ensureColumn(db, "scholars", "citation_count", "citation_count INTEGER DEFAULT 0");
   // projects.updated_at:PUT 更新器会 touch 该列,旧库补齐
   ensureColumn(db, "projects", "updated_at", "updated_at TEXT");

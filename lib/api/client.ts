@@ -1,6 +1,7 @@
 /**
  * 研枢前端 API 调用客户端
- * 统一封装所有后端接口调用，自动附加 token，统一处理响应结构
+ * 统一封装所有后端接口调用，统一处理响应结构。
+ * Next.js 认证会话只通过 HttpOnly Cookie 传递，不在浏览器存储 token。
  *
  * 使用：
  *   import api from '@/lib/api/client';
@@ -14,17 +15,14 @@ export const API_BASE =
     ? window.__API_BASE__ || process.env.NEXT_PUBLIC_API_URL
     : process.env.NEXT_PUBLIC_API_URL) || "";
 
-const TOKEN_KEY = "yanshu_token";
-
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  // 保留接口兼容性；Cookie token 对 JavaScript 不可读，因此始终返回 null。
+  return null;
 }
 
 export function setToken(token: string | null) {
-  if (typeof window === "undefined") return;
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  // 认证 token 由服务端通过 HttpOnly Cookie 管理，禁止写入 localStorage。
+  void token;
 }
 
 export interface ApiResp<T = unknown> {
@@ -54,8 +52,15 @@ export interface ApiUser {
 }
 
 interface AuthResponse {
-  token?: string;
   user: ApiUser;
+}
+
+interface SendOtpResponse {
+  challengeId: string;
+}
+
+interface VerifyOtpResponse {
+  success: boolean;
 }
 
 class ApiError extends Error {
@@ -153,6 +158,50 @@ export const client = {
         skipAuth: true,
       }),
     me: () => request<ApiUser>("GET", "/api/auth/me"),
+    // 注册邮箱验证码
+    sendRegisterOtp: (email: string, captchaToken?: string) =>
+      request<SendOtpResponse>("POST", "/api/auth/register/send-otp", {
+        body: { email },
+        skipAuth: true,
+        headers: captchaToken ? { "x-captcha-response": captchaToken } : undefined,
+      }),
+    verifyRegisterOtp: (params: {
+      email: string;
+      challengeId: string;
+      otp: string;
+    }) =>
+      request<VerifyOtpResponse>("POST", "/api/auth/register/verify-otp", {
+        body: params,
+        skipAuth: true,
+      }),
+    // 登录邮箱验证码
+    sendLoginOtp: (email: string, captchaToken?: string) =>
+      request<SendOtpResponse>("POST", "/api/auth/login/send-otp", {
+        body: { email },
+        skipAuth: true,
+        headers: captchaToken ? { "x-captcha-response": captchaToken } : undefined,
+      }),
+    verifyLoginOtp: (params: {
+      email: string;
+      challengeId: string;
+      otp: string;
+    }) =>
+      request<AuthResponse>("POST", "/api/auth/login/verify-otp", {
+        body: params,
+        skipAuth: true,
+      }),
+    // 密码重置
+    requestPasswordReset: (email: string, captchaToken?: string) =>
+      request<{ success: boolean }>("POST", "/api/auth/password/request-reset", {
+        body: { email },
+        skipAuth: true,
+        headers: captchaToken ? { "x-captcha-response": captchaToken } : undefined,
+      }),
+    resetPassword: (params: { token: string; newPassword: string; confirmPassword: string }) =>
+      request<{ success: boolean }>("POST", "/api/auth/password/reset", {
+        body: params,
+        skipAuth: true,
+      }),
   },
 
   // ---------- 文献库 ----------
@@ -270,6 +319,7 @@ export async function* streamChat(
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    credentials: "include",
     signal,
   });
   if (!res.ok) throw new ApiError(`API ${res.status}: ${path}`, res.status);

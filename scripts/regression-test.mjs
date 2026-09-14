@@ -3,18 +3,74 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { normalizeVenues, toFeedPaper, toPaperDetail } from "../lib/api/adapters.ts";
 import { getAuthSecret } from "../lib/server/auth-secret.ts";
+import { decodeCookieValue } from "../lib/server/cookie.ts";
 import {
   normalizeKnowledgeGraph,
   normalizeKnowledgePaper,
   toFrontendKnowledgePaper,
 } from "../lib/server/knowledge-base.ts";
 import { isPrivatePdfAddress } from "../lib/pdf-safety.ts";
+import { getPublicAppUrl } from "../lib/server/app-url.ts";
 
 test("Next authentication rejects a missing production AUTH_SECRET", () => {
   assert.throws(
     () => getAuthSecret({ NODE_ENV: "production" }),
     /生产环境必须配置 AUTH_SECRET/,
   );
+});
+
+test("malformed session cookies are treated as anonymous requests", () => {
+  assert.equal(decodeCookieValue("%ZZ"), null);
+  assert.equal(decodeCookieValue("valid%20cookie"), "valid cookie");
+});
+
+test("password reset app URL rejects insecure production configuration", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalAppUrl = process.env.APP_URL;
+  const originalPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.APP_URL = "http://localhost:3000";
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    assert.throws(() => getPublicAppUrl(), /APP_URL_INSECURE/);
+
+    process.env.APP_URL = "https://scinexus.example.com";
+    assert.equal(getPublicAppUrl(), "https://scinexus.example.com");
+  } finally {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+    if (originalAppUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = originalAppUrl;
+    if (originalPublicAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = originalPublicAppUrl;
+  }
+});
+
+test("streaming API includes the HttpOnly session cookie", async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, init) => {
+    request = { url: String(url), init };
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode("event: done\\n\\ndata: {}\\n\\n"));
+        controller.close();
+      },
+    });
+    return new Response(body, { status: 200 });
+  };
+
+  try {
+    const { streamChat } = await import("../lib/api/client.ts");
+    for await (const event of streamChat("/api/chat/stream", { message: "test" })) {
+      assert.equal(event.type, "done");
+    }
+    assert.equal(request.init.credentials, "include");
+    assert.equal(request.init.headers.Authorization, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 const pythonProbe = spawnSync("python", ["--version"], { encoding: "utf8" });

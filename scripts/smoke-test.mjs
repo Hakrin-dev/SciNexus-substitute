@@ -64,9 +64,13 @@ async function main() {
   check("GET /api/graph/private 未登录返回 401", graph401.status === 401, `实际 ${graph401.status}`);
 
   // 5. 登录 demo 用户
+  const smokeIp = `192.0.2.${10 + (Date.now() % 180)}`;
   const loginRes = await fetch(`${BASE}/api/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-forwarded-for": smokeIp,
+    },
     body: JSON.stringify({ username: "hankairun", password: "yanshu123" }),
   });
   const login = await loginRes.json();
@@ -74,8 +78,65 @@ async function main() {
   const cookie = setCookie.split(";")[0];
   check(
     "POST /api/auth/login 设置 HttpOnly 会话 Cookie",
-    login?.success === true && cookie.includes("=") && /httponly/i.test(setCookie),
+    login?.success === true && !login?.data?.token && cookie.includes("=") && /httponly/i.test(setCookie),
     JSON.stringify(login).slice(0, 120),
+  );
+
+  const caseInsensitiveLogin = await fetch(`${BASE}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-forwarded-for": `192.0.2.${10 + (Date.now() % 180)}`,
+    },
+    body: JSON.stringify({ username: "HANKAIRUN", password: "yanshu123" }),
+  });
+  const caseInsensitivePayload = await caseInsensitiveLogin.json();
+  check(
+    "账密登录按大小写不敏感匹配用户名",
+    caseInsensitiveLogin.status === 200 && caseInsensitivePayload?.success === true,
+  );
+
+  // 6a. 账号维度防爆破：使用随机账号，避免污染真实用户。
+  const lockTestAccount = `auth-lock-${Date.now()}`;
+  const failedLoginStatuses = [];
+  const ipBase = 10 + (Date.now() % 180);
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const failedLogin = await fetch(`${BASE}/api/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // 每次使用不同的文档保留测试 IP，绕开 IP 桶以单独验证账号桶。
+        "x-forwarded-for": `198.51.100.${ipBase + attempt}`,
+      },
+      body: JSON.stringify({ username: lockTestAccount, password: "WrongPassword123" }),
+    });
+    failedLoginStatuses.push(failedLogin.status);
+  }
+  check(
+    "账密登录连续失败后触发账号维度限制",
+    failedLoginStatuses.slice(0, 5).every((status) => status === 401) &&
+      failedLoginStatuses[5] === 429,
+    `实际 ${failedLoginStatuses.join(",")}`,
+  );
+
+  // 6b. 重置邮件也必须按邮箱限流，即使请求来自不同 IP。
+  const resetLimitEmail = `reset-limit-${Date.now()}@example.com`;
+  const resetStatuses = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const resetRequest = await fetch(`${BASE}/api/auth/password/request-reset`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-forwarded-for": `203.0.113.${ipBase + attempt}`,
+      },
+      body: JSON.stringify({ email: resetLimitEmail }),
+    });
+    resetStatuses.push(resetRequest.status);
+  }
+  check(
+    "密码重置邮件连续请求触发邮箱维度限制",
+    resetStatuses.slice(0, 3).every((status) => status === 200) && resetStatuses[3] === 429,
+    `实际 ${resetStatuses.join(",")}`,
   );
 
   if (cookie) {

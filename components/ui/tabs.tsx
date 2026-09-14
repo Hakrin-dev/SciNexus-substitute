@@ -66,6 +66,7 @@ function TabsList({ className, ...props }: React.ComponentProps<"div">) {
 function TabsTrigger({
   value,
   className,
+  onClick,
   ...props
 }: React.ComponentProps<"button"> & { value: string }) {
   const { value: active, setValue } = useTabs();
@@ -82,7 +83,10 @@ function TabsTrigger({
         "data-[state=active]:text-primary data-[state=active]:font-medium",
         className,
       )}
-      onClick={() => setValue(value)}
+      onClick={(event) => {
+        setValue(value);
+        onClick?.(event);
+      }}
       {...props}
     />
   );

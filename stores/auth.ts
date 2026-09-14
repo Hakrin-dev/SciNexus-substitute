@@ -49,11 +49,9 @@ interface AuthState {
   logout: () => void;
   /** 拉取当前用户（页面初始化调用） */
   restore: () => Promise<void>;
-  /** 演示登录（仅在真实接口成功时建立可访问后端的登录态） */
-  demoLogin: () => Promise<boolean>;
 }
 
-export const useAuthStore = create<AuthState>()((set, get) => ({
+export const useAuthStore = create<AuthState>()((set) => ({
   loading: false,
   token: null,
   user: null,
@@ -172,9 +170,4 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  /** 演示登录:优先走真实接口拿 token，后端不可用时不建立登录态 */
-  demoLogin: async () => {
-    const result = await get().login("hankairun", "yanshu123");
-    return result.ok;
-  },
 }));

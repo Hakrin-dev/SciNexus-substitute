@@ -9,7 +9,7 @@ import fs from "node:fs";
 import { hashPassword } from "./password";
 
 // 生产容器通过 SCINEXUS_DB_PATH 挂载持久卷；AUTH_DB_PATH 作为通用兼容名。
-// 未配置时，非 Serverless 使用仓库 data 目录，Vercel 使用 /tmp（仅适合演示）。
+// 未配置时，非 Serverless 使用仓库 data 目录；Vercel 的 /tmp 仅允许非生产演示。
 const IS_SERVERLESS = !!process.env.VERCEL;
 
 // 数据库文件存放位置:<cwd>/data/yanshu.db
@@ -23,6 +23,12 @@ const DB_PATH = CONFIGURED_DB_PATH
   : IS_SERVERLESS
     ? "/tmp/yanshu.db"
     : BUNDLED_DB_PATH;
+
+if (IS_SERVERLESS && process.env.NODE_ENV === "production" && !CONFIGURED_DB_PATH) {
+  throw new Error(
+    "SCINEXUS_DB_PATH 或 AUTH_DB_PATH 未配置：生产 Serverless 环境不能使用临时 SQLite 数据库",
+  );
+}
 
 if (!IS_SERVERLESS || CONFIGURED_DB_PATH) {
   const dbDirectory = path.dirname(DB_PATH);

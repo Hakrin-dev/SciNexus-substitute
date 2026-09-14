@@ -2,6 +2,25 @@
 
 import * as React from "react";
 
+interface TurnstileWidget {
+  render: (
+    container: HTMLElement,
+    options: {
+      sitekey: string;
+      callback: (token: string) => void;
+      "error-callback": () => void;
+      "expired-callback": () => void;
+    },
+  ) => string;
+  remove: (widgetId: string) => void;
+}
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileWidget;
+  }
+}
+
 /**
  * Cloudflare Turnstile 前端组件
  *
@@ -31,7 +50,7 @@ function loadTurnstileScript(): Promise<void> {
       return;
     }
     // 已存在则直接返回
-    if ((window as any).turnstile) {
+    if (window.turnstile) {
       resolve();
       return;
     }
@@ -66,7 +85,7 @@ export function Turnstile({ onVerify, onError, className }: TurnstileProps) {
     loadTurnstileScript()
       .then(() => {
         if (cancelled || !containerRef.current) return;
-        const turnstile = (window as any).turnstile;
+        const turnstile = window.turnstile;
         if (!turnstile) return;
         widgetIdRef.current = turnstile.render(containerRef.current, {
           sitekey: siteKey,
@@ -79,9 +98,9 @@ export function Turnstile({ onVerify, onError, className }: TurnstileProps) {
 
     return () => {
       cancelled = true;
-      if (widgetIdRef.current && (window as any).turnstile) {
+      if (widgetIdRef.current && window.turnstile) {
         try {
-          (window as any).turnstile.remove(widgetIdRef.current);
+          window.turnstile.remove(widgetIdRef.current);
         } catch {
           // 忽略
         }

@@ -4,7 +4,7 @@
  * Body: { email: string, challengeId: string, otp: string }
  */
 import { NextRequest, NextResponse } from "next/server";
-import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
+import { ensureSeed, fail, parseBody } from "@/lib/server/utils";
 import { allowRequest } from "@/lib/server/rate-limit";
 import { getDB } from "@/lib/server/db";
 import {

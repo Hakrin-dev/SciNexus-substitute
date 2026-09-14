@@ -3,7 +3,7 @@
  * 验证登录邮箱验证码，通过后签发登录 token
  * Body: { email: string, challengeId: string, otp: string }
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
 import { allowRequest } from "@/lib/server/rate-limit";
 import { getDB } from "@/lib/server/db";

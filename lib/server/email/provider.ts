@@ -73,20 +73,25 @@ class ConsoleEmailProvider implements EmailProvider {
   }
 }
 
-/** 阿里云 DirectMail Provider（按需加载 SDK，未安装依赖时自动降级）。 */
+/** 阿里云 DirectMail Provider（按需加载 SDK）。 */
 class AlibabaDirectMailProvider implements EmailProvider {
   constructor(private readonly config: AlibabaDirectMailConfig) {}
 
   async send({ to, subject, htmlBody }: SendEmailParams): Promise<void> {
-    let DmClient: any;
+    let DmClient: new (config: {
+      accessKeyId: string;
+      accessKeySecret: string;
+      endpoint: string;
+    }) => { singleSendMail: (request: Record<string, unknown>) => Promise<void> };
     try {
       // 动态加载阿里云邮件推送 SDK；若未安装则降级到控制台输出
       // @ts-expect-error 阿里云邮件推送 SDK 为可选依赖，未安装时由 catch 降级
       const mod = await import("@alicloud/dm20151123");
       DmClient = mod.default || mod;
     } catch {
-      console.warn("[email] 未安装 @alicloud/dm20151123，降级为控制台输出");
-      return new ConsoleEmailProvider().send({ to, subject, htmlBody });
+      // 配置了真实 Provider 却缺少 SDK 时必须失败，不能把邮件内容泄露到日志，
+      // 也不能让调用方误以为邮件已经发送。
+      throw new Error("EMAIL_PROVIDER_UNAVAILABLE");
     }
 
     const { accessKeyId, accessKeySecret, endpoint, from, fromAlias } = this.config;
@@ -136,4 +141,12 @@ export { EMAIL_PROVIDER_NOT_CONFIGURED_CODE };
 /** 生产环境是否强制启用邮件服务（默认 false，允许开发降级）。 */
 export function isEmailRequired(): boolean {
   return parseBooleanEnv("EMAIL_REQUIRED");
+}
+
+/**
+ * 生产环境始终要求真实邮件投递；开发环境可通过 EMAIL_REQUIRED=true
+ * 提前模拟生产行为。该策略不能被生产环境的 .env.example 默认值关闭。
+ */
+export function isEmailDeliveryRequired(): boolean {
+  return process.env.NODE_ENV === "production" || isEmailRequired();
 }

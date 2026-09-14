@@ -14,7 +14,11 @@ import {
   normalizeEmail,
   otpExpiresAt,
 } from "@/lib/server/email-otp";
-import { getEmailProvider, isEmailDeliveryConfigured } from "@/lib/server/email/provider";
+import {
+  getEmailProvider,
+  isEmailDeliveryConfigured,
+  isEmailDeliveryRequired,
+} from "@/lib/server/email/provider";
 import { loginOtpEmail } from "@/lib/server/email/templates";
 import { EMAIL_PROVIDER_NOT_CONFIGURED_CODE } from "@/lib/server/email/provider";
 import {
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
       return fail("邮箱格式不正确", 422, "INVALID_EMAIL");
     }
 
-    if (!isEmailDeliveryConfigured() && process.env.NODE_ENV === "production") {
+    if (!isEmailDeliveryConfigured() && isEmailDeliveryRequired()) {
       return fail(
         "邮件服务尚未配置，暂时无法发送验证码",
         503,

@@ -5,7 +5,7 @@
  *
  * 邮箱从 ticket 中获取，确保注册邮箱与验证邮箱一致。
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { ensureSeed, fail, ok, parseBody } from "@/lib/server/utils";
 import { register } from "@/lib/server/auth";
 import { allowRequest } from "@/lib/server/rate-limit";

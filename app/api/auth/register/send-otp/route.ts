@@ -14,7 +14,11 @@ import {
   normalizeEmail,
   otpExpiresAt,
 } from "@/lib/server/email-otp";
-import { getEmailProvider, isEmailDeliveryConfigured } from "@/lib/server/email/provider";
+import {
+  getEmailProvider,
+  isEmailDeliveryConfigured,
+  isEmailDeliveryRequired,
+} from "@/lib/server/email/provider";
 import { registrationOtpEmail } from "@/lib/server/email/templates";
 import { EMAIL_PROVIDER_NOT_CONFIGURED_CODE } from "@/lib/server/email/provider";
 import {
@@ -61,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 邮件服务未配置时直接报错（开发环境会降级为控制台输出，但生产需明确提示）
-    if (!isEmailDeliveryConfigured() && process.env.NODE_ENV === "production") {
+    if (!isEmailDeliveryConfigured() && isEmailDeliveryRequired()) {
       return fail(
         "邮件服务尚未配置，暂时无法发送验证码",
         503,

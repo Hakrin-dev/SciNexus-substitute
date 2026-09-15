@@ -105,21 +105,22 @@ class AlibabaDirectMailProvider implements EmailProvider {
   constructor(private readonly config: AlibabaDirectMailConfig) {}
 
   async send({ to, subject, htmlBody }: SendEmailParams): Promise<void> {
-    const { accessKeyId, accessKeySecret, endpoint, from, fromAlias } = this.config;
+    const { accessKeyId, accessKeySecret, regionId, endpoint, from, fromAlias } = this.config;
     const client = new Dm20151123({
       accessKeyId,
       accessKeySecret,
+      regionId,
       endpoint,
     } as ConstructorParameters<typeof Dm20151123>[0]);
 
     const request = new $Dm20151123.SingleSendMailRequest({
-      AccountName: from,
-      AddressType: 1,
-      ReplyToAddress: false,
-      ToAddress: to,
-      Subject: subject,
-      HtmlBody: htmlBody,
-      ...(fromAlias ? { FromAlias: fromAlias } : {}),
+      accountName: from,
+      addressType: 1,
+      replyToAddress: false,
+      toAddress: to,
+      subject,
+      htmlBody,
+      ...(fromAlias ? { fromAlias } : {}),
     });
 
     try {

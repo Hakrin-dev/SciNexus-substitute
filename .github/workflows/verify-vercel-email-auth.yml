@@ -1,0 +1,95 @@
+name: verify-vercel-email-auth
+
+# 临时冒烟验证工作流(境外 Runner 访问 vercel.app):
+# 验证邮箱认证环境变量配置后的链路;结果写回 verify-results.md。
+# 验证完成后应删除本文件及 verify-results.md。
+on:
+  push:
+    paths:
+      - .github/workflows/verify-vercel-email-auth.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Smoke test email auth on Vercel
+        run: |
+          BASE="https://scinexus-five.vercel.app"
+          {
+            echo "# Vercel 邮箱认证冒烟验证结果"
+            echo ""
+            echo "- 时间(UTC): $(date -u)"
+            echo ""
+
+            echo "## 1. 注册发送 OTP(真实 DirectMail 投递,收件=发信域名自身)"
+            echo '```json'
+            curl -s -m 60 -X POST "$BASE/api/auth/register/send-otp" \
+              -H "Content-Type: application/json" \
+              -d '{"email":"noreply@dm.yanshubupt.xin"}' || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 2. verify-otp 错误验证码(应返回 4xx 错误而非 5xx/配置错误)"
+            echo '```'
+            curl -s -m 60 -o /dev/null -w "HTTP %{http_code}" -X POST "$BASE/api/auth/register/verify-otp" \
+              -H "Content-Type: application/json" \
+              -d '{"email":"noreply@dm.yanshubupt.xin","code":"000000"}' || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 3. 密码重置请求(真实发送重置邮件)"
+            echo '```json'
+            curl -s -m 60 -X POST "$BASE/api/auth/password/request-reset" \
+              -H "Content-Type: application/json" \
+              -d '{"account":"hankairun"}' || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 4. 演示账号密码登录(cookie 会话)"
+            echo '```'
+            curl -s -m 60 -c /tmp/cookies.txt -X POST "$BASE/api/auth/login" \
+              -H "Content-Type: application/json" \
+              -d '{"username":"hankairun","password":"yanshu123"}' | head -c 300
+            echo ""
+            echo "Set-Cookie 头: $(grep -c scinexus /tmp/cookies.txt 2>/dev/null || echo 0) 条 cookie 写入"
+            echo '```'
+            echo ""
+
+            echo "## 5. 带 cookie 访问 /api/auth/me"
+            echo '```json'
+            curl -s -m 60 -b /tmp/cookies.txt "$BASE/api/auth/me" | head -c 300
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 6. /api/knowledge/health (回归:知识底座不受影响)"
+            echo '```json'
+            curl -s -m 60 "$BASE/api/knowledge/health" | head -c 200
+            echo ""
+            echo '```'
+            echo ""
+
+            echo "## 7. 首页"
+            echo '```'
+            curl -s -m 60 -o /dev/null -w "HTTP %{http_code}, 总耗时 %{time_total}s" "$BASE/" || echo "CURL_FAILED"
+            echo ""
+            echo '```'
+          } > verify-results.md
+          cat verify-results.md
+
+      - name: Commit results back
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add verify-results.md
+          git commit -m "ci: vercel 邮箱认证冒烟验证结果(临时,验证后删除)" || echo "no changes"
+          git push

@@ -2,7 +2,7 @@ name: verify-vercel-email-auth
 
 # 临时冒烟验证工作流(境外 Runner 访问 vercel.app):
 # 验证邮箱认证环境变量配置后的链路;结果写回 verify-results.md。
-# 验证完成后应删除本文件及 verify-results.md。(trigger 3)
+# 验证完成后应删除本文件及 verify-results.md。(trigger 4)
 on:
   push:
     paths:
@@ -49,7 +49,7 @@ jobs:
             echo '```json'
             curl -s -m 60 -X POST "$BASE/api/auth/password/request-reset" \
               -H "Content-Type: application/json" \
-              -d '{"account":"hankairun"}' || echo "CURL_FAILED"
+              -d '{"email":"hankairun@example.com"}' || echo "CURL_FAILED"
             echo ""
             echo '```'
             echo ""
